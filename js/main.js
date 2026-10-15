@@ -6,6 +6,19 @@ const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+/* ── 연결 설정: config.js(window.ADI) → localStorage 순으로 읽는다 ── */
+function getCfg() {
+  const c = window.ADI || {};
+  if (c.url && c.key) return c;
+  try { const s = JSON.parse(localStorage.getItem('adi_cfg') || '{}'); if (s.url && s.key) return s; } catch (e) {}
+  return {};
+}
+function openCfg() {
+  const c = getCfg();
+  $('cfgUrl').value = c.url || ''; $('cfgKey').value = c.key || '';
+  $('cfgScrim').classList.add('on'); setTimeout(() => $('cfgUrl').focus(), 50);
+}
+
 /* ── 테마 ── */
 try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 const isDark = () => { const r = document.documentElement; return r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches; };
@@ -21,7 +34,16 @@ function drawer(on) {
 }
 $('burger').onclick = () => drawer(true);
 $('scrim').onclick = $('sclose').onclick = () => drawer(false);
-addEventListener('keydown', (e) => { if (e.key === 'Escape') drawer(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') { drawer(false); $('cfgScrim').classList.remove('on'); } });
+$('cfgBtn').onclick = openCfg;
+$('cfgCancel').onclick = $('cfgScrim').onclick = () => $('cfgScrim').classList.remove('on');
+$('cfgDialog').onclick = (e) => e.stopPropagation();
+$('cfgSave').onclick = async () => {
+  const url = $('cfgUrl').value.trim(), key = $('cfgKey').value.trim();
+  if (!url || !key) return;
+  try { localStorage.setItem('adi_cfg', JSON.stringify({ url, key })); } catch (e) {}
+  $('cfgScrim').classList.remove('on'); await load();
+};
 
 /* ── 화면 전환: 메뉴마다 다른 화면을 보여 준다 (주소의 #은 새로고침 시 같은 화면 유지용) ── */
 const views = [...document.querySelectorAll('.view')];
@@ -174,7 +196,7 @@ function catSum(rows, f) {
 
 /* ── 불러오기 (10분마다) ── */
 async function load() {
-  const c = window.ADI || {};
+  const c = getCfg();
   if (!c.url || !c.key) { STATUS = 'sample'; status(); return; }
   try {
     const res = await fetch(c.url + (c.url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(c.key));
@@ -189,9 +211,10 @@ async function load() {
 }
 function status() {
   const live = STATUS === 'live';
-  const txt = live ? `실제 데이터 · ${D.updated} 수집` : STATUS === 'error' ? '연동 오류 · 예시 데이터 표시 중' : '예시 데이터 · 연동 전';
   const u = document.querySelector('.upd');
-  u.textContent = txt; u.classList.toggle('live', live);
+  u.classList.toggle('live', live);
+  if (live) { u.textContent = `실제 데이터 · ${D.updated} 수집`; }
+  else { u.innerHTML = (STATUS === 'error' ? '연동 오류' : '예시 데이터') + ' <button class="link-btn" onclick="openCfg()">연결 설정</button>'; }
   document.querySelectorAll('[data-src]').forEach((x) => { x.textContent = live ? '실제 데이터' : '예시 데이터'; x.classList.toggle('live', live); });
   document.body.classList.toggle('live', live);
 }

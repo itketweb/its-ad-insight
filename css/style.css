@@ -412,3 +412,18 @@ th:first-child,td:first-child{padding-left:0.75rem}th:last-child,td:last-child{p
 .sum3>div:last-child{background:var(--accbg)}
 .sum3>div:last-child .k{color:var(--accink)}
 .sum3>div:last-child p,.sum3>div:last-child p b{color:var(--ink)}
+
+/* ── 연결 설정 모달 ── */
+.modal-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.modal-scrim.on{display:flex}
+.modal{background:var(--card);padding:1.5rem;max-width:28rem;width:100%}
+.modal h2{font-size:1.125rem;font-weight:700;margin:0 0 0.5rem}
+.modal>p{font-size:0.875rem;color:var(--sub);margin:0 0 1.25rem}
+.modal label{display:block;margin-bottom:0.75rem;font-size:0.875rem;font-weight:500;color:var(--ink2)}
+.modal label input{display:block;width:100%;margin-top:0.25rem;padding:0.5rem 0.75rem;border:0;border-bottom:2px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:0.875rem;outline:none}
+.modal label input:focus{border-bottom-color:var(--acc)}
+.modal .mrow{display:flex;gap:0.5rem;margin-top:1.25rem;justify-content:flex-end}
+.modal .mrow button{border:0;cursor:pointer;font:inherit;font-size:0.875rem;font-weight:600;padding:0.5rem 1rem;border-radius:0}
+.mok{background:var(--acc);color:#fff}.mok:hover{background:var(--accink)}
+.mcancel{background:var(--bg);color:var(--sub)}.mcancel:hover{color:var(--ink)}
+.link-btn{background:none;border:none;cursor:pointer;color:var(--accink);padding:0;font:inherit;font-size:0.75rem;font-weight:600;text-decoration:underline;vertical-align:baseline}
