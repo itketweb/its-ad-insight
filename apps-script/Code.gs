@@ -15,7 +15,7 @@ const CFG = {
   CHUNK: 50,                                 // /stats 한 번에 묻는 ID 수
   BUDGET_MS: 4.5 * 60 * 1000,                // 한 번 실행에 쓸 최대 시간(6분 제한 대비)
   SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_meta',
-    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_meta', 'mapping', 'manual'],
+    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_meta', 'quotes_monthly', 'q_meta', 'mapping', 'manual'],
 };
 const PROPS = PropertiesService.getScriptProperties();
 const STAT_FIELDS = '["impCnt","clkCnt","salesAmt","ccnt"]';
@@ -28,6 +28,10 @@ function setup() {
   if (!PROPS.getProperty('API_TOKEN')) PROPS.setProperty('API_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'collectNaver').forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('collectNaver').timeBased().everyHours(1).create();
+  if (PROPS.getProperty('QUOTE_SHEET_ID')) {
+    ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'collectQuotes').forEach((t) => ScriptApp.deleteTrigger(t));
+    ScriptApp.newTrigger('collectQuotes').timeBased().everyHours(1).create();
+  }
   console.log('웹앱 비밀키(대시보드 js/config.js 의 key): ' + PROPS.getProperty('API_TOKEN'));
 }
 
@@ -93,6 +97,58 @@ function syncMapping_(ss) {
     if (!have.has(k)) { have.add(k); add.push([media, r.campaign, r.ad_group, '', 100]); }
   }));
   if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, 5).setValues(add);
+}
+
+/* ── 견적 집계 ──
+ * 아이티켓 쇼핑몰이 견적 접수 때마다 구글 시트(견적요청 리스트)에 한 줄씩 쌓는다. 그 시트를 읽어 월·카테고리·유입경로별 건수만 만든다.
+ * 스크립트 속성: QUOTE_SHEET_ID(견적 시트 ID, 필수), QUOTE_SHEET_TAB(탭 이름, 기본 '견적문의').
+ * 이름·이메일·연락처는 읽지도 옮기지도 않는다 (제목·접수날짜·유입 경로 열만 사용). */
+function collectQuotes() {
+  const id = PROPS.getProperty('QUOTE_SHEET_ID');
+  if (!id) throw new Error('스크립트 속성에 QUOTE_SHEET_ID 가 없습니다');
+  const src = SpreadsheetApp.openById(id);
+  const sh = src.getSheetByName(PROPS.getProperty('QUOTE_SHEET_TAB') || '견적문의') || src.getSheets()[0];
+  const v = sh.getDataRange().getValues();
+  const h = v.shift().map((x) => String(x).replace(/\s+/g, ''));
+  const iSub = h.indexOf('제목'), iDate = h.indexOf('접수날짜'), iSrc = h.indexOf('유입경로');
+  if (iSub < 0 || iDate < 0) throw new Error('견적 시트에 제목·접수날짜 열이 없습니다');
+  const agg = {};
+  v.forEach((r) => {
+    const m = quoteMonth_(r[iDate]);
+    if (!m) return;
+    const k = [m, quoteCategory_(r[iSub]), iSrc < 0 ? '미수집' : quoteSource_(r[iSrc])].join('\u0001');
+    agg[k] = (agg[k] || 0) + 1;
+  });
+  const rows = [['month', 'category', 'source', 'count']];
+  Object.keys(agg).sort().forEach((k) => rows.push(k.split('\u0001').concat(agg[k])));
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  put_(ss, 'quotes_monthly', rows);
+  put_(ss, 'q_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['rows', v.length]]);
+}
+/** 접수날짜(날짜 또는 "2026-10-12 9:30:00" 글자) → "2026-10" */
+function quoteMonth_(d) {
+  if (d instanceof Date) return Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM');
+  const m = String(d || '').match(/^(\d{4})[-./](\d{1,2})/);
+  return m ? m[1] + '-' + ('0' + m[2]).slice(-2) : '';
+}
+/** 견적 제목 → 표준 카테고리. 위에서부터 먼저 맞는 규칙을 쓰고, 어디에도 없으면 '기타'. 규칙은 필요하면 여기서 고친다. */
+function quoteCategory_(subject) {
+  const t = String(subject || '').toLowerCase();
+  const has = (re) => re.test(t);
+  if (has(/스토리지|storage|\bnas\b|\bsan\b|백업|netapp|synology|qnap/)) return '스토리지';
+  if (has(/서버|server|poweredge|proliant|\bdl\d|\bml\d|랙|rack/) && !has(/zbook/)) return '서버';
+  if (has(/워크스테이션|workstation|z by hp|zbyhp|zbook|\bz[2-9]\b|딥러닝|머신러닝|gpu/)) return '워크스테이션';
+  if (has(/노트북|laptop|데스크탑|데스크톱|desktop|\bpc\b|모니터|올인원/)) return 'PC·노트북';
+  return '기타';
+}
+/** 유입 경로 열 → 매체. 비어 있으면(2026-10-12 이전) '미수집'. */
+function quoteSource_(raw) {
+  const t = String(raw == null ? '' : raw).trim().toLowerCase();
+  if (!t) return '미수집';
+  if (/naver|네이버/.test(t)) return 'Naver';
+  if (/google|구글|gclid/.test(t)) return 'Google';
+  if (/meta|facebook|instagram|페이스북|인스타/.test(t)) return 'Meta';
+  return '직접·기타';
 }
 
 /* ── 대시보드용 웹앱 ── */

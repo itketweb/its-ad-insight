@@ -150,6 +150,7 @@ function fromApi(j) {
     updated: [upd(j.g_meta), upd(j.n_meta)].filter(Boolean).sort().pop() || j.served || '',
     sources: { google: upd(j.g_meta), naver: upd(j.n_meta) },
     spend, manual, mapping: j.mapping || [],
+    quotes: (j.quotes_monthly || []).map((r) => ({ month: String(r.month).slice(0, 7), category: String(r.category), source: String(r.source), count: n(r.count) })),
     keywords: (j.g_keywords || []).map((r) => kw('Google', r)).concat((j.n_keywords || []).map((r) => kw('Naver', r))),
     ads: (j.g_ads || []).map((r) => ad('Google', r)).concat((j.n_ads || []).map((r) => ad('Naver', r))),
   };
@@ -286,8 +287,11 @@ function renderAds() {
   const top = keys.slice(0, 7), rest = keys.slice(7);
   const list = top.map((k) => ({ k, cur: (a[k] || 0) / 1e4, prev: (b[k] || 0) / 1e4 }));
   if (rest.length) list.push({ k: `기타 ${rest.length}개`, cur: sumBy(rest, (k) => a[k] || 0) / 1e4, prev: sumBy(rest, (k) => b[k] || 0) / 1e4 });
-  if (STATUS !== 'live') list.forEach((c, i) => { c.q = [96, 88, 41, 52, 23][i] ?? 10; }); // 견적 수는 견적 연동 전이라 예시만
-  $('ttCat').innerHTML = `카테고리별 소진 (${mLabel(curM)} vs ${mLabel(pv)})${STATUS === 'live' ? ' <span class="muted">견적 수는 견적 연동 후 표시</span>' : ' · 견적 수'}`;
+  const hasQuotes = STATUS === 'live' && D.quotes && D.quotes.length > 0;
+  const qOf = (mo, c) => D.quotes.filter((r) => r.month === mo && r.category === c).reduce((a, r) => a + r.count, 0);
+  if (STATUS !== 'live') list.forEach((c, i) => { c.q = [96, 88, 41, 52, 23][i] ?? 10; }); // 연동 전에는 예시만
+  else if (hasQuotes) list.forEach((c) => { c.q = qOf(curM, c.k); });
+  $('ttCat').innerHTML = `카테고리별 소진 (${mLabel(curM)} vs ${mLabel(pv)})${STATUS === 'live' && !hasQuotes ? ' <span class="muted">견적 수는 견적 연동 후 표시</span>' : ' · 견적 수'}`;
 
   const chart = ST.mode === 'chart';
   $('lgSpend').hidden = $('lgCat').hidden = !chart;
@@ -348,7 +352,7 @@ function renderKw() {
     : empty('이 조건의 소재가 없습니다');
 }
 
-/* ── 03 견적 Data (견적 연동 전이라 예시) ── */
+/* ── 03 견적 Data (견적 시트 집계가 있으면 실제 값, 없으면 예시) ── */
 const Q_MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월'];
 const QUOTES = [
   { k: 'ITKET', c: '--c-it', v: [140, 128, 152, 160, 155, 170, 162, 150, 165, 172] },
@@ -358,9 +362,28 @@ const QUOTES = [
 ];
 const SRC = [{ k: 'Naver', c: '--c-n', v: 46 }, { k: 'Google', c: '--c-g', v: 31 }, { k: '직접·기타', c: '--sub', v: 21 }, { k: 'Meta', c: '--c-m', v: 2 }];
 function renderQuotes() {
-  legend('lgQuote', QUOTES); stacked('chQuote', Q_MONTHS, QUOTES, '건');
-  const bar = SRC.map((x) => `<span style="flex:${x.v};background:var(${x.c})" data-tip="${x.k}|${x.v}%"></span>`).join('');
-  const rows = SRC.map((x) => `<tr><td><span class="pill" style="--pc:var(${x.c})">${x.k}</span></td><td class="n">${x.v}%</td></tr>`).join('');
+  const live = STATUS === 'live' && D.quotes && D.quotes.length;
+  let labels = Q_MONTHS, series = QUOTES, src = SRC;
+  if (live) {
+    // 올해(가장 최근 견적이 있는 해) 1월부터 최근 달까지, 카테고리별로 쌓아서 보여 준다
+    const last = D.quotes.reduce((m, r) => (r.month > m ? r.month : m), '');
+    const yr = last.slice(0, 4), mm = +last.slice(5, 7);
+    labels = Array.from({ length: mm }, (_, i) => `${i + 1}월`);
+    const cats = ['서버', '워크스테이션', '스토리지', 'PC·노트북', '기타'];
+    const colors = ['--c-it', '--c-g', '--c-m', '--c-etc', '--c-n'];
+    const cnt = (mo, k) => D.quotes.filter((r) => r.month === mo && r.category === k).reduce((a, r) => a + r.count, 0);
+    series = cats.map((k, ci) => ({ k, c: colors[ci], v: labels.map((_, i) => cnt(`${yr}-${String(i + 1).padStart(2, '0')}`, k)) })).filter((s) => s.v.some((x) => x));
+    // 유입경로는 수집을 시작한 달부터만 있으므로 '미수집'은 비율에서 뺀다
+    const bySrc = {};
+    D.quotes.filter((r) => r.month.startsWith(yr) && r.source !== '미수집').forEach((r) => { bySrc[r.source] = (bySrc[r.source] || 0) + r.count; });
+    const tot = Object.values(bySrc).reduce((a, b) => a + b, 0);
+    const sc = { Naver: '--c-n', Google: '--c-g', Meta: '--c-m', '직접·기타': '--sub' };
+    src = tot ? Object.keys(bySrc).sort((a, b) => bySrc[b] - bySrc[a]).map((k) => ({ k, c: sc[k] || '--sub', v: Math.round((bySrc[k] / tot) * 100) })) : [];
+  }
+  legend('lgQuote', series); stacked('chQuote', labels, series, '건');
+  if (!src.length) { $('chSrc').innerHTML = empty('유입경로 수집이 시작된 뒤부터 표시됩니다'); return; }
+  const bar = src.map((x) => `<span style="flex:${x.v};background:var(${x.c})" data-tip="${x.k}|${x.v}%"></span>`).join('');
+  const rows = src.map((x) => `<tr><td><span class="pill" style="--pc:var(${x.c})">${x.k}</span></td><td class="n">${x.v}%</td></tr>`).join('');
   $('chSrc').innerHTML = `<div style="display:flex;height:1.25rem;overflow:hidden;gap:1px;margin-bottom:0.75rem">${bar}</div><table>${rows}</table>`;
 }
 
