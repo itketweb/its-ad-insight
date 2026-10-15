@@ -10,7 +10,7 @@
  *  - g_meta             : 마지막 수집 시각
  */
 const CFG = {
-  SHEET_URL: 'https://docs.google.com/spreadsheets/d/여기에_시트_ID/edit',   // its-ad-insight 데이터 시트 주소
+  SHEET_URL: 'https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit',   // its-ad-insight 데이터 시트 주소
   FROM_YEAR: new Date().getFullYear() - 1, // 전년 1월부터 (전년 비교용)
 };
 
@@ -52,15 +52,29 @@ function main() {
     const f = r.asset.imageAsset && r.asset.imageAsset.fullSize;
     if (f && f.url) img[r.asset.resourceName] = f.url;
   });
+
+  // 검색광고(SA) 이미지 확장소재 매핑: 광고그룹·캠페인 단위 AD_IMAGE 에셋
+  const grpImg = {}, campImg = {};
+  try {
+    each_(`SELECT ad_group.id, asset.resource_name FROM ad_group_asset WHERE asset_field_type = 'AD_IMAGE' AND status = 'ENABLED'`, (r) => {
+      if (img[r.asset.resourceName]) grpImg[String(r.adGroup.id)] = img[r.asset.resourceName];
+    });
+  } catch (_) {}
+  try {
+    each_(`SELECT campaign.id, asset.resource_name FROM campaign_asset WHERE asset_field_type = 'AD_IMAGE' AND status = 'ENABLED'`, (r) => {
+      if (img[r.asset.resourceName]) campImg[String(r.campaign.id)] = img[r.asset.resourceName];
+    });
+  } catch (_) {}
+
   const ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image']];
-  each_(`SELECT campaign.name, campaign.advertising_channel_type, ad_group.name, ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.ad.name,
+  each_(`SELECT campaign.id, campaign.name, campaign.advertising_channel_type, ad_group.id, ad_group.name, ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.ad.name,
                 ad_group_ad.ad.final_urls, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_display_ad.headlines,
                 ad_group_ad.ad.responsive_display_ad.marketing_images, ad_group_ad.ad.image_ad.image_url
          FROM ad_group_ad WHERE ad_group_ad.status = 'ENABLED' AND campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED'`, (r) => {
     const a = r.adGroupAd.ad;
     const heads = (a.responsiveSearchAd && a.responsiveSearchAd.headlines) || (a.responsiveDisplayAd && a.responsiveDisplayAd.headlines) || [];
     const mi = (a.responsiveDisplayAd && a.responsiveDisplayAd.marketingImages) || [];
-    const image = (a.imageAd && a.imageAd.imageUrl) || (mi.length && img[mi[0].asset]) || '';
+    const image = (a.imageAd && a.imageAd.imageUrl) || (mi.length && img[mi[0].asset]) || grpImg[String(r.adGroup.id)] || campImg[String(r.campaign.id)] || '';
     ads.push([type_(r.campaign.advertisingChannelType), r.campaign.name, r.adGroup.name, String(a.id), a.type,
       (heads[0] && heads[0].text) || a.name || '', (a.finalUrls || [])[0] || '', image]);
   });
