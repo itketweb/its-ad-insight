@@ -1,0 +1,145 @@
+/* ── 토큰: 포인트 인디고 + 매체 색 ── */
+:root {
+  --bg: #f4f6f9;
+  --side: #fff;
+  --card: #fff;
+  --ink: #1b2230;
+  --ink2: #394255;
+  --sub: #586174;
+  --line: #e4e8ee;
+  --line2: #cfd5de;
+  --acc: #2d5fd1;
+  --accbg: #e6edfb;
+  --accink: #2449a8;
+  --ok: #13803a;
+  --up: #c62a37;
+  --down: #1d68cd;
+  --warn: #7a4a00;
+  --warnbg: #fbeccb;
+  --bar: #2d5fd1;
+  --bar2: #b7c6ee;
+  --sh: none;
+  --c-g: #0e8fae;
+  --c-g2: #9bd3e2;
+  --c-n: #2e9162;
+  --c-n2: #9fd1b8;
+  --c-m: #7b5cb8;
+  --c-etc: #c98a1a;
+  --c-it: #c9573f;
+  --th: 4rem;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #12151b;
+  --side: #171b22;
+  --card: #1b2029;
+  --ink: #eef1f6;
+  --ink2: #cdd3de;
+  --sub: #9aa3b2;
+  --line: #283040;
+  --line2: #374156;
+  --acc: #4a74dc;
+  --accbg: #1f2a44;
+  --accink: #a8c0f5;
+  --ok: #3ecf5f;
+  --up: #ff6369;
+  --down: #5b8bf7;
+  --warn: #f0c060;
+  --warnbg: #3a2f14;
+  --bar: #7ea1ee;
+  --bar2: #2b3a5e;
+  --sh: none;
+  --c-g: #3cbcdc;
+  --c-g2: #1f4f5e;
+  --c-n: #3cc477;
+  --c-n2: #1f5c3a;
+  --c-m: #a98af0;
+  --c-etc: #e0a53c;
+  --c-it: #ee7a5f;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #12151b;
+    --side: #171b22;
+    --card: #1b2029;
+    --ink: #eef1f6;
+    --ink2: #cdd3de;
+    --sub: #9aa3b2;
+    --line: #283040;
+    --line2: #374156;
+    --acc: #4a74dc;
+    --accbg: #1f2a44;
+    --accink: #a8c0f5;
+    --ok: #3ecf5f;
+    --up: #ff6369;
+    --down: #5b8bf7;
+    --warn: #f0c060;
+    --warnbg: #3a2f14;
+    --bar: #7ea1ee;
+    --bar2: #2b3a5e;
+    --sh: none;
+    --c-g: #3cbcdc;
+    --c-g2: #1f4f5e;
+    --c-n: #3cc477;
+    --c-n2: #1f5c3a;
+    --c-m: #a98af0;
+    --c-etc: #e0a53c;
+    --c-it: #ee7a5f;
+    color-scheme: dark;
+  }
+}
+
+html {
+  font-size: 16px;
+  min-width: 360px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 0.875rem/1.5 'Pretendard Variable', 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--sub);
+}
+
+ul,
+ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+li + li {
+  margin-top: 0.25rem;
+}
+
+code {
+  font: 0.75rem/1.5 ui-monospace, Consolas, monospace;
+  background: var(--card);
+  border: 1px solid transparent;
+  border-radius: 0;
+  padding: 0 0.25rem;
+  word-break: break-all;
+}

@@ -1,0 +1,323 @@
+/* ── 차트 스타일 · 스마트 툴팁 · 도넛 · CPA 랭킹 ── */
+svg {
+  width: 100%;
+  height: auto;
+  display: block;
+
+  text {
+    fill: var(--sub);
+    font-size: 0.75rem;
+  }
+
+  .g {
+    stroke: var(--line);
+  }
+
+  rect.hit:hover {
+    opacity: 0.8;
+  }
+}
+
+.ch {
+  position: relative;
+}
+
+.leg {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: var(--sub);
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+
+  i {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 0;
+    margin-right: 0.25rem;
+    vertical-align: -0.0625rem;
+  }
+}
+
+.leg-item {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.15s, color 0.15s;
+  user-select: none;
+
+  &:hover {
+    opacity: 1;
+    color: var(--ink);
+  }
+}
+
+.chart-cursor {
+  stroke: var(--ink2);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 0.15s, stroke-width 0.15s;
+}
+
+.chart-area {
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.chart-dot {
+  transition: r 0.15s, stroke-width 0.15s;
+  cursor: pointer;
+
+  &.on {
+    r: 5.5;
+    stroke-width: 3;
+  }
+}
+
+.chart-bar {
+  transition: opacity 0.15s;
+}
+
+.chart-slice {
+  fill: transparent;
+  cursor: pointer;
+
+  &:hover {
+    fill: color-mix(in srgb, var(--acc) 6%, transparent);
+  }
+}
+
+.chart-val {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-anchor: middle;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke fill;
+  stroke: var(--card);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 0.15s;
+}
+
+/* ── 스마트 툴팁 ── */
+.tip-box {
+  min-width: 11rem;
+}
+
+.tip-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding-bottom: 0.375rem;
+  margin-bottom: 0.375rem;
+  border-bottom: 1px solid var(--line);
+
+  b {
+    font-size: 0.875rem;
+    color: var(--accink);
+    font-weight: 700;
+  }
+}
+
+.tip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--ink2);
+
+    i {
+      width: 0.5rem;
+      height: 0.5rem;
+      display: inline-block;
+      flex: none;
+    }
+  }
+
+  b {
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  small {
+    color: var(--sub);
+    font-weight: 400;
+    margin-left: 0.25rem;
+  }
+}
+
+/* ── 원형(도넛) 차트 호버 ── */
+.pie-seg {
+  transition: stroke-width 0.18s ease;
+  cursor: pointer;
+}
+
+.pie-label,
+.pie-value {
+  transition: font-size 0.18s ease;
+}
+
+.pie-leg-name,
+.pie-leg-pct {
+  transition: font-size 0.18s ease, font-weight 0.18s ease;
+}
+
+/* ── 유입 매체 도넛 차트 ── */
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+}
+
+.donut-chart {
+  width: 7.5rem;
+  height: 7.5rem;
+  flex: none;
+  position: relative;
+
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.donut-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.donut-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.75rem;
+
+  .pill {
+    min-width: 4.75rem;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .pct {
+    width: 2.5rem;
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+}
+
+.donut-track {
+  flex: 1;
+  height: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.donut-fill {
+  height: 100%;
+  transition: width 0.3s ease-out;
+}
+
+@media (max-width: 600px) {
+  .donut-wrap {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  .donut-bars {
+    width: 100%;
+  }
+}
+
+/* ── CPA 랭킹 ── */
+.cpa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.cpa-row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.cpa-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cpa-track {
+  background: var(--bg);
+  height: 1.25rem;
+  position: relative;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+}
+
+.cpa-bar {
+  height: 100%;
+  background: var(--acc);
+  opacity: 0.75;
+  transition: width 0.3s;
+}
+
+.cpa-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.cpa-val {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.cpa-badge {
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.375rem;
+  background: var(--accbg);
+  color: var(--accink);
+  font-weight: 600;
+}

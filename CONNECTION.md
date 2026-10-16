@@ -22,7 +22,7 @@
 
 ```mermaid
 flowchart TD
-    A["대시보드 접속 (http://localhost:8080)"] --> B{"로컬스토리지 캐시 검사"}
+    A["대시보드 접속 (http://localhost:2000)"] --> B{"로컬스토리지 캐시 검사"}
     B -- "캐시 존재" --> C["0초 만에 직전 취합 실데이터 즉시 렌더링"]
     B -- "최초 방문 / 캐시 없음" --> D["로컬 백업 data/latest.json 즉시 로드 (5ms)"]
     C --> E["백그라운드 Google Apps Script 실데이터 동기화 시작"]
