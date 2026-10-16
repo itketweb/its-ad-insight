@@ -72,6 +72,20 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
   const [media, setMedia] = useState<'all' | 'Google' | 'Naver'>('all');
   const [type, setType] = useState<'SA' | 'DA'>('SA');
   const [kwTabIdx, setKwTabIdx] = useState<number>(0);
+  // 광고그룹 아코디언 상태 (기본값은 모두 접힌 상태, 클릭 시 펼침)
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (groupKey: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
 
   const pass = (r: { media: string; type: string }) =>
     (media === 'all' || r.media === media) && r.type === type;
@@ -94,6 +108,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
     string,
     { media: string; campaign: string; adgroup: string; cost: number; list: KeywordRow[] }
   > = {};
+  const sumClk = (list: KeywordRow[]) => list.reduce((a, k) => a + k.clk, 0);
   ks.forEach((k) => {
     const g = [k.media, k.campaign, k.adgroup].join('\u0001');
     if (!groups[g]) {
@@ -108,13 +123,39 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
     groups[g].list.push(k);
     groups[g].cost += k.cost;
   });
-  const gs = Object.values(groups)
+  const allGroups = Object.values(groups).sort(
+    (a, b) => b.cost - a.cost || sumClk(b.list) - sumClk(a.list)
+  );
+  // 전체 탭: 광고비 상위 광고그룹 10개
+  const gs = allGroups.slice(0, 10);
+
+  // 캠페인 탭: 매체+캠페인 단위로 묶고 광고비 상위 10개 캠페인
+  const campMap: Record<
+    string,
+    { media: string; campaign: string; cost: number; groups: typeof allGroups }
+  > = {};
+  allGroups.forEach((g) => {
+    const key = [g.media, g.campaign].join('\u0001');
+    if (!campMap[key]) campMap[key] = { media: g.media, campaign: g.campaign, cost: 0, groups: [] };
+    campMap[key].groups.push(g);
+    campMap[key].cost += g.cost;
+  });
+  const camps = Object.values(campMap)
     .sort((a, b) => b.cost - a.cost)
     .slice(0, 10);
+  // 같은 캠페인 이름이 Google·Naver 양쪽에 있으면 탭에 매체를 붙인다
+  const dupNames = new Set(
+    camps.map((c) => c.campaign.trim()).filter((n, i, arr) => arr.indexOf(n) !== i)
+  );
+  const campLabel = (c: (typeof camps)[number]) => {
+    const name = c.campaign.trim();
+    const full = dupNames.has(name) ? `${c.media[0]} · ${name}` : name;
+    return full.length > 13 ? full.slice(0, 12) + '…' : full;
+  };
 
-  const safeKwIdx = kwTabIdx >= 0 && kwTabIdx <= gs.length ? kwTabIdx : 0;
-  const displayGroups = safeKwIdx === 0 ? gs : [gs[safeKwIdx - 1]];
-  const selectedGroup = safeKwIdx > 0 ? gs[safeKwIdx - 1] : null;
+  const safeKwIdx = kwTabIdx >= 0 && kwTabIdx <= camps.length ? kwTabIdx : 0;
+  const selectedCamp = safeKwIdx > 0 ? camps[safeKwIdx - 1] : null;
+  const displayGroups = selectedCamp ? selectedCamp.groups : gs;
 
   // 소재 라운드로빈 12개 추출
   const filteredAds = data.ads.filter(pass);
@@ -205,10 +246,10 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
       </div>
 
       {/* 1. 카테고리별 전환 · 소진 */}
-      <div className="card">
+      <div className="card" id="kw-cat">
         <h3 id="ttCatConv">카테고리별 전환 · 소진</h3>
         <div className="tw">
-          <table id="tbCatConv">
+          <table className="stk" id="tbCatConv">
             {ck.length ? (
               <>
                 <thead>
@@ -258,17 +299,34 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
               </tbody>
             )}
           </table>
+          <p className="tbl-src">
+            단위: 원&nbsp;
+            <span>
+              Google SA —{' '}
+              <a href="https://ads.google.com" target="_blank" rel="noopener">
+                Google Ads
+              </a>{' '}
+              API 자동 수집
+            </span>
+            <span>
+              Naver SA —{' '}
+              <a href="https://searchad.naver.com" target="_blank" rel="noopener">
+                네이버 검색광고
+              </a>{' '}
+              API 자동 수집
+            </span>
+          </p>
         </div>
       </div>
 
       {/* 2. 키워드 */}
-      <div className="card">
+      <div className="card" id="kw-list">
         <h3 id="ttKw">
           {type === 'DA' ? (
             '키워드'
-          ) : !gs.length ? (
+          ) : !camps.length ? (
             <span>
-              키워드 <span className="muted">최근 30일 · 광고비 상위 광고그룹</span>
+              키워드 <span className="muted">최근 30일 · 광고비 상위 캠페인</span>
             </span>
           ) : safeKwIdx === 0 ? (
             <span>
@@ -281,29 +339,31 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
             <span>
               키워드{' '}
               <span className="muted">
-                {selectedGroup && renderPill(selectedGroup.media)} {selectedGroup?.campaign} ›{' '}
-                {selectedGroup?.adgroup}
+                {selectedCamp && renderPill(selectedCamp.media)} {selectedCamp?.campaign}
+                <small style={{ marginLeft: '0.5rem', fontWeight: 400, color: 'var(--sub)' }}>
+                  ({selectedCamp?.groups.length}개 광고그룹)
+                </small>
               </span>
             </span>
           )}
         </h3>
 
-        {type === 'SA' && gs.length > 0 && (
+        {type === 'SA' && camps.length > 0 && (
           <div id="kwTabBar" className="kw-tabs">
-            {['전체', ...gs.map((g) => (g.adgroup.length > 13 ? g.adgroup.slice(0, 12) + '…' : g.adgroup))].map(
-              (lbl, i) => (
-                <button
-                  key={i}
-                  className={safeKwIdx === i ? 'on' : ''}
-                  title={
-                    i === 0 ? '전체 광고그룹' : `${gs[i - 1].campaign} › ${gs[i - 1].adgroup}`
-                  }
-                  onClick={() => setKwTabIdx(i)}
-                >
-                  {lbl}
-                </button>
-              )
-            )}
+            {['전체', ...camps.map(campLabel)].map((lbl, i) => (
+              <button
+                key={i}
+                className={safeKwIdx === i ? 'on' : ''}
+                title={
+                  i === 0
+                    ? '전체 (상위 10개 광고그룹)'
+                    : `${camps[i - 1].media} · ${camps[i - 1].campaign} (${camps[i - 1].groups.length}개 그룹)`
+                }
+                onClick={() => setKwTabIdx(i)}
+              >
+                {lbl}
+              </button>
+            ))}
           </div>
         )}
 
@@ -327,7 +387,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
               <>
                 <thead>
                   <tr>
-                    <th>캠페인 › 광고그룹 / 키워드</th>
+                    <th>캠페인 › 광고그룹 › 키워드</th>
                     <th className="n">현재 입찰가</th>
                     <th>품질</th>
                     <th className="n">노출</th>
@@ -361,7 +421,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
               <>
                 <thead>
                   <tr>
-                    <th>캠페인 › 광고그룹 / 키워드</th>
+                    <th>캠페인 › 광고그룹 › 키워드</th>
                     <th className="n">현재 입찰가</th>
                     <th>품질</th>
                     <th className="n">노출</th>
@@ -373,49 +433,110 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
                 </thead>
                 <tbody>
                   {displayGroups.map((g) => {
+                    const groupKey = `${g.media}-${g.campaign}-${g.adgroup}`;
+                    const isOpen = openGroups.has(groupKey);
                     const sortedKws = [...g.list]
                       .sort((a, b) => b.cost - a.cost || b.clk - a.clk)
                       .slice(0, 10);
+                    const grpImp = g.list.reduce((a, k) => a + k.imp, 0);
+                    const grpClk = g.list.reduce((a, k) => a + k.clk, 0);
+                    const grpConv = g.list.reduce((a, k) => a + k.conv, 0);
+
                     return (
-                      <React.Fragment key={`${g.media}-${g.campaign}-${g.adgroup}`}>
-                        <tr className="grp">
-                          <td colSpan={8}>
-                            {renderPill(g.media)} {g.campaign} › {g.adgroup}
+                      <React.Fragment key={groupKey}>
+                        <tr
+                          className="grp grp-accordion"
+                          onClick={() => toggleGroup(groupKey)}
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                          title={isOpen ? '클릭하여 키워드 목록 접기' : '클릭하여 키워드 목록 펼치기'}
+                        >
+                          <td style={{ fontWeight: 600 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.25"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  style={{
+                                    width: '0.875rem',
+                                    height: '0.875rem',
+                                    flexShrink: 0,
+                                    transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                                    transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                    color: isOpen ? 'var(--accink)' : 'var(--sub)',
+                                  }}
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {g.campaign} › {g.adgroup}
+                                </span>
+                                <small
+                                  style={{
+                                    marginLeft: '0.25rem',
+                                    fontWeight: 500,
+                                    fontSize: '0.75rem',
+                                    color: 'var(--sub)',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  ({g.list.length}개 키워드{!isOpen ? ' · 접힘' : ''})
+                                </small>
+                              </span>
+                              <span style={{ flexShrink: 0, marginLeft: '0.5rem' }}>
+                                {renderPill(g.media)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="n" style={{ color: 'var(--sub)', fontSize: '0.75rem' }}>
+                            –
+                          </td>
+                          <td style={{ color: 'var(--sub)', fontSize: '0.75rem' }}>–</td>
+                          <td className="n">{fmt(grpImp)}</td>
+                          <td className="n">{fmt(grpClk)}</td>
+                          <td className="n">{grpImp ? `${((grpClk / grpImp) * 100).toFixed(1)}%` : '–'}</td>
+                          <td className="n">{fmt(grpConv)}</td>
+                          <td className="n">
+                            <b>{fmt(g.cost)}원</b>
                           </td>
                         </tr>
-                        {sortedKws.map((k, ki) => {
-                          const max = k.media === 'Naver' ? 7 : 10;
-                          return (
-                            <tr key={`${k.keyword}-${ki}`}>
-                              <td className="ind">{k.keyword}</td>
-                              <td className="n">{fmt(k.bid)}원</td>
-                              <td>
-                                {k.quality ? (
-                                  <>
-                                    <span
-                                      className="qs-bar"
-                                      data-tip={`품질${k.media === 'Naver' ? '지수' : '점수'}|${k.quality} / ${max}`}
-                                    >
-                                      {Array.from({ length: max }, (_, idx) => (
-                                        <i key={idx} className={idx < k.quality ? 'on' : ''} />
-                                      ))}
-                                    </span>
-                                    {k.quality}
-                                  </>
-                                ) : (
-                                  <span className="muted">–</span>
-                                )}
-                              </td>
-                              <td className="n">{fmt(k.imp)}</td>
-                              <td className="n">{fmt(k.clk)}</td>
-                              <td className="n">
-                                {k.imp ? `${((k.clk / k.imp) * 100).toFixed(1)}%` : '–'}
-                              </td>
-                              <td className="n">{fmt(k.conv)}</td>
-                              <td className="n">{fmt(k.cost)}원</td>
-                            </tr>
-                          );
-                        })}
+
+                        {isOpen &&
+                          sortedKws.map((k, ki) => {
+                            const max = k.media === 'Naver' ? 7 : 10;
+                            return (
+                              <tr key={`${k.keyword}-${ki}`}>
+                                <td className="ind">{k.keyword}</td>
+                                <td className="n">{fmt(k.bid)}원</td>
+                                <td>
+                                  {k.quality ? (
+                                    <>
+                                      <span
+                                        className="qs-bar"
+                                        data-tip={`품질${k.media === 'Naver' ? '지수' : '점수'}|${k.quality} / ${max}`}
+                                      >
+                                        {Array.from({ length: max }, (_, idx) => (
+                                          <i key={idx} className={idx < k.quality ? 'on' : ''} />
+                                        ))}
+                                      </span>
+                                      {k.quality}
+                                    </>
+                                  ) : (
+                                    <span className="muted">–</span>
+                                  )}
+                                </td>
+                                <td className="n">{fmt(k.imp)}</td>
+                                <td className="n">{fmt(k.clk)}</td>
+                                <td className="n">{k.imp ? `${((k.clk / k.imp) * 100).toFixed(1)}%` : '–'}</td>
+                                <td className="n">{fmt(k.conv)}</td>
+                                <td className="n">{fmt(k.cost)}원</td>
+                              </tr>
+                            );
+                          })}
                       </React.Fragment>
                     );
                   })}
@@ -423,11 +544,28 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({ data, categoryMap, s
               </>
             )}
           </table>
+          <p className="tbl-src">
+            단위: 원·회&nbsp;
+            <span>
+              Google SA —{' '}
+              <a href="https://ads.google.com" target="_blank" rel="noopener">
+                Google Ads
+              </a>{' '}
+              API 자동 수집
+            </span>
+            <span>
+              Naver SA —{' '}
+              <a href="https://searchad.naver.com" target="_blank" rel="noopener">
+                네이버 검색광고
+              </a>{' '}
+              API 자동 수집
+            </span>
+          </p>
         </div>
       </div>
 
       {/* 3. 주요 · 확장 소재 */}
-      <div className="card">
+      <div className="card" id="ad-creatives">
         <h3 className="sub-h">주요 · 확장 소재</h3>
         <div className="creatives" id="creatives">
           {ads.length ? (

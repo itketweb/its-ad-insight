@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { DashboardData, DonutItem, SyncStatus } from '../types/dashboard';
 import {
   fmt,
@@ -18,9 +18,13 @@ interface QuotesViewProps {
   status: SyncStatus;
 }
 
+
 export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
   const live = status === 'live';
   const quotes = data.quotes || [];
+  const quotesRaw = data.quotesRaw || [];
+  const [summaryTab, setSummaryTab] = useState<'cat' | 'src'>('src');
+  const [srcPlatform, setSrcPlatform] = useState<'네이버' | '구글' | '기타·직접'>('네이버');
 
   if (!quotes.length) {
     return (
@@ -57,6 +61,8 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
   const pv = prevM(curM);
   const labels = Array.from({ length: mm }, (_, i) => `${i + 1}월`);
   const months = Array.from({ length: mm }, (_, i) => ym(yr, i + 1));
+  const allMonths = Array.from({ length: 12 }, (_, i) => ym(yr, i + 1));
+  const isFuture = (mo: string) => mo > curM;
 
   const cnt = (mo: string, k: string) =>
     quotes.filter((r) => r.month === mo && r.category === k).reduce((a, r) => a + r.count, 0);
@@ -70,10 +76,10 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
   );
 
   const bySrcAll: Record<string, number> = {};
-  quotes
-    .filter((r) => r.month.startsWith(yr) && r.source !== '미수집')
+  quotesRaw
+    .filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집')
     .forEach((r) => {
-      bySrcAll[r.source] = (bySrcAll[r.source] || 0) + r.count;
+      bySrcAll[r.source] = (bySrcAll[r.source] || 0) + 1;
     });
   const topSrcKey = Object.keys(bySrcAll).sort((a, b) => bySrcAll[b] - bySrcAll[a])[0] || '–';
 
@@ -92,18 +98,19 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
   })).filter((s) => s.v.some((x) => x));
 
   const totSrc = Object.values(bySrcAll).reduce((a, b) => a + b, 0);
-  const sc: Record<string, string> = {
-    Naver: '--c-n',
-    Google: '--c-g',
-    Meta: '--c-m',
-    '직접·기타': '--sub',
+  const srcColor = (s: string) => {
+    if (s.startsWith('네이버') || s.startsWith('Naver')) return '--c-n';
+    if (s.startsWith('구글') || s.startsWith('Google')) return '--c-g';
+    if (s.startsWith('Meta')) return '--c-m';
+    if (s.startsWith('카카오')) return '--c-ka';
+    return '--sub';
   };
   const srcItems: DonutItem[] = totSrc
     ? Object.keys(bySrcAll)
         .sort((a, b) => bySrcAll[b] - bySrcAll[a])
         .map((k) => ({
           k,
-          c: sc[k] || '--sub',
+          c: srcColor(k),
           v: Math.round((bySrcAll[k] / totSrc) * 100),
         }))
     : [];
@@ -131,6 +138,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
           rel="noopener"
         >
           취합 스프레드시트
+        </a>
+        <a
+          href="https://docs.google.com/spreadsheets/d/18tMYBQLuIhkmX_x_c8MK-aNXlGvOgz1TWauvqo8Dmjg/edit?gid=0#gid=0"
+          target="_blank"
+          rel="noopener"
+        >
+          견적 접수 원본 시트
         </a>
         <span>collectQuotes · 15분 자동 동기화</span>
       </p>
@@ -174,7 +188,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
           series={series}
           unit="건"
         />
-        <div className="card">
+        <div className="card" id="quotes-src">
           <h3>유입 매체 비중</h3>
           <SourceDonut
             id="chSrc"
@@ -184,61 +198,157 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
         </div>
       </div>
 
-      <div className="card tw">
-        <h3>월별 카테고리별 견적 접수 내역</h3>
-        <div id="tbQuotesSummary">
-          <table className="stk">
-            <thead>
-              <tr>
-                <th>월</th>
+      <div className="card tw" id="quotes-table">
+        <h3>
+          월별 견적 접수 현황
+          <span className="seg seg-mini">
+            <button className={summaryTab === 'src' ? 'on' : ''} onClick={() => setSummaryTab('src')}>
+              유입 매체별
+            </button>
+            <button className={summaryTab === 'cat' ? 'on' : ''} onClick={() => setSummaryTab('cat')}>
+              카테고리별
+            </button>
+          </span>
+        </h3>
+
+        {summaryTab === 'cat' && (
+          <div id="tbQuotesSummary">
+            <table className="stk" id="tbQuotesCat">
+              <thead>
+                <tr>
+                  <th>카테고리</th>
+                  {allMonths.map((mo) => <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{mLabel(mo)}</th>)}
+                  <th className="n">합계</th>
+                </tr>
+              </thead>
+              <tbody>
                 {QUOTE_CATS.map((c) => (
-                  <th key={c} className="n">
-                    {c}
-                  </th>
-                ))}
-                <th className="n">합계</th>
-                <th className="n">전년 동월</th>
-                <th className="n">전년비</th>
-              </tr>
-            </thead>
-            <tbody>
-              {months.map((mo) => {
-                const t = totM(mo);
-                const l = lastYQuote(mo);
-                return (
-                  <tr key={mo}>
-                    <td>{mLabel(mo)}</td>
-                    {QUOTE_CATS.map((c) => (
-                      <td key={c} className="n">
-                        {fmt(cnt(mo, c))}
-                      </td>
+                  <tr key={c}>
+                    <td>{c}</td>
+                    {allMonths.map((mo) => (
+                      <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{fmt(cnt(mo, c))}</td>
                     ))}
-                    <td className="n">
-                      <b>{fmt(t)}</b>
-                    </td>
-                    <td className="n">{fmt(l)}</td>
-                    <td className="n">
-                      <DeltaSpan a={t} b={l} />
-                    </td>
+                    <td className="n"><b>{fmt(sumBy(months, (mo) => cnt(mo, c)))}</b></td>
                   </tr>
-                );
-              })}
-              <tr className="grp">
-                <td>합계</td>
-                {QUOTE_CATS.map((c) => (
-                  <td key={c} className="n">
-                    {fmt(sumBy(months, (mo) => cnt(mo, c)))}
-                  </td>
                 ))}
-                <td className="n">
-                  <b>{fmt(sumBy(months, totM))}</b>
-                </td>
-                <td className="n">{fmt(sumBy(months, lastYQuote))}</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                <tr className="grp">
+                  <td>합계</td>
+                  {allMonths.map((mo) => (
+                    <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{fmt(totM(mo))}</td>
+                  ))}
+                  <td className="n"><b>{fmt(sumBy(months, totM))}</b></td>
+                </tr>
+                <tr>
+                  <td className="sub-t">전년 동월</td>
+                  {allMonths.map((mo) => (
+                    <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(lastYQuote(mo))}</td>
+                  ))}
+                  <td className="n sub-t">{fmt(sumBy(months, lastYQuote))}</td>
+                </tr>
+                <tr>
+                  <td className="sub-t">전년비</td>
+                  {allMonths.map((mo) => (
+                    <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}><DeltaSpan a={totM(mo)} b={lastYQuote(mo)} /></td>
+                  ))}
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {summaryTab === 'src' && (() => {
+          const SRC_GROUPS: Record<string, string[]> = {
+            '네이버': ['네이버(광고)', '네이버(검색)', '네이버(블로그)', '네이버(카페)', '네이버(쇼핑)'],
+            '구글': ['구글(광고)', '구글(검색)', '구글(유튜브)', '구글(디스플레이)'],
+            '기타·직접': ['Meta', '카카오', '유튜브', '블로그·커뮤니티', '직접', '직접·기타', '미수집'],
+          };
+          // 데이터에서 실제 등장한 타입 중 미리 정의되지 않은 것도 포함
+          const knownSet = new Set(Object.values(SRC_GROUPS).flat());
+          const dynamicExtra = [...new Set(
+            quotesRaw.filter((r) => r.date?.startsWith(yr) && r.source).map((r) => r.source!)
+          )].filter((s) => !knownSet.has(s));
+          if (dynamicExtra.length) SRC_GROUPS['기타·직접'].push(...dynamicExtra);
+
+          const srcCols = SRC_GROUPS[srcPlatform] || [];
+          const cntS = (mo: string, s: string) =>
+            quotesRaw.filter((r) => r.date?.startsWith(mo) && r.source === s).length;
+          const totRaw = (mo: string) =>
+            quotesRaw.filter((r) => r.date?.startsWith(mo)).length;
+          return (
+            <div id="tbQuotesSrc">
+              <div className="seg seg-mini seg-src-platform">
+                {(Object.keys(SRC_GROUPS) as Array<keyof typeof SRC_GROUPS>).map((p) => (
+                  <button
+                    key={p}
+                    className={srcPlatform === p ? 'on' : ''}
+                    onClick={() => setSrcPlatform(p as typeof srcPlatform)}
+                  >
+                    {p}
+                    {(() => {
+                      const tot = sumBy(months, (mo) =>
+                        SRC_GROUPS[p].reduce((a, s) => a + cntS(mo, s), 0)
+                      );
+                      return tot > 0 ? <span className="tab-cnt">{fmt(tot)}</span> : null;
+                    })()}
+                  </button>
+                ))}
+              </div>
+              <table className="stk" id="tbQuotesSrcMonth">
+                <thead>
+                  <tr>
+                    <th>매체</th>
+                    {allMonths.map((mo) => <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{mLabel(mo)}</th>)}
+                    <th className="n">합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {srcCols.map((s) => (
+                    <tr key={s}>
+                      <td>{s}</td>
+                      {allMonths.map((mo) => (
+                        <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{fmt(cntS(mo, s))}</td>
+                      ))}
+                      <td className="n"><b>{fmt(sumBy(months, (mo) => cntS(mo, s)))}</b></td>
+                    </tr>
+                  ))}
+                  <tr className="grp">
+                    <td>합계</td>
+                    {allMonths.map((mo) => (
+                      <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{fmt(totRaw(mo))}</td>
+                    ))}
+                    <td className="n"><b>{fmt(sumBy(months, totRaw))}</b></td>
+                  </tr>
+                  <tr>
+                    <td className="sub-t">전년 동월</td>
+                    {allMonths.map((mo) => (
+                      <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(lastYQuote(mo))}</td>
+                    ))}
+                    <td className="n sub-t">{fmt(sumBy(months, lastYQuote))}</td>
+                  </tr>
+                  <tr>
+                    <td className="sub-t">전년비</td>
+                    {allMonths.map((mo) => (
+                      <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}><DeltaSpan a={totRaw(mo)} b={lastYQuote(mo)} /></td>
+                    ))}
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+        <p className="tbl-src">
+          단위: 건&nbsp;
+          <span>견적 접수 원본 시트 · collectQuotes 1시간 자동 동기화</span>
+          <a
+            href="https://docs.google.com/spreadsheets/d/18tMYBQLuIhkmX_x_c8MK-aNXlGvOgz1TWauvqo8Dmjg/edit?gid=0#gid=0"
+            target="_blank"
+            rel="noopener"
+          >
+            원본 시트 열기
+          </a>
+        </p>
       </div>
     </div>
   );

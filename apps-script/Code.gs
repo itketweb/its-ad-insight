@@ -226,6 +226,23 @@ function collectQuotes() {
   const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
   put_(ss, 'quotes_monthly', rows);
   put_(ss, 'q_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['rows', v.length]]);
+
+  // quotes_raw: 원본 시트의 개별 행 데이터 (이름·이메일·연락처 제외)
+  const iStatus = h.indexOf('주문상태');
+  const rawHead = ['date', 'category', 'source', 'status'];
+  const rawRows = [rawHead];
+  v.forEach((r) => {
+    const d = r[iDate];
+    const dateStr = d instanceof Date ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '');
+    if (!dateStr || !quoteMonth_(r[iDate])) return;
+    rawRows.push([
+      dateStr,
+      quoteCategory_(r[iSub]),
+      iSrc < 0 ? '미수집' : quoteSource_(r[iSrc]),
+      iStatus < 0 ? '' : String(r[iStatus] || ''),
+    ]);
+  });
+  put_(ss, 'quotes_raw', rawRows);
 }
 /** 접수날짜(날짜 또는 "2026-10-12 9:30:00" 글자) → "2026-10" */
 function quoteMonth_(d) {
@@ -243,13 +260,39 @@ function quoteCategory_(subject) {
   if (has(/노트북|laptop|데스크탑|데스크톱|desktop|\bpc\b|모니터|올인원/)) return 'PC·노트북';
   return '기타';
 }
-/** 유입 경로 열 → 매체. 비어 있으면(2026-10-12 이전) '미수집'. */
+/** 유입 경로 열 → 세분화 매체. 비어 있으면(수집 전) '미수집'. */
 function quoteSource_(raw) {
-  const t = String(raw == null ? '' : raw).trim().toLowerCase();
-  if (!t) return '미수집';
-  if (/naver|네이버/.test(t)) return 'Naver';
-  if (/google|구글|gclid/.test(t)) return 'Google';
-  if (/meta|facebook|instagram|페이스북|인스타/.test(t)) return 'Meta';
+  const t = String(raw == null ? '' : raw).trim();
+  const tl = t.toLowerCase();
+  if (!tl) return '미수집';
+
+  // ── Naver ──
+  if (/naver|네이버/.test(tl)) {
+    if (/blog|블로그/.test(tl))                          return '네이버(블로그)';
+    if (/cafe|카페/.test(tl))                            return '네이버(카페)';
+    if (/shop|쇼핑/.test(tl))                            return '네이버(쇼핑)';
+    if (/organic|자연|검색$/.test(tl))                   return '네이버(검색)';
+    if (/cpc|파워링크|검색광고|\bsa\b|paid/.test(tl))    return '네이버(광고)';
+    return '네이버(광고)'; // 구분 불가 → 광고 기본값
+  }
+
+  // ── Google ──
+  if (/google|구글|gclid/.test(tl)) {
+    if (/display|da\b|gdn|배너/.test(tl))                return '구글(디스플레이)';
+    if (/youtube|유튜브/.test(tl))                        return '구글(유튜브)';
+    if (/cpc|광고|paid|ads|gclid/.test(tl))              return '구글(광고)';
+    return '구글(검색)'; // 구분 불가 → 검색(자연) 기본값
+  }
+
+  // ── Meta ──
+  if (/meta|facebook|instagram|페이스북|인스타/.test(tl)) return 'Meta';
+
+  // ── 기타 ──
+  if (/kakao|카카오/.test(tl))  return '카카오';
+  if (/youtube|유튜브/.test(tl)) return '유튜브';
+  if (/blog|블로그/.test(tl))   return '블로그·커뮤니티';
+  if (/direct|직접/.test(tl))   return '직접';
+
   return '직접·기타';
 }
 

@@ -182,6 +182,14 @@ p.small {
   }
 }
 
+tr.grp-accordion {
+  transition: background-color 0.15s ease;
+
+  &:hover td {
+    background: color-mix(in srgb, var(--accbg) 80%, var(--card)) !important;
+  }
+}
+
 .tbl-src {
   font-size: 0.625rem;
   color: var(--sub);
@@ -394,6 +402,40 @@ p.small {
     display: block;
     color: var(--ink);
     margin-bottom: 0.25rem;
+  }
+}
+
+/* ── 원본 시트 연동 ── */
+.sheet-open-btn {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accink);
+  text-decoration: none;
+  margin-left: auto;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.raw-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--sub);
+
+  .btn.sm {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    min-height: 1.75rem;
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
   }
 }
 

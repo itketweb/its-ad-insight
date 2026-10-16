@@ -147,26 +147,28 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
     });
   }
 
-  // 유입 매체 비중
+  // 유입 매체 비중 — quotesRaw 기반으로 세분화된 매체 전체 집계
+  const quotesRaw = data.quotesRaw || [];
   const bySrc: Record<string, number> = {};
-  data.quotes
-    .filter((r) => r.month.startsWith(yr) && r.source !== '미수집')
+  quotesRaw
+    .filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집')
     .forEach((r) => {
-      bySrc[r.source] = (bySrc[r.source] || 0) + r.count;
+      bySrc[r.source] = (bySrc[r.source] || 0) + 1;
     });
   const totSrc = Object.values(bySrc).reduce((a, b) => a + b, 0);
-  const sc: Record<string, string> = {
-    Naver: '--c-n',
-    Google: '--c-g',
-    Meta: '--c-m',
-    '직접·기타': '--sub',
+  const srcColor = (s: string) => {
+    if (s.startsWith('네이버') || s.startsWith('Naver')) return '--c-n';
+    if (s.startsWith('구글') || s.startsWith('Google')) return '--c-g';
+    if (s.startsWith('Meta')) return '--c-m';
+    if (s.startsWith('카카오')) return '--c-ka';
+    return '--sub';
   };
   const srcItems: DonutItem[] = totSrc
     ? Object.keys(bySrc)
         .sort((a, b) => bySrc[b] - bySrc[a])
         .map((k) => ({
           k,
-          c: sc[k] || '--sub',
+          c: srcColor(k),
           v: Math.round((bySrc[k] / totSrc) * 100),
         }))
     : [];
@@ -268,7 +270,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
       </div>
 
       <div className="grid">
-        <div className="card">
+        <div className="card" id="overview-cat">
           <h3 id="ttOverviewCat">
             카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
           </h3>
@@ -279,17 +281,17 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
           />
           <div className="leg" id="lgOverviewCat">
             <span>
-              <i style={{ background: 'var(--bar)' }} />
+              <i className="cur" />
               기준월 (값 · 증감%)
             </span>
             <span>
-              <i style={{ background: 'var(--bar2)' }} />
+              <i className="prev" />
               전월
             </span>
-            <span style={{ color: 'var(--sub)', fontSize: '0.6875rem' }}>우측: 견적 건수</span>
+            <span className="leg-note">우측: 견적 건수</span>
           </div>
         </div>
-        <div className="card">
+        <div className="card" id="overview-src">
           <h3>유입 매체 비중</h3>
           <SourceDonut
             id="chOverviewSrc"

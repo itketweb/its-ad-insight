@@ -59,6 +59,8 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
   }
 
   const months = Array.from({ length: Y === THIS_Y ? NOW_MONTH : 12 }, (_, i) => ym(Y, i + 1));
+  const allMonths12 = Array.from({ length: 12 }, (_, i) => ym(Y, i + 1));
+  const isFuture = (mo: string) => Y === THIS_Y && mo > months[months.length - 1];
   const at = (mo: string) => data.spend.filter((r) => r.month === mo);
   const tot = (mo: string) => sumBy(at(mo), (r) => r.cost);
   const man = (mo: string, item: string) =>
@@ -228,60 +230,66 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
         />
       )}
 
-      <div className="card tw">
+      <div className="card tw" id="spend-monthly">
         <h3>월별 집행 상세 내역</h3>
-        <div id="tbSpendDetail">
-          <table className="stk">
+        <div>
+          <table className="stk" id="tbSpendDetail">
             <thead>
               <tr>
-                <th>월</th>
-                {series.map((s) => (
-                  <th key={s.k} className="n">
-                    {s.k}
-                  </th>
+                <th>구분</th>
+                {allMonths12.map((mo) => (
+                  <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{mLabel(mo)}</th>
                 ))}
                 <th className="n">합계</th>
-                <th className="n">MDF</th>
-                <th className="n">스토어</th>
-                <th className="n">전년 동월</th>
-                <th className="n">전년비</th>
               </tr>
             </thead>
             <tbody>
-              {months.map((mo, i) => {
-                const t = tot(mo);
-                const l = lastY(mo);
-                return (
-                  <tr key={mo}>
-                    <td>{mLabel(mo)}</td>
-                    {series.map((s) => (
-                      <td key={s.k} className="n">
-                        {fmt(s.raw ? s.raw[i] : 0)}
-                      </td>
-                    ))}
-                    <td className="n">
-                      <b>{fmt(t)}</b>
+              {series.map((s) => (
+                <tr key={s.k}>
+                  <td>{s.k}</td>
+                  {allMonths12.map((mo) => (
+                    <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
+                      {fmt(sumBy(at(mo).filter(s.f), (r) => r.cost))}
                     </td>
-                    <td className="n">{fmt(mdfCost(mo))}</td>
-                    <td className="n">{fmt(storeCost(mo))}</td>
-                    <td className="n">{fmt(l)}</td>
-                    <td className="n">
-                      <DeltaSpan a={t} b={l} />
-                    </td>
-                  </tr>
-                );
-              })}
+                  ))}
+                  <td className="n"><b>{fmt(sumBy(s.raw || [], (v) => v))}</b></td>
+                </tr>
+              ))}
               <tr className="grp">
                 <td>합계</td>
-                {series.map((s) => (
-                  <td key={s.k} className="n">
-                    {fmt(sumBy(s.raw || [], (v) => v))}
+                {allMonths12.map((mo) => (
+                  <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{fmt(tot(mo))}</td>
+                ))}
+                <td className="n"><b>{fmt(sumBy(months, tot))}</b></td>
+              </tr>
+              <tr>
+                <td className="sub-t">MDF</td>
+                {allMonths12.map((mo) => (
+                  <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(mdfCost(mo))}</td>
+                ))}
+                <td className="n sub-t">{fmt(sumBy(months, mdfCost))}</td>
+              </tr>
+              <tr>
+                <td className="sub-t">스토어</td>
+                {allMonths12.map((mo) => (
+                  <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(storeCost(mo))}</td>
+                ))}
+                <td className="n sub-t">{fmt(sumBy(months, storeCost))}</td>
+              </tr>
+              <tr>
+                <td className="sub-t">전년 동월</td>
+                {allMonths12.map((mo) => (
+                  <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(lastY(mo))}</td>
+                ))}
+                <td className="n sub-t">{fmt(sumBy(months, lastY))}</td>
+              </tr>
+              <tr>
+                <td className="sub-t">전년비</td>
+                {allMonths12.map((mo) => (
+                  <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
+                    <DeltaSpan a={tot(mo)} b={lastY(mo)} />
                   </td>
                 ))}
-                <td className="n">{fmt(sumBy(months, tot))}</td>
-                <td className="n">{fmt(sumBy(months, mdfCost))}</td>
-                <td className="n">{fmt(sumBy(months, storeCost))}</td>
-                <td className="n">{fmt(sumBy(months, lastY))}</td>
                 <td />
               </tr>
             </tbody>

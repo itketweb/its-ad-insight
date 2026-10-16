@@ -43,6 +43,7 @@ function emptyData(): DashboardData {
     manual: [],
     mapping: [],
     quotes: [],
+    quotesRaw: [],
     keywords: [],
     ads: [],
   };
@@ -163,6 +164,13 @@ export function fromApi(j: any): DashboardData {
       source: String(r.source),
       count: n(r.count),
     })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    quotesRaw: (j.quotes_raw || []).map((r: any) => ({
+      date: String(r.date || ''),
+      category: String(r.category || ''),
+      source: String(r.source || ''),
+      status: String(r.status || ''),
+    })).filter((r: { date: string }) => r.date).sort((a: { date: string }, b: { date: string }) => b.date.localeCompare(a.date)),
     keywords: (j.g_keywords || [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((r: any) => kw('Google', r))

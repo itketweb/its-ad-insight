@@ -37,7 +37,15 @@ svg {
     border-radius: 0;
     margin-right: 0.25rem;
     vertical-align: -0.0625rem;
+
+    &.cur  { background: var(--bar); }
+    &.prev { background: var(--bar2); }
   }
+}
+
+.leg-note {
+  color: var(--sub);
+  font-size: 0.6875rem;
 }
 
 .leg-item {

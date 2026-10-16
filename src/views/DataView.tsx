@@ -26,29 +26,10 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
       </div>
 
       {/* 실시간 연동 현황 및 제어 카드 */}
-      <div
-        className="card"
-        style={{ marginBottom: '2rem', borderLeft: '4px solid var(--acc)' }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginBottom: '1rem',
-          }}
-        >
+      <div className="card accent">
+        <div className="card-head">
           <div>
-            <h3
-              style={{
-                margin: '0 0 0.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
-            >
+            <h3>
               <span>현재 연동 상태</span>
               <span
                 className={`pill ${live ? 'g' : status === 'error' ? 'm' : ''}`}
@@ -61,7 +42,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
                     : '연결 중...'}
               </span>
             </h3>
-            <p className="muted small" id="dataViewUpdated" style={{ margin: 0 }}>
+            <p className="muted small" id="dataViewUpdated">
               {data.updated
                 ? `마지막 데이터 수집: ${data.updated} (10분 주기 무인 동기화)`
                 : '데이터 동기화 대기 중...'}
@@ -88,6 +69,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
             </button>
           </div>
         </div>
+
         <table className="kv">
           <tbody>
             <tr>
@@ -97,7 +79,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
                   href="https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit"
                   target="_blank"
                   rel="noopener"
-                  style={{ color: 'var(--acc)', textDecoration: 'none', fontWeight: 600 }}
+                  className="link-acc"
                 >
                   광고비·전환·견적 취합 시트 (1mxrTeh7bo...) ↗
                 </a>
@@ -108,7 +90,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
               <td>
                 <code
                   id="dataViewUrl"
-                  style={{ wordBreak: 'break-all', fontSize: '0.8125rem' }}
+                  className="url-code"
                 >
                   {cfg.url || DEFAULT_URL}
                 </code>
@@ -139,7 +121,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
           </span>
         </div>
         <div className="card tw">
-          <table>
+          <table className="stk">
             <thead>
               <tr>
                 <th>소스</th>

@@ -37,6 +37,13 @@ export interface QuoteRow {
   count: number;
 }
 
+export interface QuoteRawRow {
+  date: string;
+  category: string;
+  source: string;
+  status: string;
+}
+
 export interface KeywordRow {
   media: string;
   type: string;
@@ -73,6 +80,7 @@ export interface DashboardData {
   manual: ManualRow[];
   mapping: MappingRow[];
   quotes: QuoteRow[];
+  quotesRaw: QuoteRawRow[];
   keywords: KeywordRow[];
   ads: AdRow[];
 }
