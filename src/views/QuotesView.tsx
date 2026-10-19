@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { DashboardData, SyncStatus } from '../types/dashboard';
 import {
   buildSourceDonutData,
@@ -14,8 +14,13 @@ import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
-import { SourceDonut } from '../components/charts/SourceDonut';
+import {
+  SourceDonut,
+  type SourceChartType,
+  SOURCE_CHART_OPTIONS,
+} from '../components/charts/SourceDonut';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
+import { SegmentedControl } from '../components/common/SegmentedControl';
 
 interface QuotesViewProps {
   data: DashboardData;
@@ -30,6 +35,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
 ];
 
 export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
+  const [srcChartType, setSrcChartType] = useState<SourceChartType>('donut');
   const quotes = data.quotes || [];
   const quotesRaw = data.quotesRaw || [];
 
@@ -152,10 +158,20 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
           unit="건"
         />
         <div className="card" id="quotes-src">
-          <h3>유입 매체 비중</h3>
+          <h3>
+            <span>유입 매체 비중</span>
+            <SegmentedControl<SourceChartType>
+              mini
+              dataChart="quotes-src"
+              options={SOURCE_CHART_OPTIONS}
+              value={srcChartType}
+              onChange={setSrcChartType}
+            />
+          </h3>
           <SourceDonut
             id="chSrc"
             items={srcItems}
+            chartType={srcChartType}
             emptyMessage="취합된 실제 유입 매체 데이터가 없습니다."
           />
         </div>

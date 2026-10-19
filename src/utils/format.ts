@@ -223,11 +223,18 @@ export function buildCategoryBarItems(
   prevSpendByCat: Record<string, number>,
   quoteCountOf: (category: string) => number,
   includeQuotes = true,
-  topLimit = 7
+  topLimit = 7,
+  sortBy: 'spend' | 'quotes' = 'spend'
 ): CategoryBarItem[] {
   const allKeys = [
     ...new Set([...Object.keys(curSpendByCat), ...Object.keys(prevSpendByCat)]),
-  ].sort((a, b) => (curSpendByCat[b] || 0) - (curSpendByCat[a] || 0));
+  ].sort((a, b) => {
+    if (sortBy === 'quotes') {
+      const qDiff = (quoteCountOf(b) || 0) - (quoteCountOf(a) || 0);
+      if (qDiff !== 0) return qDiff;
+    }
+    return (curSpendByCat[b] || 0) - (curSpendByCat[a] || 0);
+  });
 
   const topKeys = allKeys.slice(0, topLimit);
   const restKeys = allKeys.slice(topLimit);

@@ -35,6 +35,13 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
       </h3>
       <div className="tw">
         <table className="stk" id="tbCatConv">
+          <colgroup>
+            <col className="col-cat-name" />
+            <col className="col-cat-cost" />
+            <col className="col-cat-clk" />
+            <col className="col-cat-conv" />
+            <col className="col-cat-cpa" />
+          </colgroup>
           {categoryKeys.length ? (
             <>
               <thead>

@@ -444,9 +444,8 @@ function quoteSource_(raw) {
     if (/blog|블로그/.test(tl))                          return '네이버(블로그)';
     if (/cafe|카페/.test(tl))                            return '네이버(카페)';
     if (/shop|쇼핑/.test(tl))                            return '네이버(쇼핑)';
-    if (/organic|자연|검색$/.test(tl))                   return '네이버(검색)';
-    if (/cpc|파워링크|검색광고|\bsa\b|paid/.test(tl))    return '네이버(광고)';
-    return '네이버(광고)'; // 구분 불가 → 광고 기본값
+    if (/cpc|파워링크|검색광고|\bsa\b|paid|\(광고\)/.test(tl)) return '네이버(광고)';
+    return '네이버(검색)'; // 일반 '네이버' 또는 키워드 유입 → 자연검색 기본값
   }
 
   // ── Google ──

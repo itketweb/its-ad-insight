@@ -86,6 +86,13 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
       {summaryTab === 'cat' ? (
         <div id="tbQuotesSummary">
           <table className="stk" id="tbQuotesCat">
+            <colgroup>
+              <col className="col-mo-label" />
+              {allMonths.map((mo) => (
+                <col key={mo} className="col-mo-val" />
+              ))}
+              <col className="col-mo-total" />
+            </colgroup>
             <thead>
               <tr>
                 <th>카테고리</th>
@@ -165,6 +172,13 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
             })}
           </div>
           <table className="stk" id="tbQuotesSrcMonth">
+            <colgroup>
+              <col className="col-mo-label" />
+              {allMonths.map((mo) => (
+                <col key={mo} className="col-mo-val" />
+              ))}
+              <col className="col-mo-total" />
+            </colgroup>
             <thead>
               <tr>
                 <th>매체</th>

@@ -207,30 +207,31 @@ p.small {
   }
 }
 
-#tbKw:has(colgroup) {
+#tbKw {
   table-layout: fixed;
-  min-width: 50rem;
+  width: 100%;
+  min-width: 56rem;
 
   .col-kw-name {
-    width: auto;
+    width: 32%;
   }
   .col-kw-bid {
-    width: 7rem;
+    width: 12%;
   }
   .col-kw-imp {
-    width: 6.5rem;
+    width: 12%;
   }
   .col-kw-clk {
-    width: 5rem;
+    width: 8%;
   }
   .col-kw-ctr {
-    width: 5rem;
+    width: 8%;
   }
   .col-kw-conv {
-    width: 4.5rem;
+    width: 12%;
   }
   .col-kw-cost {
-    width: 8rem;
+    width: 16%;
   }
 }
 
@@ -238,17 +239,71 @@ p.small {
 #tbQuotesSrcMonth,
 #tbSpendDetail {
   table-layout: fixed;
-  min-width: 54rem;
+  width: 100%;
+  min-width: 72rem;
 
-  th:first-child,
-  td:first-child {
-    width: 8.5rem;
+  .col-mo-label {
+    width: 10rem;
     white-space: nowrap;
   }
+  .col-mo-val {
+    width: 4.5rem;
+  }
+  .col-mo-total {
+    width: 8rem;
+  }
+}
 
-  th:last-child,
-  td:last-child {
-    width: 5.75rem;
+#tbCatConv {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 32rem;
+
+  .col-cat-name {
+    width: 28%;
+  }
+  .col-cat-cost {
+    width: 24%;
+  }
+  .col-cat-clk {
+    width: 16%;
+  }
+  .col-cat-conv {
+    width: 12%;
+  }
+  .col-cat-cpa {
+    width: 20%;
+  }
+}
+
+#tbCatEfficiency {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 48rem;
+
+  .col-eff-name {
+    width: 20%;
+  }
+  .col-eff-cost {
+    width: 16%;
+  }
+  .col-eff-share {
+    width: 8%;
+  }
+  .col-eff-clk {
+    width: 8%;
+  }
+  .col-eff-conv {
+    width: 8%;
+  }
+  .col-eff-quotes {
+    width: 8%;
+  }
+  .col-eff-rate {
+    width: 12%;
+  }
+  .col-eff-cpa {
+    width: 20%;
   }
 }
 

@@ -39,6 +39,13 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
       <h3>월별 집행 상세 내역</h3>
       <div>
         <table className="stk" id="tbSpendDetail">
+          <colgroup>
+            <col className="col-mo-label" />
+            {allMonths12.map((mo) => (
+              <col key={mo} className="col-mo-val" />
+            ))}
+            <col className="col-mo-total" />
+          </colgroup>
           <thead>
             <tr>
               <th>구분</th>

@@ -60,8 +60,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   );
   const campLabel = (c: CampaignKeywordBucket) => {
     const name = c.campaign.trim();
-    const full = dupNames.has(name) ? `${c.media[0]} · ${name}` : name;
-    return full.length > 13 ? full.slice(0, 12) + '…' : full;
+    return dupNames.has(name) ? `${c.media[0]} · ${name}` : name;
   };
 
   const safeKwIdx = kwTabIdx >= 0 && kwTabIdx <= campaigns.length ? kwTabIdx : 0;
@@ -116,10 +115,19 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 
       <div className="tw">
         <table className="stk" id="tbKw">
+          <colgroup>
+            <col className="col-kw-name" />
+            <col className="col-kw-bid" />
+            <col className="col-kw-imp" />
+            <col className="col-kw-clk" />
+            <col className="col-kw-ctr" />
+            <col className="col-kw-conv" />
+            <col className="col-kw-cost" />
+          </colgroup>
           {type === 'DA' ? (
             <tbody>
               <tr>
-                <td>
+                <td colSpan={7}>
                   <div className="empty">
                     디스플레이 광고(DA)는 키워드 입찰을 진행하지 않습니다.
                     <br />
@@ -132,15 +140,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             </tbody>
           ) : !topGroups.length ? (
             <>
-              <colgroup>
-                <col className="col-kw-name" />
-                <col className="col-kw-bid" />
-                <col className="col-kw-imp" />
-                <col className="col-kw-clk" />
-                <col className="col-kw-ctr" />
-                <col className="col-kw-conv" />
-                <col className="col-kw-cost" />
-              </colgroup>
               <thead>
                 <tr>
                   <th>캠페인 › 광고그룹 › 키워드</th>
@@ -174,15 +173,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             </>
           ) : (
             <>
-              <colgroup>
-                <col className="col-kw-name" />
-                <col className="col-kw-bid" />
-                <col className="col-kw-imp" />
-                <col className="col-kw-clk" />
-                <col className="col-kw-ctr" />
-                <col className="col-kw-conv" />
-                <col className="col-kw-cost" />
-              </colgroup>
               <thead>
                 <tr>
                   <th>{selectedCamp ? '광고그룹 › 키워드' : '캠페인 › 광고그룹 › 키워드'}</th>

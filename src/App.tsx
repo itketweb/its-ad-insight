@@ -48,7 +48,7 @@ export const App: React.FC = () => {
     const target = VALID_VIEWS.includes(view) ? view : 'overview';
     setCurrentView(target);
     closeDrawer();
-    document.title = `${VIEW_TITLES[target]} · its-ad-insight`;
+    document.title = `${VIEW_TITLES[target]} · 아이티캣 광고 인사이트`;
     window.history.replaceState(
       null,
       '',
@@ -58,7 +58,7 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    document.title = `${VIEW_TITLES[currentView]} · its-ad-insight`;
+    document.title = `${VIEW_TITLES[currentView]} · 아이티캣 광고 인사이트`;
   }, [currentView]);
 
   useEffect(() => {

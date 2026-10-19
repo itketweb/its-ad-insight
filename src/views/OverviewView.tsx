@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
@@ -19,7 +19,12 @@ import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
-import { SourceDonut } from '../components/charts/SourceDonut';
+import {
+  SourceDonut,
+  type SourceChartType,
+  SOURCE_CHART_OPTIONS,
+} from '../components/charts/SourceDonut';
+import { SegmentedControl } from '../components/common/SegmentedControl';
 
 interface OverviewViewProps {
   data: DashboardData;
@@ -35,6 +40,8 @@ const OVERVIEW_SOURCES: SourceLinkItem[] = [
 ];
 
 export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, status }) => {
+  const [srcChartType, setSrcChartType] = useState<SourceChartType>('donut');
+  const [catSort, setCatSort] = useState<'spend' | 'quotes'>('spend');
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
 
@@ -116,7 +123,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
     catsMap(pv),
     (c) => cnt(curM, c),
     true,
-    7
+    7,
+    catSort
   );
 
   // 유입 매체 비중
@@ -202,7 +210,21 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
       <div className="grid">
         <div className="card" id="overview-cat">
           <h3 id="ttOverviewCat">
-            카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
+            <span>
+              카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
+            </span>
+            {hasQuotes && (
+              <SegmentedControl<'spend' | 'quotes'>
+                mini
+                dataChart="overview-cat"
+                options={[
+                  { value: 'spend', label: '소진순', title: '광고비 소진액 기준 정렬' },
+                  { value: 'quotes', label: '견적순', title: '견적 유입 건수 기준 정렬' },
+                ]}
+                value={catSort}
+                onChange={setCatSort}
+              />
+            )}
           </h3>
           <CategoryBarChart
             id="chOverviewCat"
@@ -222,10 +244,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
           </div>
         </div>
         <div className="card" id="overview-src">
-          <h3>유입 매체 비중</h3>
+          <h3>
+            <span>유입 매체 비중</span>
+            <SegmentedControl<SourceChartType>
+              mini
+              dataChart="overview-src"
+              options={SOURCE_CHART_OPTIONS}
+              value={srcChartType}
+              onChange={setSrcChartType}
+            />
+          </h3>
           <SourceDonut
             id="chOverviewSrc"
             items={srcItems}
+            chartType={srcChartType}
             emptyMessage="취합된 유입 매체 데이터가 없습니다."
           />
         </div>

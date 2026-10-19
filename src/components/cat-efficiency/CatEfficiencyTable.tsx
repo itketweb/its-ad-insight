@@ -31,6 +31,16 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
         </span>
       </h3>
       <table className="stk" id="tbCatEfficiency">
+        <colgroup>
+          <col className="col-eff-name" />
+          <col className="col-eff-cost" />
+          <col className="col-eff-share" />
+          <col className="col-eff-clk" />
+          <col className="col-eff-conv" />
+          <col className="col-eff-quotes" />
+          <col className="col-eff-rate" />
+          <col className="col-eff-cpa" />
+        </colgroup>
         <thead>
           <tr>
             <th>카테고리</th>
