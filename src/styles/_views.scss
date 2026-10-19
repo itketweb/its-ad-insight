@@ -414,11 +414,30 @@ tr.kw-more-row td {
   margin: 0.75rem 0 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  gap: 0.25rem 0.625rem;
   line-height: 1.5;
 
-  span::before {
-    content: '· ';
+  > span {
+    &:not(:first-child)::before {
+      content: '· ';
+      color: var(--sub);
+      margin-right: 0.25rem;
+    }
+  }
+
+  .tbl-src-unit {
+    font-weight: 500;
+  }
+
+  .tbl-src-basis {
+    color: var(--ink);
+  }
+
+  .tbl-src-action {
+    color: var(--acc);
+    font-weight: 500;
+    margin-left: auto;
   }
 
   a {

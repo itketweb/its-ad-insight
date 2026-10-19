@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { fmt, mLabel } from '../../utils/format';
 import { SegmentedControl } from '../common/SegmentedControl';
+import { EmptyState } from '../common/EmptyState';
 
 interface CpaItem {
   k: string;
@@ -75,9 +76,7 @@ export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) 
             })}
           </div>
         ) : (
-          <div className="empty">
-            기준월의 견적 접수 데이터가 없어 CPA를 산출할 수 없습니다.
-          </div>
+          <EmptyState message="기준월의 견적 접수 데이터가 없어 CPA를 산출할 수 없습니다." />
         )}
       </div>
     </div>

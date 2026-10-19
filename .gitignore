@@ -4,6 +4,6 @@ node_modules/
 package-lock.json
 *.tsbuildinfo
 dist/
-data/
+/data/
 .claude/settings.local.json
 scripts/gfa-*.json

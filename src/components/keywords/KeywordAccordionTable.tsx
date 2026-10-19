@@ -3,6 +3,7 @@ import type { CampaignKeywordBucket, KeywordGroup } from '../../types/dashboard'
 import { fmt } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { MediaPill } from '../common/MediaPill';
+import { TableFootnote } from '../common/TableFootnote';
 
 interface KeywordAccordionTableProps {
   topGroups: KeywordGroup[];
@@ -12,6 +13,8 @@ interface KeywordAccordionTableProps {
   kwTabIdx: number;
   onChangeTab: (idx: number) => void;
 }
+
+const mediaKo = (m: string) => (m === 'Naver' ? '네이버' : m === 'Google' ? '구글' : m);
 
 export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   topGroups,
@@ -103,7 +106,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             >
               <span>{lbl}</span>
               {i > 0 && (
-                <MediaPill media={campaigns[i - 1].media} iconOnly size={12} />
+                <MediaPill media={campaigns[i - 1].media} iconOnly size={10} />
               )}
             </button>
           ))}
@@ -217,14 +220,9 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                                 {selectedCamp ? g.adgroup : `${g.campaign} › ${g.adgroup}`}
                               </span>
                               <small className="grp-acc-cnt">
-                                ({g.list.length}개 키워드{!isOpen ? ' · 접힘' : ''})
+                                ({g.list.length}개 키워드 · {mediaKo(g.media)})
                               </small>
                             </span>
-                            {!selectedCamp && (
-                              <span className="grp-acc-pill">
-                                <MediaPill media={g.media} iconOnly />
-                              </span>
-                            )}
                           </div>
                         </td>
                         <td className="n">{fmt(grpImp)}</td>
@@ -287,23 +285,26 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             </>
           )}
         </table>
-        <p className="tbl-src">
-          단위: 원·회&nbsp;
-          <span>
-            Google SA —{' '}
-            <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
-              Google Ads
-            </a>{' '}
-            API 자동 수집
-          </span>
-          <span>
-            Naver SA —{' '}
-            <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
-              네이버 검색광고
-            </a>{' '}
-            API 자동 수집
-          </span>
-        </p>
+        <TableFootnote
+          unit="원·회"
+          basis="산출 근거: 최근 30일 광고비 상위 캠페인/그룹 · CTR = (클릭수 ÷ 노출수) × 100"
+          sources={[
+            <span key="g">
+              Google SA —{' '}
+              <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
+                Google Ads
+              </a>{' '}
+              API 자동 수집
+            </span>,
+            <span key="n">
+              Naver SA —{' '}
+              <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
+                네이버 검색광고
+              </a>{' '}
+              API 자동 수집
+            </span>,
+          ]}
+        />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import React from 'react';
 import type { CatEfficiencyItem } from './types';
 import { fmt, mLabel } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
+import { TableFootnote } from '../common/TableFootnote';
 
 interface CatEfficiencyTableProps {
   catData: CatEfficiencyItem[];
@@ -93,21 +94,25 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
           </tr>
         </tbody>
       </table>
-      <p id="srcCatEfficiency" className="tbl-src">
-        단위: 원·건&nbsp;
-        <span>
-          광고비·클릭·전환 —{' '}
-          <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
-            Google Ads
-          </a>{' '}
-          /{' '}
-          <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
-            네이버 검색광고
-          </a>{' '}
-          API 자동 수집
-        </span>
-        <span>접수 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)</span>
-      </p>
+      <TableFootnote
+        id="srcCatEfficiency"
+        unit="원·건"
+        basis="산출 근거: 견적전환율 = (접수견적 ÷ 클릭수) × 100 · CPA = 광고비 ÷ 접수견적"
+        sources={[
+          <span key="ads">
+            광고비·클릭·전환 —{' '}
+            <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
+              Google Ads
+            </a>{' '}
+            /{' '}
+            <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
+              네이버 검색광고
+            </a>{' '}
+            API 자동 수집
+          </span>,
+          '접수 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)',
+        ]}
+      />
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { fmt, sumBy } from '../utils/format';
 import { runDataAudit } from '../utils/dataAudit';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader } from '../components/common/ViewHeader';
+import { StatusBadge } from '../components/common/StatusBadge';
 import { DataAuditTable } from '../components/data/DataAuditTable';
 import { DataSourceTable } from '../components/data/DataSourceTable';
 import { CategoryMappingSection } from '../components/data/CategoryMappingSection';
@@ -139,9 +140,9 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
           <div>
             <h3>현재 연동 상태</h3>
             <p className="muted small" id="dataViewUpdated">
-              <span className={`st ${live ? 'ok' : status === 'error' ? 'chk' : 'man'}`}>
+              <StatusBadge level={live ? 'ok' : status === 'error' ? 'chk' : 'man'}>
                 {live ? '정상 연동' : status === 'error' ? '동기화 지연' : '연결 중'}
-              </span>{' '}
+              </StatusBadge>{' '}
               {data.updated
                 ? `마지막 수집: ${data.updated} (15분 주기 자동 동기화)`
                 : '데이터 동기화 대기 중...'}

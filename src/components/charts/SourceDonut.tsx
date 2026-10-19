@@ -1,6 +1,8 @@
 import React from 'react';
 import type { DonutItem } from '../../types/dashboard';
 
+import { EmptyState } from '../common/EmptyState';
+
 export type SourceChartType = 'donut' | 'bar' | 'stacked';
 
 export const SOURCE_CHART_OPTIONS: { value: SourceChartType; label: string; title: string }[] = [
@@ -25,7 +27,7 @@ export const SourceDonut: React.FC<SourceDonutProps> = ({
   if (!items.length) {
     return (
       <div id={id}>
-        <div className="empty">{emptyMessage}</div>
+        <EmptyState message={emptyMessage} />
       </div>
     );
   }

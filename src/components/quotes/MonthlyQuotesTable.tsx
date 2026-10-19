@@ -12,6 +12,7 @@ import {
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { DeltaSpan } from '../charts/KpiCard';
 import { SegmentedControl } from '../common/SegmentedControl';
+import { TableFootnote } from '../common/TableFootnote';
 
 interface MonthlyQuotesTableProps {
   quotes: QuoteRow[];
@@ -28,7 +29,7 @@ type SourcePlatform = '네이버' | '구글' | '기타·직접';
 const BASE_SRC_GROUPS: Record<SourcePlatform, string[]> = {
   네이버: ['네이버(광고)', '네이버(검색)', '네이버(블로그)', '네이버(카페)', '네이버(쇼핑)'],
   구글: ['구글(광고)', '구글(검색)', '구글(유튜브)', '구글(디스플레이)'],
-  '기타·직접': ['Meta', '카카오', '유튜브', '블로그·커뮤니티', '직접', '직접·기타', '미수집'],
+  '기타·직접': ['Meta', '카카오', '유튜브', '블로그·커뮤니티', '직접', '기타', '미수집'],
 };
 
 export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
@@ -126,6 +127,16 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
     }
   }, [summaryTab, timeScope, curM, yr, months, quotes, quotesRaw]);
 
+  const curCount =
+    summaryTab === 'cat'
+      ? totMonth(curM)
+      : quotesRaw.filter((r) => r.date?.startsWith(curM) && r.source && r.source !== '미수집').length;
+
+  const ytdCount =
+    summaryTab === 'cat'
+      ? sumBy(months, totMonth)
+      : quotesRaw.filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집').length;
+
   return (
     <div className="card tw" id="quotes-table">
       <h3>
@@ -154,23 +165,37 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
 
       {viewMode === 'chart' ? (
         <div className="quote-chart-view">
-          <div className="quote-chart-toolbar">
-            <div className="quote-chart-total">
-              <span className="muted">
-                {timeScope === 'cur' ? `${mLabel(curM)} 견적 접수` : `${yr}년 누적 견적 접수`}
-              </span>
-              <b>총 {fmt(chartData.total)}건</b>
-            </div>
-            <SegmentedControl<'cur' | 'ytd'>
-              mini
-              value={timeScope}
-              onChange={setTimeScope}
-              options={[
-                { value: 'cur', label: `${mLabel(curM)} 실적` },
-                { value: 'ytd', label: `${yr}년 누적` },
-              ]}
-            />
+          <div className="kw-tabs seg-src-platform">
+            <button
+              type="button"
+              className={timeScope === 'cur' ? 'on' : ''}
+              onClick={() => setTimeScope('cur')}
+            >
+              <span>{mLabel(curM)} 실적</span>
+              {curCount > 0 && <span className="tab-cnt">{fmt(curCount)}</span>}
+            </button>
+            <button
+              type="button"
+              className={timeScope === 'ytd' ? 'on' : ''}
+              onClick={() => setTimeScope('ytd')}
+            >
+              <span>{yr}년 누적</span>
+              {ytdCount > 0 && <span className="tab-cnt">{fmt(ytdCount)}</span>}
+            </button>
           </div>
+
+          {summaryTab === 'src' && (
+            <p
+              className="leg-note"
+              style={{
+                margin: '-0.375rem 0 0.75rem',
+                fontSize: '0.6875rem',
+                color: 'var(--sub)',
+              }}
+            >
+              ※ 유입 매체 추적은 2026년 10월 12일부터 시작되어 10월 이전 데이터는 '미수집' 상태입니다.
+            </p>
+          )}
 
           {chartData.items.length ? (
             <div className="cpa-list" style={{ marginTop: '0.75rem' }}>
@@ -288,15 +313,26 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
               return (
                 <button
                   key={p}
+                  type="button"
                   className={srcPlatform === p ? 'on' : ''}
                   onClick={() => setSrcPlatform(p)}
                 >
-                  {p}
+                  <span>{p}</span>
                   {tot > 0 && <span className="tab-cnt">{fmt(tot)}</span>}
                 </button>
               );
             })}
           </div>
+          <p
+            className="leg-note"
+            style={{
+              margin: '-0.375rem 0 0.75rem',
+              fontSize: '0.6875rem',
+              color: 'var(--sub)',
+            }}
+          >
+            ※ 유입 매체 추적은 2026년 10월 12일부터 시작되어 10월 이전 데이터는 '미수집' 상태입니다.
+          </p>
           <table className="stk" id="tbQuotesSrcMonth">
             <colgroup>
               <col className="col-mo-label" />
@@ -375,13 +411,17 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
         </div>
       )}
 
-      <p className="tbl-src">
-        단위: 건&nbsp;
-        <span>견적 접수 원본 시트 · collectQuotes 1시간 자동 동기화</span>
-        <a href={EXTERNAL_LINKS.quotesRawSheet} target="_blank" rel="noopener">
-          원본 시트 열기
-        </a>
-      </p>
+      <TableFootnote
+        unit="건"
+        basis="산출 근거: 접수 시점 UTM/Referrer 경로 기반 매체 자동 판별 · 5대 표준 카테고리 매핑 기준"
+        sources={[
+          '견적 접수 원본 시트 · collectQuotes 자동 동기화',
+        ]}
+        action={{
+          text: '원본 시트 열기',
+          href: EXTERNAL_LINKS.quotesRawSheet,
+        }}
+      />
     </div>
   );
 };

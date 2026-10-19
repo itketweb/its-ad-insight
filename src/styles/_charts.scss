@@ -534,32 +534,7 @@ svg {
   flex-shrink: 0;
 }
 
-/* ── 견적 차트 모드 툴바 및 전용 그리드 ── */
-.quote-chart-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem 0 0.625rem;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 0.625rem;
-
-  .quote-chart-total {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8125rem;
-
-    .muted {
-      color: var(--sub);
-      font-size: 0.75rem;
-    }
-
-    b {
-      color: var(--ink);
-      font-weight: 700;
-    }
-  }
-}
+/* ── 견적 차트 모드 전용 그리드 ── */
 
 .quote-chart-view .cpa-row {
   grid-template-columns: 8.5rem 1fr 8.5rem;

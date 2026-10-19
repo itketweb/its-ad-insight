@@ -3,6 +3,8 @@ import type { CategoryBarItem } from '../../types/dashboard';
 import { fmt, measureSvgText, niceMax, rem } from '../../utils/format';
 import { useElementWidth } from '../../hooks/useElementWidth';
 
+import { EmptyState } from '../common/EmptyState';
+
 interface CategoryBarChartProps {
   id: string;
   list: CategoryBarItem[];
@@ -19,7 +21,7 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   if (!list.length) {
     return (
       <div className="ch" id={id} ref={boxRef}>
-        <div className="empty">{emptyMessage}</div>
+        <EmptyState message={emptyMessage} />
       </div>
     );
   }

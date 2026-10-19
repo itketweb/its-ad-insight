@@ -185,19 +185,25 @@ export function fromApi(j: RawApiPayload): DashboardData {
     spend,
     manual,
     mapping: j.mapping || [],
-    quotes: (j.quotes_monthly || []).map((r) => ({
-      month: String(r.month ?? '').trim().slice(0, 7),
-      category: String(r.category ?? '').trim(),
-      source: String(r.source ?? '').trim(),
-      count: n(r.count),
-    })),
+    quotes: (j.quotes_monthly || []).map((r) => {
+      const src = String(r.source ?? '').trim();
+      return {
+        month: String(r.month ?? '').trim().slice(0, 7),
+        category: String(r.category ?? '').trim(),
+        source: src === '직접·기타' ? '기타' : src,
+        count: n(r.count),
+      };
+    }),
     quotesRaw: (j.quotes_raw || [])
-      .map((r) => ({
-        date: String(r.date || '').trim(),
-        category: String(r.category || '').trim(),
-        source: String(r.source || '').trim(),
-        status: String(r.status || '').trim(),
-      }))
+      .map((r) => {
+        const src = String(r.source || '').trim();
+        return {
+          date: String(r.date || '').trim(),
+          category: String(r.category || '').trim(),
+          source: src === '직접·기타' ? '기타' : src,
+          status: String(r.status || '').trim(),
+        };
+      })
       .filter((r) => r.date)
       .sort((a, b) => b.date.localeCompare(a.date)),
     keywords: [

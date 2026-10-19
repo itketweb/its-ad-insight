@@ -3,6 +3,7 @@ import type { SpendRow } from '../../types/dashboard';
 import { fmt, mLabel, sumBy } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { DeltaSpan } from '../charts/KpiCard';
+import { TableFootnote } from '../common/TableFootnote';
 
 export interface SpendSeriesRow {
   k: string;
@@ -122,39 +123,42 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
             </tr>
           </tbody>
         </table>
-        <p className="tbl-src">
-          단위: 원&nbsp;
-          <span>
-            Google SA·DA —{' '}
-            <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
-              Google Ads
-            </a>{' '}
-            API 자동 수집
-          </span>
-          <span>
-            Naver SA —{' '}
-            <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
-              네이버 검색광고
-            </a>{' '}
-            API 자동 수집
-          </span>
-          <span>Naver DA — 네이버 DA 리포트 시트</span>
-          <span>
-            Meta —{' '}
-            <a href={EXTERNAL_LINKS.metaAds} target="_blank" rel="noopener">
-              Meta Ads 관리자
-            </a>{' '}
-            시트
-          </span>
-          <span>
-            스토어 —{' '}
-            <a href={EXTERNAL_LINKS.naverSmartStore} target="_blank" rel="noopener">
-              네이버 스마트스토어
-            </a>{' '}
-            커머스 API 자동 수집
-          </span>
-          <span>MDF — MDF 업로드 시트 + HPE_MDF 캠페인</span>
-        </p>
+        <TableFootnote
+          unit="원"
+          basis="산출 근거: 부가세(VAT) 포함 실제 소진 광고비 · 당해연도 진행 월은 수집 시점 누적치"
+          sources={[
+            <span key="g">
+              Google SA·DA —{' '}
+              <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
+                Google Ads
+              </a>{' '}
+              API 자동 수집
+            </span>,
+            <span key="n">
+              Naver SA —{' '}
+              <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
+                네이버 검색광고
+              </a>{' '}
+              API 자동 수집
+            </span>,
+            'Naver DA — 네이버 DA 리포트 시트',
+            <span key="m">
+              Meta —{' '}
+              <a href={EXTERNAL_LINKS.metaAds} target="_blank" rel="noopener">
+                Meta Ads 관리자
+              </a>{' '}
+              시트
+            </span>,
+            <span key="s">
+              스토어 —{' '}
+              <a href={EXTERNAL_LINKS.naverSmartStore} target="_blank" rel="noopener">
+                네이버 스마트스토어
+              </a>{' '}
+              커머스 API 자동 수집
+            </span>,
+            'MDF — MDF 업로드 시트 + HPE_MDF 캠페인',
+          ]}
+        />
       </div>
     </div>
   );

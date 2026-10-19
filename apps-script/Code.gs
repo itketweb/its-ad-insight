@@ -465,7 +465,7 @@ function quoteSource_(raw) {
   if (/blog|블로그/.test(tl))   return '블로그·커뮤니티';
   if (/direct|직접/.test(tl))   return '직접';
 
-  return '직접·기타';
+  return '기타';
 }
 
 /* ── 대시보드용 웹앱 ── */

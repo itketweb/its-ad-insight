@@ -3,6 +3,7 @@ import type { ChartType, SeriesItem } from '../../types/dashboard';
 import { axisC, fmt, niceMax, rem } from '../../utils/format';
 import { useElementWidth } from '../../hooks/useElementWidth';
 import { SegmentedControl } from '../common/SegmentedControl';
+import { EmptyState } from '../common/EmptyState';
 
 interface MultiChartProps {
   id: string;
@@ -420,7 +421,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
       </h3>
       <div className="ch" id={id} ref={boxRef}>
         {!hasData ? (
-          <div className="empty">{emptyMessage}</div>
+          <EmptyState message={emptyMessage} />
         ) : chartType === 'donut' ? (
           renderDonutSvg()
         ) : (

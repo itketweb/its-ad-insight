@@ -1,6 +1,7 @@
 import React from 'react';
 import { fmt, mLabel, sumBy, THIS_M } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
+import { TableFootnote } from '../common/TableFootnote';
 
 interface KeywordCategoryTableProps {
   month?: string;
@@ -104,23 +105,26 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
             </tbody>
           )}
         </table>
-        <p className="tbl-src">
-          단위: 원&nbsp;
-          <span>
-            Google SA —{' '}
-            <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
-              Google Ads
-            </a>{' '}
-            API 자동 수집
-          </span>
-          <span>
-            Naver SA —{' '}
-            <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
-              네이버 검색광고
-            </a>{' '}
-            API 자동 수집
-          </span>
-        </p>
+        <TableFootnote
+          unit="원"
+          basis="산출 근거: 전환당 비용 = 광고비 ÷ 광고전환수 · 검색광고(SA) 전환 추적 태그 기준"
+          sources={[
+            <span key="g">
+              Google SA —{' '}
+              <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
+                Google Ads
+              </a>{' '}
+              API 자동 수집
+            </span>,
+            <span key="n">
+              Naver SA —{' '}
+              <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
+                네이버 검색광고
+              </a>{' '}
+              API 자동 수집
+            </span>,
+          ]}
+        />
       </div>
     </div>
   );
