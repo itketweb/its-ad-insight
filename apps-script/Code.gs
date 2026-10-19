@@ -27,17 +27,23 @@ function setup() {
   if (!ss.getSheetByName('manual')) put_(ss, 'manual', [['month', 'item', 'amount', 'memo'], ['2026-01', 'MDF', 0, '예시 — MDF / META / STORE 중 하나']]);
   if (!ss.getSheetByName('quotes_raw')) put_(ss, 'quotes_raw', [['date', 'site', 'subject', 'category', 'source', 'created_at']]);
   if (!PROPS.getProperty('API_TOKEN')) PROPS.setProperty('API_TOKEN', Utilities.getUuid().replace(/-/g, ''));
-  ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'collectNaver').forEach((t) => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('collectNaver').timeBased().everyHours(1).create();
-  ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'collectGfaEmail').forEach((t) => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('collectGfaEmail').timeBased().everyDays(1).atHour(7).create();
-  ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'collectCommerce').forEach((t) => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('collectCommerce').timeBased().everyDays(1).atHour(6).create();
-  if (PROPS.getProperty('QUOTE_SHEET_ID')) {
-    ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'collectQuotes').forEach((t) => ScriptApp.deleteTrigger(t));
-    ScriptApp.newTrigger('collectQuotes').timeBased().everyHours(1).create();
-  }
+  const allFuncs = ['collectNaver', 'collectGfaEmail', 'collectGoogleAdsEmail', 'collectCommerce', 'collectQuotes', 'syncAll'];
+  ScriptApp.getProjectTriggers().filter((t) => allFuncs.includes(t.getHandlerFunction())).forEach((t) => ScriptApp.deleteTrigger(t));
+  // 실시간 체감 극대화 및 안전 쿼터 운영: 15분 주기 통합 실행
+  ScriptApp.newTrigger('syncAll').timeBased().everyMinutes(15).create();
   console.log('웹앱 비밀키(대시보드 js/config.js 의 key): ' + PROPS.getProperty('API_TOKEN'));
+}
+
+/* ── 전 매체 통합 동기화 (네이버·구글·견적·GFA·커머스 동일 시각 수집) ── */
+function syncAll() {
+  const t0 = Date.now();
+  console.log('=== [its-ad-insight] 전체 매체 통합 동기화 시작 ===');
+  try { collectNaver(); console.log('✓ 네이버 검색광고 동기화 완료'); } catch (e) { console.error('collectNaver: ' + e.message); }
+  try { if (PROPS.getProperty('QUOTE_SHEET_ID')) { collectQuotes(); console.log('✓ 견적 데이터 동기화 완료'); } } catch (e) { console.error('collectQuotes: ' + e.message); }
+  try { collectGoogleAdsEmail(); console.log('✓ 구글 광고 이메일 리포트 파싱 완료'); } catch (e) { console.error('collectGoogleAdsEmail: ' + e.message); }
+  try { collectGfaEmail(); console.log('✓ 네이버 GFA 리포트 파싱 완료'); } catch (e) { console.error('collectGfaEmail: ' + e.message); }
+  try { collectCommerce(); console.log('✓ 네이버 커머스 동기화 완료'); } catch (e) { console.error('collectCommerce: ' + e.message); }
+  console.log('=== [its-ad-insight] 전체 매체 통합 동기화 완료 (' + Math.round((Date.now() - t0) / 1000) + '초 소요) ===');
 }
 
 /* ── 네이버 검색광고 수집 ── */
@@ -60,7 +66,7 @@ function collectNaver() {
 
   const groups = [];
   camps.forEach((c) => api_('GET', '/ncc/adgroups', { nccCampaignId: c.nccCampaignId })
-    .forEach((g) => groups.push({ id: g.nccAdgroupId, name: g.name, bid: g.bidAmt, campaign: c.name, ctype: c.campaignTp, campaignId: c.nccCampaignId })));
+    .forEach((g) => groups.push({ id: g.nccAdgroupId, name: String(g.name || '').trim(), bid: g.bidAmt, campaign: String(c.name || '').trim(), ctype: c.campaignTp, campaignId: c.nccCampaignId })));
   const gById = Object.fromEntries(groups.map((g) => [g.id, g]));
 
   // 월별: 당월·전월은 매번 다시, 그 이전은 시트에 없는 달만 채운다
@@ -101,7 +107,14 @@ function collectNaver() {
     const finalExtImg = grpExtImg || campExtImgs[g.campaignId] || '';
 
     api_('GET', '/ncc/keywords', { nccAdgroupId: g.id }).filter((k) => !k.userLock)
-      .forEach((k) => kws.push({ id: k.nccKeywordId, g, keyword: k.keyword, bid: k.useGroupBidAmt ? g.bid : k.bidAmt, qi: (k.nccQi && k.nccQi.qiGrade) || '' }));
+      .forEach((k) => {
+        const rel = Number(k.adRelevanceScore) || 0;
+        const exp = Number(k.expectedClickScore) || 0;
+        const rawQi = k.nccQi && k.nccQi.qiGrade;
+        // 파워링크(WEB_SITE) 기존 nccQi.qiGrade는 2026-07-29부로 고정 기본값(4)만 반환하므로 신규 최적화 지표 우선 사용
+        const qi = rel && exp ? Math.round((rel + exp) / 2) : (rel || exp || (g.ctype !== 'WEB_SITE' && rawQi ? rawQi : ''));
+        kws.push({ id: k.nccKeywordId, g, keyword: String(k.keyword || '').trim(), bid: k.useGroupBidAmt ? g.bid : k.bidAmt, qi, rel: rel || '', exp: exp || '' });
+      });
     api_('GET', '/ncc/ads', { nccAdgroupId: g.id }).filter((a) => !a.userLock).forEach((a) => {
       const ad = a.ad || {};
       const imgUrl = extractAdImage_(ad) || finalExtImg || '';
@@ -110,25 +123,54 @@ function collectNaver() {
     });
   }
   const ks = Object.fromEntries(stats_(kws.map((k) => k.id), since, until).map((s) => [s.id, s]));
-  put_(ss, 'n_keywords', [['type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions']]
-    .concat(kws.map((k) => { const s = ks[k.id] || {}; return ['SA', k.g.campaign, k.g.name, k.keyword, '', k.bid || 0, k.qi, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0]; })));
+  put_(ss, 'n_keywords', [['type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions', 'ad_relevance', 'expected_click']]
+    .concat(kws.map((k) => { const s = ks[k.id] || {}; return ['SA', k.g.campaign, k.g.name, k.keyword, '', k.bid || 0, k.qi, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0, k.rel, k.exp]; })));
   put_(ss, 'n_ads', ads);
   put_(ss, 'n_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['customer_id', PROPS.getProperty('NAVER_CUSTOMER_ID')]]);
   syncMapping_(ss);
 }
 
-/** 새로 생긴 캠페인·광고그룹을 mapping 시트에 빈 카테고리로 추가한다 (관리자가 채움). */
+/** 캠페인·광고그룹명 → 표준 카테고리(서버·워크스테이션·스토리지·PC·노트북·기타) 자동 분류 */
+function standardCategoryOf_(campaign, adgroup) {
+  const c = String(campaign || '').trim();
+  const g = String(adgroup || '').trim();
+  const s = (c + ' ' + g).toLowerCase();
+  if (/스토리지|storage|\bnas\b|\bsan\b|\bdas\b|\bmsa\b|netapp|시놀로지|synology|qnap|백업/.test(s)) return '스토리지';
+  if (/워크스테이션|workstation|z\s*by\s*hp|zbyhp|zbook|\bz[12468]\b|z\s*central|zgx|data\s*science|\bgpu\b|ai\s*컴퓨터|딥러닝|머신러닝|타워형|미니\s*워크|모바일\s*워크/.test(s)) return '워크스테이션';
+  if (/서버|server|hpe|dell|델\b|lenovo|랙|rack|poweredge|proliant|\bdl\d|\bml\d|아이티시스템/.test(s) && !/노트북/.test(s)) return '서버';
+  if (/노트북|laptop|데스크탑|데스크톱|desktop|\bpc\b|모니터|서피스|surface|엘리트북|엘리트보드|프로북|폴리오|드래곤플라이|파빌리온|옴니북|엘리트데스크|프로데스크|콤팩트|컴팩트|비즈니스|렌탈|올인원/.test(s)) return 'PC·노트북';
+  return '기타';
+}
+
+/** 새로 생긴 캠페인·광고그룹을 mapping 시트에 표준 카테고리로 추가하고, 기존 빈 카테고리도 자동으로 채운다. */
 function syncMapping_(ss) {
   const sh = ss.getSheetByName('mapping');
   if (!sh) return;
-  const key = (r) => [r.media, r.campaign, r.ad_group].join('\u0001');
-  const have = new Set(read_(ss, 'mapping').map(key));
-  const add = [];
-  [['Google', 'g_adgroup_monthly'], ['Naver', 'n_adgroup_monthly']].forEach(([media, name]) => read_(ss, name).forEach((r) => {
-    const k = key({ media, campaign: r.campaign, ad_group: r.ad_group });
-    if (!have.has(k)) { have.add(k); add.push([media, r.campaign, r.ad_group, '', 100]); }
+  const key = (r) => [String(r.media || '').trim(), String(r.campaign || '').trim(), String(r.ad_group || '').trim()].join('\u0001');
+  const existing = read_(ss, 'mapping');
+  const byKey = new Map();
+  existing.forEach((r) => {
+    const camp = String(r.campaign || '').trim();
+    const grp = String(r.ad_group || '').trim();
+    const cat = String(r.category || '').trim() || standardCategoryOf_(camp, grp);
+    byKey.set(key(r), [String(r.media || '').trim(), camp, grp, cat, Number(r.ratio) || 100]);
+  });
+  [
+    ['Google', 'g_adgroup_monthly'],
+    ['Google', 'g_keywords'],
+    ['Naver', 'n_adgroup_monthly'],
+    ['Naver', 'n_keywords'],
+  ].forEach(([media, name]) => read_(ss, name).forEach((r) => {
+    const camp = String(r.campaign || '').trim();
+    const grp = String(r.ad_group || '').trim();
+    if (!camp) return;
+    const k = key({ media, campaign: camp, ad_group: grp });
+    if (!byKey.has(k)) {
+      byKey.set(k, [media, camp, grp, standardCategoryOf_(camp, grp), 100]);
+    }
   }));
-  if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, 5).setValues(add);
+  const rows = [['media', 'campaign', 'ad_group', 'category', 'ratio']].concat(Array.from(byKey.values()));
+  put_(ss, 'mapping', rows);
 }
 
 /* ── 네이버 성과형 DA(GFA) 이메일 보고서 자동 수집 ──
@@ -199,6 +241,137 @@ function collectGfaEmail() {
   put_(ss, 'n_adgroup_monthly', [head].concat(keep.concat(toAdd).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
   syncMapping_(ss);
   console.log('GFA 리포트 이메일 자동 파싱 완료: ' + rowsDA.length + '행 반영');
+}
+
+/* ── 구글 광고(Google Ads) 이메일 보고서 자동 수집 ──
+ * Google Ads 보고서 에디터에서 매일 아침 발송되는 CSV 이메일을 읽어 g_adgroup_monthly · g_campaign_monthly · g_keywords 에 적재한다.
+ * 패스키·OAuth 스크립트 승인 팝업 없이 100% 무인 작동한다.
+ * 스크립트 속성: GADS_EMAIL_QUERY (옵션, 기본값: 'subject:("its-ad-insight" OR "통합 로우 데이터 추출") has:attachment filename:csv') */
+function collectGoogleAdsEmail() {
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const q = PROPS.getProperty('GADS_EMAIL_QUERY') || 'subject:("its-ad-insight" OR "통합 로우 데이터 추출" OR "월별실적") has:attachment filename:csv';
+  const threads = GmailApp.search(q, 0, 10);
+  if (!threads.length) {
+    console.log('새로운 Google Ads 리포트 이메일이 없습니다 (검색 쿼리: ' + q + ')');
+    return;
+  }
+  let label = GmailApp.getUserLabelByName('GADS_PROCESSED');
+  if (!label) label = GmailApp.createLabel('GADS_PROCESSED');
+
+  threads.forEach((th) => {
+    const labels = th.getLabels().map((l) => l.getName());
+    if (labels.includes('GADS_PROCESSED')) return;
+
+    th.getMessages().forEach((msg) => {
+      msg.getAttachments().forEach((att) => {
+        const name = att.getName().toLowerCase();
+        if (!name.endsWith('.csv')) return;
+        let csvStr = '';
+        try { csvStr = att.getDataAsString('UTF-8'); } catch (e) { csvStr = att.getDataAsString('EUC-KR'); }
+        if (!csvStr) return;
+
+        // [1] 월별 실적 보고서 파싱 (its-ad-insight_월별실적)
+        if (name.includes('월별') || name.includes('monthly') || csvStr.includes('캠페인 유형,통화 코드,비용')) {
+          const parsed = Utilities.parseCsv(csvStr);
+          while (parsed.length && !String(parsed[0][0] || '').startsWith('월')) parsed.shift();
+          if (parsed.length >= 2) {
+            parsed.shift(); // remove header
+            const rows = [];
+            parsed.forEach((r) => {
+              if (!r[0] || String(r[0]).startsWith('합계') || String(r[0]).startsWith('총계')) return;
+              const mMatch = String(r[0]).match(/(\d{4})년\s*(\d{1,2})월/);
+              const m = mMatch ? mMatch[1] + '-' + ('0' + mMatch[2]).slice(-2) : quoteMonth_(r[0]);
+              if (!m) return;
+              const camp = String(r[1] || '').trim();
+              const grp = String(r[2] || '').trim();
+              const rawType = String(r[3] || '');
+              const type = rawType.includes('검색') ? 'SA' : 'DA';
+              const cost = Number(String(r[5] || '').replace(/[^0-9.-]/g, '')) || 0;
+              const imp = Number(String(r[6] || '').replace(/[^0-9.-]/g, '')) || 0;
+              const clk = Number(String(r[7] || '').replace(/[^0-9.-]/g, '')) || 0;
+              const conv = Number(String(r[8] || '').replace(/[^0-9.-]/g, '')) || 0;
+              if (cost > 0 || imp > 0 || clk > 0) {
+                rows.push({ month: m, type, campaign: camp, ad_group: grp, cost, impressions: imp, clicks: clk, conversions: conv });
+              }
+            });
+            if (rows.length) saveGoogleMonthlyRows_(ss, rows);
+          }
+        }
+
+        // [2] 키워드 실적 보고서 파싱 (통합 로우 데이터 추출)
+        if (name.includes('통합') || name.includes('키워드') || csvStr.includes('검색 키워드,광고 최종 도착 URL')) {
+          const parsed = Utilities.parseCsv(csvStr);
+          while (parsed.length && !String(parsed[0][0] || '').startsWith('캠페인')) parsed.shift();
+          if (parsed.length >= 2) {
+            parsed.shift(); // remove header
+            const rows = [];
+            parsed.forEach((r) => {
+              if (!r[0] || String(r[0]).startsWith('합계') || String(r[0]).startsWith('총계')) return;
+              const camp = String(r[0] || '').trim();
+              const grp = String(r[1] || '').trim();
+              const kw = String(r[2] || '').trim();
+              const qs = String(r[4] || '').trim();
+              const clk = Number(String(r[5] || '').replace(/[^0-9.-]/g, '')) || 0;
+              const imp = Number(String(r[6] || '').replace(/[^0-9.-]/g, '')) || 0;
+              const cost = Number(String(r[8] || '').replace(/[^0-9.-]/g, '')) || 0;
+              const conv = Number(String(r[14] || '').replace(/[^0-9.-]/g, '')) || 0;
+              if (kw) {
+                rows.push({
+                  type: 'SA',
+                  campaign: camp,
+                  ad_group: grp,
+                  keyword: kw,
+                  match: '',
+                  bid: 0,
+                  quality: qs === '--' ? '' : qs,
+                  cost,
+                  impressions: imp,
+                  clicks: clk,
+                  conversions: conv,
+                });
+              }
+            });
+            if (rows.length) saveGoogleKeywordRows_(ss, rows);
+          }
+        }
+      });
+    });
+    th.addLabel(label);
+  });
+}
+
+function saveGoogleMonthlyRows_(ss, rows) {
+  const head = ['month', 'type', 'campaign', 'campaign_id', 'ad_group', 'ad_group_id', 'cost', 'impressions', 'clicks', 'conversions'];
+  const old = read_(ss, 'g_adgroup_monthly');
+  const newKeys = new Set(rows.map((r) => [r.month, r.campaign, r.ad_group].join('\u0001')));
+  const keep = old.filter((r) => !newKeys.has([r.month, r.campaign, r.ad_group].join('\u0001'))).map((r) => head.map((h) => r[h]));
+  const toAdd = rows.map((r) => [r.month, r.type || 'SA', r.campaign, '', r.ad_group, '', Number(r.cost) || 0, Number(r.impressions) || 0, Number(r.clicks) || 0, Number(r.conversions) || 0]);
+  put_(ss, 'g_adgroup_monthly', [head].concat(keep.concat(toAdd).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
+
+  // 캠페인 레벨 집계 (g_campaign_monthly)
+  const campMap = new Map();
+  keep.concat(toAdd).forEach((r) => {
+    const k = [r[0], r[1], r[2]].join('\u0001');
+    const cur = campMap.get(k) || [r[0], r[1], r[2], '', 0, 0, 0, 0];
+    cur[4] += Number(r[6]) || 0;
+    cur[5] += Number(r[7]) || 0;
+    cur[6] += Number(r[8]) || 0;
+    cur[7] += Number(r[9]) || 0;
+    campMap.set(k, cur);
+  });
+  const campHead = ['month', 'type', 'campaign', 'campaign_id', 'cost', 'impressions', 'clicks', 'conversions'];
+  const campRows = [campHead].concat(Array.from(campMap.values()).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+  put_(ss, 'g_campaign_monthly', campRows);
+
+  put_(ss, 'g_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['account', 'HPI_아이티스정보통신'], ['sync_mode', 'scheduled_email']]);
+  syncMapping_(ss);
+}
+
+function saveGoogleKeywordRows_(ss, rows) {
+  const head = ['type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions'];
+  const toAdd = rows.map((r) => [r.type || 'SA', r.campaign, r.ad_group, r.keyword, r.match || '', Number(r.bid) || 0, r.quality || '', Number(r.cost) || 0, Number(r.impressions) || 0, Number(r.clicks) || 0, Number(r.conversions) || 0]);
+  put_(ss, 'g_keywords', [head].concat(toAdd));
+  syncMapping_(ss);
 }
 
 /* ── 견적 집계 ──
@@ -331,6 +504,18 @@ function doPost(e) {
       return json_({ success: true, type: 'GFA', added: toAdd.length });
     }
 
+    // [A-2] 구글 광고 월별 실적 수신
+    if (data.action === 'syncGoogleMonthly' && Array.isArray(data.rows)) {
+      saveGoogleMonthlyRows_(ss, data.rows);
+      return json_({ success: true, type: 'GoogleMonthly', added: data.rows.length });
+    }
+
+    // [A-3] 구글 광고 키워드 실적 수신
+    if (data.action === 'syncGoogleKeywords' && Array.isArray(data.rows)) {
+      saveGoogleKeywordRows_(ss, data.rows);
+      return json_({ success: true, type: 'GoogleKeywords', added: data.rows.length });
+    }
+
     // [C] MDF / 수동 데이터 시트 업로드 수신
     if (data.action === 'uploadManual' && Array.isArray(data.rows)) {
       const head = ['month', 'item', 'amount', 'memo'];
@@ -347,6 +532,12 @@ function doPost(e) {
     if (data.action === 'syncCommerce') {
       const res = collectCommerce();
       return json_({ success: true, result: res });
+    }
+
+    // [E] 전체 매체(네이버·구글·견적·GFA·커머스) 즉시 동기화 호출
+    if (data.action === 'syncAll') {
+      syncAll();
+      return json_({ success: true, message: 'All channels synced simultaneously' });
     }
 
     // [B] 쇼핑몰 실시간 견적 접수 수신
@@ -496,17 +687,25 @@ function stats_(ids, since, until) {
 }
 
 /* ── 시트·날짜 도우미 ── */
+function formatCellDate_(d, colKey) {
+  if (!(d instanceof Date)) return d;
+  if (colKey === 'month') return Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM');
+  if (colKey === 'date') return Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd');
+  const full = Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+  return full.endsWith(' 00:00') ? full.slice(0, 10) : full;
+}
 function read_(ss, name) {
   const sh = ss.getSheetByName(name);
   if (!sh || sh.getLastRow() < 2) return [];
   const v = sh.getDataRange().getValues(), h = v.shift();
-  return v.filter((r) => r[0] !== '').map((r) => Object.fromEntries(h.map((k, i) => [k, r[i] instanceof Date ? Utilities.formatDate(r[i], 'Asia/Seoul', 'yyyy-MM') : r[i]])));
+  return v.filter((r) => r[0] !== '').map((r) => Object.fromEntries(h.map((k, i) => [k, formatCellDate_(r[i], k)])));
 }
-/** 시트를 통째로 다시 쓴다. 1열(월 등)은 날짜로 바뀌지 않게 글자 형식으로 둔다. */
+/** 시트를 통째로 다시 쓴다. 1열(월 등)과 *_meta 의 2열(타임스탬프)은 날짜로 바뀌지 않게 글자 형식으로 둔다. */
 function put_(ss, name, rows) {
   const sh = ss.getSheetByName(name) || ss.insertSheet(name);
   sh.clearContents();
-  sh.getRange(1, 1, Math.max(rows.length, 1), 1).setNumberFormat('@');
+  const textCols = /_meta$/.test(name) && rows[0] && rows[0].length >= 2 ? 2 : 1;
+  sh.getRange(1, 1, Math.max(rows.length, 1), textCols).setNumberFormat('@');
   sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
 }
 function addMonth_(m, n) { const [y, mo] = m.split('-').map(Number); return Utilities.formatDate(new Date(Date.UTC(y, mo - 1 + n, 1)), 'UTC', 'yyyy-MM'); }

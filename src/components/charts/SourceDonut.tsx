@@ -45,6 +45,7 @@ export const SourceDonut: React.FC<SourceDonutProps> = ({
   });
 
   const top = items[0] || { k: '-', v: 0 };
+  const fmtPct = (v: number) => (Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`);
 
   return (
     <div id={id}>
@@ -56,20 +57,31 @@ export const SourceDonut: React.FC<SourceDonutProps> = ({
               1위 {top.k}
             </text>
             <text x={60} y={73} textAnchor="middle" fontSize="1.125rem" fontWeight={700} fill="var(--ink)">
-              {top.v}%
+              {fmtPct(top.v)}
             </text>
           </svg>
         </div>
         <div className="donut-bars">
           {items.map((s) => (
-            <div key={s.k} className="donut-row">
+            <div
+              key={s.k}
+              className="donut-row"
+              data-tip={
+                s.count != null
+                  ? `${s.k}|${s.count.toLocaleString('ko-KR')}건 (${fmtPct(s.v)})`
+                  : undefined
+              }
+            >
               <span className="pill" style={{ '--pc': `var(${s.c})` } as React.CSSProperties}>
                 {s.k}
               </span>
               <div className="donut-track">
-                <div className="donut-fill" style={{ width: `${s.v}%`, background: `var(${s.c})` }} />
+                <div
+                  className="donut-fill"
+                  style={{ width: `${Math.max(s.v > 0 ? 1.5 : 0, s.v)}%`, background: `var(${s.c})` }}
+                />
               </div>
-              <span className="pct">{s.v}%</span>
+              <span className="pct">{fmtPct(s.v)}</span>
             </div>
           ))}
         </div>

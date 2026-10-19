@@ -43,6 +43,14 @@ export default defineConfig({
           next();
         });
       },
+      closeBundle() {
+        const src = path.resolve(__dirname, 'data/latest.json');
+        const destDir = path.resolve(__dirname, 'dist/data');
+        if (fs.existsSync(src)) {
+          fs.mkdirSync(destDir, { recursive: true });
+          fs.copyFileSync(src, path.join(destDir, 'latest.json'));
+        }
+      },
     },
   ],
   server: {

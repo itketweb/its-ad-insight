@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import type { ChartType, SeriesItem } from '../../types/dashboard';
 import { axisC, fmt, niceMax, rem } from '../../utils/format';
+import { useElementWidth } from '../../hooks/useElementWidth';
+import { SegmentedControl } from '../common/SegmentedControl';
 
 interface MultiChartProps {
   id: string;
@@ -11,6 +13,12 @@ interface MultiChartProps {
   emptyMessage?: string;
   defaultType?: ChartType;
 }
+
+const CHART_TYPE_OPTIONS: { value: ChartType; label: string; title: string }[] = [
+  { value: 'line', label: '꺾은선', title: '꺾은선' },
+  { value: 'grouped', label: '그룹형', title: '그룹형' },
+  { value: 'donut', label: '원형', title: '기간 구성비' },
+];
 
 export const MultiChart: React.FC<MultiChartProps> = ({
   id,
@@ -25,24 +33,10 @@ export const MultiChart: React.FC<MultiChartProps> = ({
   const [hoverSeries, setHoverSeries] = useState<number | null>(null);
   const [hoverSlice, setHoverSlice] = useState<number | null>(null);
   const [hoverPie, setHoverPie] = useState<number | null>(null);
-  const [width, setWidth] = useState<number>(0);
-  const boxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const updateWidth = () => {
-      if (el.clientWidth > 0) setWidth(el.clientWidth);
-    };
-    updateWidth();
-    const ro = new ResizeObserver(updateWidth);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [series.length, labels.length]);
+  const { ref: boxRef, width: W } = useElementWidth([series.length, labels.length]);
 
   const hasData = series.length > 0 && labels.length > 0;
   const r = rem();
-  const W = width || 520;
   const H = 16 * r;
   const L = 3.5 * r;
   const R = 1.5 * r;
@@ -195,7 +189,6 @@ export const MultiChart: React.FC<MultiChartProps> = ({
                 y={ly - r * 0.55}
                 width={r * 0.6}
                 height={r * 0.6}
-                rx={2}
                 fill={`var(${s.c})`}
                 opacity={hoverPie === null || isHovered ? 1 : 0.35}
               />
@@ -349,7 +342,6 @@ export const MultiChart: React.FC<MultiChartProps> = ({
                     y={by}
                     width={subBw}
                     height={bh}
-                    rx={1.5}
                     fill={`var(${s.c})`}
                     style={{ opacity: dimmed ? 0.15 : 1 }}
                   />
@@ -418,19 +410,13 @@ export const MultiChart: React.FC<MultiChartProps> = ({
     <div className="card">
       <h3>
         <span>{title}</span>
-        <span className="seg seg-mini" data-chart={id}>
-          {(['line', 'grouped', 'donut'] as ChartType[]).map((t) => (
-            <button
-              key={t}
-              data-v={t}
-              className={chartType === t ? 'on' : ''}
-              title={t === 'line' ? '꺾은선' : t === 'grouped' ? '그룹형' : '기간 구성비'}
-              onClick={() => setChartType(t)}
-            >
-              {t === 'line' ? '꺾은선' : t === 'grouped' ? '그룹형' : '원형'}
-            </button>
-          ))}
-        </span>
+        <SegmentedControl<ChartType>
+          mini
+          dataChart={id}
+          options={CHART_TYPE_OPTIONS}
+          value={chartType}
+          onChange={setChartType}
+        />
       </h3>
       <div className="ch" id={id} ref={boxRef}>
         {!hasData ? (

@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import type { CategoryBarItem } from '../../types/dashboard';
 import { fmt, measureSvgText, niceMax, rem } from '../../utils/format';
+import { useElementWidth } from '../../hooks/useElementWidth';
 
 interface CategoryBarChartProps {
   id: string;
@@ -13,20 +14,7 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   list,
   emptyMessage = '표시할 데이터가 없습니다',
 }) => {
-  const boxRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState<number>(0);
-
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const updateWidth = () => {
-      if (el.clientWidth > 0) setWidth(el.clientWidth);
-    };
-    updateWidth();
-    const ro = new ResizeObserver(updateWidth);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [list.length]);
+  const { ref: boxRef, width: W } = useElementWidth([list.length]);
 
   if (!list.length) {
     return (
@@ -37,7 +25,6 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   }
 
   const r = rem();
-  const W = width || 520;
   const hasQ = list.some((c) => c.q != null);
   const rowH = 3.75 * r;
   const barH1 = 1.0 * r;
@@ -84,7 +71,6 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
                 y={y1}
                 width={Math.max(0, w1)}
                 height={barH1}
-                rx={2}
                 fill="var(--bar)"
                 data-tip={`${c.k} · 기준월|${fmt(c.cur)}만원`}
               />
@@ -114,7 +100,6 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
                 y={y2}
                 width={Math.max(0, w2)}
                 height={barH2}
-                rx={1}
                 fill="var(--bar2)"
                 data-tip={`${c.k} · 전월|${fmt(c.prev)}만원`}
               />

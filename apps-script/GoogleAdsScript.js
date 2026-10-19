@@ -24,14 +24,14 @@ function main() {
   const camp = [['month', 'type', 'campaign', 'campaign_id', 'cost', 'impressions', 'clicks', 'conversions']];
   each_(`SELECT segments.month, campaign.id, campaign.name, campaign.advertising_channel_type, ${M}
          FROM campaign WHERE ${range} AND metrics.cost_micros > 0`, (r) => {
-    camp.push([r.segments.month.slice(0, 7), type_(r.campaign.advertisingChannelType), r.campaign.name, String(r.campaign.id), ...met_(r)]);
+    camp.push([r.segments.month.slice(0, 7), type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.campaign.id), ...met_(r)]);
   });
   put_(ss, 'g_campaign_monthly', camp);
 
   const grp = [['month', 'type', 'campaign', 'campaign_id', 'ad_group', 'ad_group_id', 'cost', 'impressions', 'clicks', 'conversions']];
   each_(`SELECT segments.month, campaign.id, campaign.name, campaign.advertising_channel_type, ad_group.id, ad_group.name, ${M}
          FROM ad_group WHERE ${range} AND metrics.cost_micros > 0`, (r) => {
-    grp.push([r.segments.month.slice(0, 7), type_(r.campaign.advertisingChannelType), r.campaign.name, String(r.campaign.id), r.adGroup.name, String(r.adGroup.id), ...met_(r)]);
+    grp.push([r.segments.month.slice(0, 7), type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.campaign.id), String(r.adGroup.name || '').trim(), String(r.adGroup.id), ...met_(r)]);
   });
   put_(ss, 'g_adgroup_monthly', grp);
 
@@ -41,7 +41,7 @@ function main() {
          FROM keyword_view
          WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED' AND ad_group_criterion.status = 'ENABLED'`, (r) => {
     const c = r.adGroupCriterion;
-    kw.push([type_(r.campaign.advertisingChannelType), r.campaign.name, r.adGroup.name, c.keyword.text, c.keyword.matchType,
+    kw.push([type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.adGroup.name || '').trim(), String(c.keyword.text || '').trim(), c.keyword.matchType,
       Math.round(Number(c.effectiveCpcBidMicros || 0) / 1e6), (c.qualityInfo && c.qualityInfo.qualityScore) || '', ...met_(r)]);
   });
   put_(ss, 'g_keywords', kw);
@@ -75,8 +75,8 @@ function main() {
     const heads = (a.responsiveSearchAd && a.responsiveSearchAd.headlines) || (a.responsiveDisplayAd && a.responsiveDisplayAd.headlines) || [];
     const mi = (a.responsiveDisplayAd && a.responsiveDisplayAd.marketingImages) || [];
     const image = (a.imageAd && a.imageAd.imageUrl) || (mi.length && img[mi[0].asset]) || grpImg[String(r.adGroup.id)] || campImg[String(r.campaign.id)] || '';
-    ads.push([type_(r.campaign.advertisingChannelType), r.campaign.name, r.adGroup.name, String(a.id), a.type,
-      (heads[0] && heads[0].text) || a.name || '', (a.finalUrls || [])[0] || '', image]);
+    ads.push([type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.adGroup.name || '').trim(), String(a.id), a.type,
+      String((heads[0] && heads[0].text) || a.name || '').trim(), (a.finalUrls || [])[0] || '', image]);
   });
   put_(ss, 'g_ads', ads);
 
@@ -91,10 +91,11 @@ function met_(r) {
   return [Math.round(Number(m.costMicros || 0) / 1e6), Number(m.impressions || 0), Number(m.clicks || 0), Math.round(Number(m.conversions || 0) * 100) / 100];
 }
 function each_(q, fn) { const it = AdsApp.search(q); while (it.hasNext()) fn(it.next()); }
-/** 시트를 통째로 다시 쓴다. 1열(월 등)은 날짜로 바뀌지 않게 글자 형식으로 둔다. */
+/** 시트를 통째로 다시 쓴다. 1열(월 등)과 *_meta 의 2열(타임스탬프)은 날짜로 바뀌지 않게 글자 형식으로 둔다. */
 function put_(ss, name, rows) {
   const sh = ss.getSheetByName(name) || ss.insertSheet(name);
   sh.clearContents();
-  sh.getRange(1, 1, Math.max(rows.length, 1), 1).setNumberFormat('@');
+  const textCols = /_meta$/.test(name) && rows[0] && rows[0].length >= 2 ? 2 : 1;
+  sh.getRange(1, 1, Math.max(rows.length, 1), textCols).setNumberFormat('@');
   sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
 }

@@ -11,16 +11,28 @@ import {
   THIS_Y,
   ym,
 } from '../utils/format';
+import { EXTERNAL_LINKS } from '../utils/constants';
+import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
+import { SegmentedControl } from '../components/common/SegmentedControl';
 import { DeltaSpan, KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
+import { SpendDetailTable } from '../components/ads/SpendDetailTable';
 
 interface AdsViewProps {
   data: DashboardData;
   status: SyncStatus;
 }
 
+const ADS_SOURCES: SourceLinkItem[] = [
+  { label: 'Google Ads API', href: EXTERNAL_LINKS.googleAds },
+  { label: '네이버 검색광고 API', href: EXTERNAL_LINKS.naverSearchAd },
+  { label: 'Meta Ads 수동 입력' },
+  { label: '네이버 커머스 API', href: EXTERNAL_LINKS.naverSmartStore },
+  { label: 'MDF 업로드 시트' },
+  { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
+];
+
 export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
-  const live = status === 'live';
   const years = [...new Set(data.spend.map((r) => Number(r.month.slice(0, 4))))].sort(
     (a, b) => b - a
   );
@@ -33,15 +45,11 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
   if (!data.spend.length) {
     return (
       <div className="view on" data-view="ads" data-title="월별 광고비">
-        <div className="mod-h">
-          <div>
-            <h2>월별 광고비</h2>
-            <p>매체별·구분별 월간 광고비 집행 추이 및 소진 내역</p>
-          </div>
-          <span className={`ex${live ? ' live' : ''}`} data-src>
-            {live ? '실제 취합 데이터' : '데이터 대기 중'}
-          </span>
-        </div>
+        <ViewHeader
+          title="월별 광고비"
+          description="매체별·구분별 월간 광고비 집행 추이 및 소진 내역"
+          status={status}
+        />
         <div className="kpis" id="kpiAds">
           <div className="kpi">
             <div className="l">실제 광고비 데이터</div>
@@ -76,8 +84,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
       ),
       (r) => r.cost
     );
-    const manStore = man(mo, 'STORE');
-    return apiStore || manStore;
+    return apiStore || man(mo, 'STORE');
   };
 
   const mdfCost = (mo: string) => {
@@ -113,65 +120,30 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
 
   return (
     <div className="view on" data-view="ads" data-title="월별 광고비">
-      <div className="mod-h">
-        <div>
-          <h2>월별 광고비</h2>
-          <p>매체별·구분별 월간 광고비 집행 추이 및 소진 내역</p>
-        </div>
-        <span className={`ex${live ? ' live' : ''}`} data-src>
-          {live ? '실제 취합 데이터' : '데이터 대기 중'}
-        </span>
-      </div>
-      <p className="sec-src">
-        <a href="https://ads.google.com" target="_blank" rel="noopener">
-          Google Ads API
-        </a>
-        <a href="https://searchad.naver.com" target="_blank" rel="noopener">
-          네이버 검색광고 API
-        </a>
-        <span>Meta Ads 수동 입력</span>
-        <a href="https://sell.smartstore.naver.com" target="_blank" rel="noopener">
-          네이버 커머스 API
-        </a>
-        <span>MDF 업로드 시트</span>
-        <a
-          href="https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit"
-          target="_blank"
-          rel="noopener"
-        >
-          취합 스프레드시트
-        </a>
-      </p>
+      <ViewHeader
+        title="월별 광고비"
+        description="매체별·구분별 월간 광고비 집행 추이 및 소진 내역"
+        status={status}
+        sources={ADS_SOURCES}
+      />
 
       <div className="mock-bar">
-        <span className="seg" data-k="year" id="segYear">
-          {availableYears.map((y) => (
-            <button
-              key={y}
-              data-v={y}
-              className={Y === y ? 'on' : ''}
-              onClick={() => setSelectedYear(y)}
-            >
-              {y}
-            </button>
-          ))}
-        </span>
-        <span className="seg" data-k="mode">
-          <button
-            data-v="chart"
-            className={mode === 'chart' ? 'on' : ''}
-            onClick={() => setMode('chart')}
-          >
-            그래프
-          </button>
-          <button
-            data-v="table"
-            className={mode === 'table' ? 'on' : ''}
-            onClick={() => setMode('table')}
-          >
-            표
-          </button>
-        </span>
+        <SegmentedControl<number>
+          id="segYear"
+          dataKey="year"
+          options={availableYears.map((y) => ({ value: y, label: y }))}
+          value={Y}
+          onChange={setSelectedYear}
+        />
+        <SegmentedControl<'chart' | 'table'>
+          dataKey="mode"
+          options={[
+            { value: 'chart', label: '그래프' },
+            { value: 'table', label: '표' },
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
         <span className="sp" />
       </div>
 
@@ -230,105 +202,17 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
         />
       )}
 
-      <div className="card tw" id="spend-monthly">
-        <h3>월별 집행 상세 내역</h3>
-        <div>
-          <table className="stk" id="tbSpendDetail">
-            <thead>
-              <tr>
-                <th>구분</th>
-                {allMonths12.map((mo) => (
-                  <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{mLabel(mo)}</th>
-                ))}
-                <th className="n">합계</th>
-              </tr>
-            </thead>
-            <tbody>
-              {series.map((s) => (
-                <tr key={s.k}>
-                  <td>{s.k}</td>
-                  {allMonths12.map((mo) => (
-                    <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
-                      {fmt(sumBy(at(mo).filter(s.f), (r) => r.cost))}
-                    </td>
-                  ))}
-                  <td className="n"><b>{fmt(sumBy(s.raw || [], (v) => v))}</b></td>
-                </tr>
-              ))}
-              <tr className="grp">
-                <td>합계</td>
-                {allMonths12.map((mo) => (
-                  <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>{fmt(tot(mo))}</td>
-                ))}
-                <td className="n"><b>{fmt(sumBy(months, tot))}</b></td>
-              </tr>
-              <tr>
-                <td className="sub-t">MDF</td>
-                {allMonths12.map((mo) => (
-                  <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(mdfCost(mo))}</td>
-                ))}
-                <td className="n sub-t">{fmt(sumBy(months, mdfCost))}</td>
-              </tr>
-              <tr>
-                <td className="sub-t">스토어</td>
-                {allMonths12.map((mo) => (
-                  <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(storeCost(mo))}</td>
-                ))}
-                <td className="n sub-t">{fmt(sumBy(months, storeCost))}</td>
-              </tr>
-              <tr>
-                <td className="sub-t">전년 동월</td>
-                {allMonths12.map((mo) => (
-                  <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>{fmt(lastY(mo))}</td>
-                ))}
-                <td className="n sub-t">{fmt(sumBy(months, lastY))}</td>
-              </tr>
-              <tr>
-                <td className="sub-t">전년비</td>
-                {allMonths12.map((mo) => (
-                  <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
-                    <DeltaSpan a={tot(mo)} b={lastY(mo)} />
-                  </td>
-                ))}
-                <td />
-              </tr>
-            </tbody>
-          </table>
-          <p className="tbl-src">
-            단위: 원&nbsp;
-            <span>
-              Google SA·DA —{' '}
-              <a href="https://ads.google.com" target="_blank" rel="noopener">
-                Google Ads
-              </a>{' '}
-              API 자동 수집
-            </span>
-            <span>
-              Naver SA —{' '}
-              <a href="https://searchad.naver.com" target="_blank" rel="noopener">
-                네이버 검색광고
-              </a>{' '}
-              API 자동 수집
-            </span>
-            <span>Naver DA — 네이버 DA 리포트 시트</span>
-            <span>
-              Meta —{' '}
-              <a href="https://adsmanager.facebook.com" target="_blank" rel="noopener">
-                Meta Ads 관리자
-              </a>{' '}
-              시트
-            </span>
-            <span>
-              스토어 —{' '}
-              <a href="https://sell.smartstore.naver.com" target="_blank" rel="noopener">
-                네이버 스마트스토어
-              </a>{' '}
-              커머스 API 자동 수집
-            </span>
-            <span>MDF — MDF 업로드 시트 + HPE_MDF 캠페인</span>
-          </p>
-        </div>
-      </div>
+      <SpendDetailTable
+        series={series}
+        allMonths12={allMonths12}
+        months={months}
+        isFuture={isFuture}
+        at={at}
+        tot={tot}
+        mdfCost={mdfCost}
+        storeCost={storeCost}
+        lastY={lastY}
+      />
     </div>
   );
 };

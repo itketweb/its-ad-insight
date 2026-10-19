@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { ViewId } from './types/dashboard';
+import { VALID_VIEWS, VIEW_TITLES } from './utils/constants';
 import { useDashboardData } from './hooks/useDashboardData';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
@@ -10,24 +11,6 @@ import { CatEfficiencyView } from './views/CatEfficiencyView';
 import { KeywordsView } from './views/KeywordsView';
 import { QuotesView } from './views/QuotesView';
 import { DataView } from './views/DataView';
-
-const VALID_VIEWS: ViewId[] = [
-  'overview',
-  'ads',
-  'cat-efficiency',
-  'keywords',
-  'quotes',
-  'data',
-];
-
-const VIEW_TITLES: Record<ViewId, string> = {
-  overview: '종합 요약',
-  ads: '월별 광고비',
-  'cat-efficiency': '카테고리 효율',
-  keywords: '키워드 · 소재',
-  quotes: '견적 상세',
-  data: '데이터 연결',
-};
 
 function getInitialView(): ViewId {
   const hash = window.location.hash.slice(1) as ViewId;
@@ -56,11 +39,15 @@ export const App: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [isDark, setIsDark] = useState<boolean>(getInitialDark);
 
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    document.body.classList.remove('lock');
+  };
+
   const handleNavigate = (view: ViewId) => {
     const target = VALID_VIEWS.includes(view) ? view : 'overview';
     setCurrentView(target);
-    setDrawerOpen(false);
-    document.body.classList.remove('lock');
+    closeDrawer();
     document.title = `${VIEW_TITLES[target]} · its-ad-insight`;
     window.history.replaceState(
       null,
@@ -77,20 +64,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     const onHashChange = () => {
       const h = window.location.hash.slice(1) as ViewId;
-      const target = VALID_VIEWS.includes(h) ? h : 'overview';
-      setCurrentView(target);
+      setCurrentView(VALID_VIEWS.includes(h) ? h : 'overview');
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setDrawerOpen(false);
-        document.body.classList.remove('lock');
-      }
+      if (e.key === 'Escape') closeDrawer();
     };
     const onResize = () => {
-      if (window.innerWidth > 768) {
-        setDrawerOpen(false);
-        document.body.classList.remove('lock');
-      }
+      if (window.innerWidth > 768) closeDrawer();
     };
     const mq = window.matchMedia('(prefers-color-scheme:dark)');
     const onSystemThemeChange = () => {
@@ -129,11 +109,6 @@ export const App: React.FC = () => {
     document.body.classList.add('lock');
   };
 
-  const handleCloseDrawer = () => {
-    setDrawerOpen(false);
-    document.body.classList.remove('lock');
-  };
-
   return (
     <>
       <div className="app">
@@ -141,7 +116,7 @@ export const App: React.FC = () => {
           currentView={currentView}
           drawerOpen={drawerOpen}
           onNavigate={handleNavigate}
-          onCloseDrawer={handleCloseDrawer}
+          onCloseDrawer={closeDrawer}
         />
         <div className="wrap">
           <Header
@@ -169,7 +144,7 @@ export const App: React.FC = () => {
               )}
               {currentView === 'quotes' && <QuotesView data={data} status={status} />}
               {currentView === 'data' && (
-                <DataView data={data} status={status} onReload={load} />
+                <DataView data={data} categoryMap={categoryMap} status={status} />
               )}
             </main>
           </div>

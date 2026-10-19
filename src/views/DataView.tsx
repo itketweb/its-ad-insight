@@ -1,82 +1,161 @@
-import React from 'react';
-import type { DashboardData, SyncStatus } from '../types/dashboard';
+import React, { useMemo } from 'react';
+import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
 import { DEFAULT_URL, getCfg } from '../hooks/useDashboardData';
-import { fmt } from '../utils/format';
+import { fmt, sumBy } from '../utils/format';
+import { runDataAudit } from '../utils/dataAudit';
+import { EXTERNAL_LINKS } from '../utils/constants';
+import { ViewHeader } from '../components/common/ViewHeader';
+import { DataAuditTable } from '../components/data/DataAuditTable';
+import { DataSourceTable } from '../components/data/DataSourceTable';
+import { CategoryMappingSection } from '../components/data/CategoryMappingSection';
 
 interface DataViewProps {
   data: DashboardData;
+  categoryMap: CategoryMap;
   status: SyncStatus;
-  onReload: () => void;
 }
 
-export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) => {
+export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status }) => {
   const live = status === 'live';
   const cfg = getCfg();
+  const audit = useMemo(() => runDataAudit(data, categoryMap), [data, categoryMap]);
+
+  const googleRows = data.spend.filter((r) => r.media === 'Google');
+  const naverSaRows = data.spend.filter((r) => r.media === 'Naver' && r.type === 'SA');
+  const naverDaRows = data.spend.filter((r) => r.media === 'Naver' && r.type === 'DA');
+  const naverKws = data.keywords.filter((k) => k.media === 'Naver');
+  const googleKws = data.keywords.filter((k) => k.media === 'Google');
+  const storeSpendRows = data.spend.filter(
+    (r) => r.campaign.includes('스마트스토어') || r.campaign.includes('스토어')
+  );
+  const storeManualRows = data.manual.filter((r) => r.item === 'STORE');
+  const mdfSpendRows = data.spend.filter((r) => r.campaign.includes('MDF'));
+  const mdfManualRows = data.manual.filter((r) => r.item === 'MDF');
+  const metaRows = data.manual.filter((r) => r.item === 'META');
+  const totalQuotesCount = data.quotesRaw.length || sumBy(data.quotes, (r) => r.count);
+
+  const sourceRows: {
+    media: string;
+    variant: 'g' | 'n' | 'm' | 'it' | 'etc';
+    titleSuffix: string;
+    desc: string;
+    method: string;
+    liveSummary: string;
+    statusLabel: string;
+    statusCls: 'ok' | 'chk' | 'man';
+  }[] = [
+    {
+      media: 'Naver',
+      variant: 'n',
+      titleSuffix: '검색광고 SA',
+      desc: '비용·노출·클릭·전환, 키워드 입찰가, 확장소재',
+      method: '검색광고 API → 시트 1시간 자동 적재',
+      liveSummary: `월별 ${fmt(naverSaRows.length)}행 · 키워드 ${fmt(naverKws.length)}개 · 소재 ${fmt(data.ads.filter((a) => a.media === 'Naver').length)}개`,
+      statusLabel: naverSaRows.length > 0 ? '정상 연동' : '수집 대기',
+      statusCls: naverSaRows.length > 0 ? 'ok' : 'chk',
+    },
+    {
+      media: '견적',
+      variant: 'it',
+      titleSuffix: 'ITKET · 캐드코리아 · ZbyHP · 전화상담',
+      desc: '견적 일시·카테고리·유입 매체',
+      method: '쇼핑몰(고도몰5) 견적 접수 즉시 웹훅·시트 자동 적재',
+      liveSummary: `원장 ${fmt(totalQuotesCount)}건 · 월별 요약 ${fmt(data.quotes.length)}행`,
+      statusLabel: totalQuotesCount > 0 ? '실시간 자동' : '수집 대기',
+      statusCls: totalQuotesCount > 0 ? 'ok' : 'chk',
+    },
+    {
+      media: 'Naver',
+      variant: 'n',
+      titleSuffix: '스마트스토어',
+      desc: '쇼핑검색 캠페인 · 수수료·프로모션비',
+      method: '검색광고 쇼핑검색 + 커머스 API 자동 적재',
+      liveSummary: `쇼핑검색 ${fmt(storeSpendRows.length)}행 (${fmt(sumBy(storeSpendRows, (r) => r.cost))}원)${storeManualRows.length ? ` · 정산 ${storeManualRows.length}행` : ''}`,
+      statusLabel: storeSpendRows.length > 0 || storeManualRows.length > 0 ? 'API 자동 연동' : '수집 대기',
+      statusCls: storeSpendRows.length > 0 || storeManualRows.length > 0 ? 'ok' : 'chk',
+    },
+    {
+      media: 'MDF',
+      variant: 'etc',
+      titleSuffix: '광고비 지원금',
+      desc: '제조사(HPE 등) 협약 지원금 캠페인',
+      method: '네이버·구글 검색광고 API → MDF 캠페인 자동 집계',
+      liveSummary: `MDF 캠페인 ${fmt(mdfSpendRows.length)}행 (${fmt(sumBy(mdfSpendRows, (r) => r.cost))}원)${mdfManualRows.length ? ` · 수동 ${mdfManualRows.length}행` : ''}`,
+      statusLabel: mdfSpendRows.length > 0 || mdfManualRows.length > 0 ? 'API 자동 연동' : '수집 대기',
+      statusCls: mdfSpendRows.length > 0 || mdfManualRows.length > 0 ? 'ok' : 'chk',
+    },
+    {
+      media: 'Google',
+      variant: 'g',
+      titleSuffix: 'SA·DA',
+      desc: '비용·노출·클릭·전환, 키워드 입찰가, 소재',
+      method: 'Google Ads Script → 시트 1시간 자동 적재',
+      liveSummary:
+        googleRows.length > 0
+          ? `월별 ${fmt(googleRows.length)}행 · 키워드 ${fmt(googleKws.length)}개`
+          : '시트 g_* 탭 0행 (Google Ads 콘솔에서 스크립트 최초 실행 필요)',
+      statusLabel: googleRows.length > 0 ? '정상 연동' : '스크립트 대기',
+      statusCls: googleRows.length > 0 ? 'ok' : 'chk',
+    },
+    {
+      media: 'Naver',
+      variant: 'n',
+      titleSuffix: '디스플레이 DA (GFA)',
+      desc: '성과형 디스플레이 배너 비용·노출·클릭·전환',
+      method: 'GFA 리포트 이메일/스케줄러 → 시트 자동 동기화',
+      liveSummary:
+        naverDaRows.length > 0
+          ? `월별 ${fmt(naverDaRows.length)}행 (${fmt(sumBy(naverDaRows, (r) => r.cost))}원)`
+          : '해당 기간 GFA 집행 내역 없음 (0행)',
+      statusLabel: naverDaRows.length > 0 ? '무인 수집' : '집행 없음',
+      statusCls: naverDaRows.length > 0 ? 'ok' : 'man',
+    },
+    {
+      media: 'Meta',
+      variant: 'm',
+      titleSuffix: '광고비',
+      desc: 'Facebook · Instagram 스폰서드 광고',
+      method: '시트 manual 탭 한 줄 입력 (연 1회 내외)',
+      liveSummary:
+        metaRows.length > 0
+          ? `${fmt(metaRows.length)}건 (${fmt(sumBy(metaRows, (r) => r.amount))}원)`
+          : '집행 내역 없음 (0원)',
+      statusLabel: '수동',
+      statusCls: 'man',
+    },
+  ];
 
   return (
     <div className="view on" data-view="data" data-title="데이터 연결">
-      <div className="mod-h">
-        <div>
-          <h2>데이터 연결 및 동기화</h2>
-          <p>매체 API 및 견적 웹훅 수집 현황과 카테고리 매칭 기준</p>
-        </div>
-        <span className={`ex${live ? ' live' : ''}`} data-src>
-          {live ? '실제 취합 데이터' : '데이터 대기 중'}
-        </span>
-      </div>
+      <ViewHeader
+        title="데이터 연결 및 동기화"
+        description="매체 API 및 견적 웹훅 수집 현황과 실시간 통계 무결성 검증"
+        status={status}
+      />
 
       {/* 실시간 연동 현황 및 제어 카드 */}
       <div className="card accent">
         <div className="card-head">
           <div>
-            <h3>
-              <span>현재 연동 상태</span>
-              <span
-                className={`pill ${live ? 'g' : status === 'error' ? 'm' : ''}`}
-                id="dataViewBadge"
-              >
-                {live
-                  ? '정상 연동 중 (상시 자동)'
-                  : status === 'error'
-                    ? '동기화 지연'
-                    : '연결 중...'}
-              </span>
-            </h3>
+            <h3>현재 연동 상태</h3>
             <p className="muted small" id="dataViewUpdated">
+              <span className={`st ${live ? 'ok' : status === 'error' ? 'chk' : 'man'}`}>
+                {live ? '정상 연동' : status === 'error' ? '동기화 지연' : '연결 중'}
+              </span>{' '}
               {data.updated
-                ? `마지막 데이터 수집: ${data.updated} (10분 주기 무인 동기화)`
+                ? `마지막 수집: ${data.updated} (15분 주기 자동 동기화)`
                 : '데이터 동기화 대기 중...'}
             </p>
-          </div>
-          <div>
-            <button
-              className="btn sm ic"
-              id="syncBtn"
-              onClick={onReload}
-              title="구글 스프레드시트 최신 데이터 즉시 수집"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-              </svg>
-              <span>지금 동기화</span>
-            </button>
           </div>
         </div>
 
         <table className="kv">
           <tbody>
             <tr>
-              <th style={{ width: '130px' }}>취합 스프레드시트</th>
+              <th>취합 스프레드시트</th>
               <td>
                 <a
-                  href="https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit"
+                  href={EXTERNAL_LINKS.masterSheet}
                   target="_blank"
                   rel="noopener"
                   className="link-acc"
@@ -88,10 +167,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
             <tr>
               <th>Apps Script 웹앱</th>
               <td>
-                <code
-                  id="dataViewUrl"
-                  className="url-code"
-                >
+                <code id="dataViewUrl" className="url-code">
                   {cfg.url || DEFAULT_URL}
                 </code>
               </td>
@@ -99,161 +175,23 @@ export const DataView: React.FC<DataViewProps> = ({ data, status, onReload }) =>
             <tr>
               <th>현재 취합 데이터</th>
               <td id="dataViewStats">
-                네이버 광고 <b>{fmt(data.spend.length)}</b>행 · 키워드{' '}
-                <b>{fmt(data.keywords.length)}</b>개 · 견적 <b>{fmt(data.quotes.length)}</b>건 (0초
-                SWR 캐시 활성)
+                광고 집행 <b>{fmt(data.spend.length)}</b>행 · 키워드{' '}
+                <b>{fmt(data.keywords.length)}</b>개 · 소재 <b>{fmt(data.ads.length)}</b>개 · 견적{' '}
+                <b>{fmt(totalQuotesCount)}</b>건 (월별 요약 <b>{fmt(data.quotes.length)}</b>행)
               </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <section>
-        <h2 className="sec">데이터 소스</h2>
-        <div className="hier">
-          <span>매체</span>›
-          <span>
-            캠페인 <small>≒ 카테고리</small>
-          </span>
-          ›<span>광고그룹</span>›
-          <span>
-            키워드 <small>SA</small> / 배너 <small>DA</small>
-          </span>
-        </div>
-        <div className="card tw">
-          <table className="stk">
-            <thead>
-              <tr>
-                <th>소스</th>
-                <th>수집 방식</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <span className="pill g">Google</span> SA·DA
-                  <div className="sub-t">비용·노출·클릭·전환, 입찰가·품질점수, 소재</div>
-                </td>
-                <td>Google Ads Script → 시트 자동 적재</td>
-                <td>
-                  <span className="st ok">자동 연동</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className="pill n">Naver</span> 검색광고 SA
-                  <div className="sub-t">비용·노출·클릭·전환, 입찰가·품질지수, 확장소재</div>
-                </td>
-                <td>검색광고 API → 시트 1시간 자동 적재</td>
-                <td>
-                  <span className="st ok">자동 연동</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className="pill n">Naver</span> 디스플레이 DA
-                  <div className="sub-t">비용·노출·클릭·전환, 배너 소재</div>
-                </td>
-                <td>GFA 무인 스케줄러(Playwright) → 시트 자동 동기화</td>
-                <td>
-                  <span className="st ok">무인 수집</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className="pill it">견적</span> ITKET · 캐드코리아 · ZbyHP · 전화상담
-                  <div className="sub-t">견적 일시·카테고리·유입 매체</div>
-                </td>
-                <td>쇼핑몰(고도몰5) 견적 접수 즉시 웹훅·시트 자동 적재</td>
-                <td>
-                  <span className="st ok">실시간 자동</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className="pill n">Naver</span> 스마트스토어
-                  <div className="sub-t">수수료·프로모션비</div>
-                </td>
-                <td>스마트스토어 커머스 API → 매일 06:00 시트 자동 적재</td>
-                <td>
-                  <span className="st ok">API 자동 연동</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className="pill etc">MDF</span> 광고비 지원금
-                  <div className="sub-t">제조사(HP 등) 협약 지원금</div>
-                </td>
-                <td>네이버·구글 검색광고 API → MDF 캠페인 자동 집계</td>
-                <td>
-                  <span className="st ok">API 자동 연동</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <span className="pill m">Meta</span> 광고비
-                </td>
-                <td>시트 manual 탭 한 줄 입력 (연 1회 내외)</td>
-                <td>
-                  <span className="st man">수동</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="muted small">
-          과거 수치는 사내 공유 폴더의 월간보고서·키워드TFT 엑셀에서 1회 이관해 전년·전분기 비교에 사용.
-        </p>
-      </section>
+      {/* 실시간 데이터 매칭 · 통계 무결성 자동 검증 섹션 */}
+      <DataAuditTable audit={audit} />
 
-      <section>
-        <h2 className="sec">카테고리 매칭</h2>
-        <p className="lead-t">
-          매체마다 다른 캠페인명과 자주 바뀌는 견적 카테고리를 직접 잇지 않고,{' '}
-          <b>표준 카테고리</b>를 가운데 두고 양쪽을 연결한다.
-        </p>
-        <div className="card">
-          <div className="flow">
-            <div className="col">
-              <div className="col-h">매체 광고그룹</div>
-              <div className="chip g">G · 서버_브랜드</div>
-              <div className="chip g">G · 서버_일반</div>
-              <div className="chip n">N · 서버/워크스테이션</div>
-              <div className="chip n">N · 스토리지_NAS</div>
-            </div>
-            <div className="mid">N : M</div>
-            <div className="col">
-              <div className="col-h">표준 카테고리</div>
-              <div className="chip s">서버</div>
-              <div className="chip s">워크스테이션</div>
-              <div className="chip s">스토리지</div>
-            </div>
-            <div className="mid">N : M</div>
-            <div className="col">
-              <div className="col-h">견적 카테고리</div>
-              <div className="chip it">ITKET · 랙서버</div>
-              <div className="chip it">캐드코리아 · 워크스테이션</div>
-              <div className="chip it">ZbyHP · Z워크스테이션</div>
-              <div className="chip it">전화상담 · 스토리지</div>
-            </div>
-          </div>
-        </div>
-        <div className="rules">
-          <div>
-            <b>관리자가 화면에서 매칭</b>이름 규칙으로 자동 추천, 확정은 사람이
-          </div>
-          <div>
-            <b>새 항목은 알림</b>매칭 안 된 그룹·카테고리는 배지로 표시, 비용은 “미분류”로 보존
-          </div>
-          <div>
-            <b>지난 달은 그대로</b>매칭에 적용 시작월을 둬서 카테고리가 바뀌어도 과거 집계 유지
-          </div>
-          <div>
-            <b>여러 카테고리에 걸치면</b>배분 비율(%) 입력, 기본 100%
-          </div>
-        </div>
-      </section>
+      {/* 데이터 소스별 실시간 수집 현황 */}
+      <DataSourceTable sourceRows={sourceRows} />
+
+      {/* 카테고리 매칭 실시간 현황 */}
+      <CategoryMappingSection audit={audit} />
 
       <section>
         <h2 className="sec">갱신 · 보안</h2>

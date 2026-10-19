@@ -1,10 +1,24 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { DashboardData, SpendRow, SyncStatus } from '../types/dashboard';
+import type {
+  AdRow,
+  DashboardData,
+  KeywordRow,
+  ManualRow,
+  RawAdApiRow,
+  RawApiPayload,
+  RawKeywordApiRow,
+  RawMetaApiRow,
+  RawSpendApiRow,
+  SpendRow,
+  SyncStatus,
+} from '../types/dashboard';
 import { buildCategoryMap } from '../utils/format';
 
 export const DEFAULT_URL =
   'https://script.google.com/macros/s/AKfycbzQS9yMlp9L_eRaH77QWLsY6GOY7L5hyRk1fkuaAHg8GvJmHHwhPRgr2zWldgbX5-cNcg/exec';
 export const DEFAULT_KEY = '2d3b0cc2b04a4873a835583968ca7a0b';
+
+const CACHE_STORAGE_KEY = 'adi_data_cache';
 
 export function getCfg(): { url: string; key: string } {
   const c = window.ADI || {};
@@ -16,23 +30,16 @@ export function getCfg(): { url: string; key: string } {
   } catch {
     // ignore
   }
-  const url =
-    s.url && String(s.url).trim()
-      ? String(s.url).trim()
-      : envUrl && String(envUrl).trim()
-        ? String(envUrl).trim()
-        : c.url && String(c.url).trim()
-          ? String(c.url).trim()
-          : DEFAULT_URL;
-  const key =
-    s.key && String(s.key).trim()
-      ? String(s.key).trim()
-      : envKey && String(envKey).trim()
-        ? String(envKey).trim()
-        : c.key && String(c.key).trim()
-          ? String(c.key).trim()
-          : DEFAULT_KEY;
-  return { url, key };
+  const pick = (...vals: Array<unknown>) => {
+    for (const v of vals) {
+      if (v && String(v).trim()) return String(v).trim();
+    }
+    return '';
+  };
+  return {
+    url: pick(s.url, envUrl, c.url) || DEFAULT_URL,
+    key: pick(s.key, envKey, c.key) || DEFAULT_KEY,
+  };
 }
 
 function emptyData(): DashboardData {
@@ -49,48 +56,56 @@ function emptyData(): DashboardData {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function fromApi(j: any): DashboardData {
+function fmtUpdatedTimestamp(s: string): string {
+  if (!s) return '';
+  if (s.includes('T')) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const pad = (v: number) => String(v).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  }
+  return s;
+}
+
+export function fromApi(j: RawApiPayload): DashboardData {
   const n = (v: unknown) => Number(v) || 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = (media: string, r: any): SpendRow => ({
-    month: String(r.month).slice(0, 7),
+
+  const toSpendRow = (media: string, r: RawSpendApiRow): SpendRow => ({
+    month: String(r.month ?? '').trim().slice(0, 7),
     media,
-    type: r.type || 'SA',
-    campaign: String(r.campaign),
-    adgroup: String(r.ad_group ?? ''),
+    type: String(r.type || 'SA').trim(),
+    campaign: String(r.campaign ?? '').trim(),
+    adgroup: String(r.ad_group ?? '').trim(),
     cost: n(r.cost),
     imp: n(r.impressions),
     clk: n(r.clicks),
     conv: n(r.conversions),
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const spend: SpendRow[] = (j.g_adgroup_monthly || []).map((r: any) => row('Google', r));
-  const hasGroup = new Set(spend.map((r) => r.month + '\u0001' + r.campaign));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (j.g_campaign_monthly || []).forEach((r: any) => {
-    const c = row('Google', r);
-    if (!hasGroup.has(c.month + '\u0001' + c.campaign)) {
+  const spend: SpendRow[] = (j.g_adgroup_monthly || []).map((r) => toSpendRow('Google', r));
+  const hasGroup = new Set(spend.map((r) => `${r.month}\u0001${r.campaign}`));
+
+  (j.g_campaign_monthly || []).forEach((r) => {
+    const c = toSpendRow('Google', r);
+    if (!hasGroup.has(`${c.month}\u0001${c.campaign}`)) {
       spend.push({ ...c, adgroup: '(광고그룹 없음)' });
     }
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (j.n_adgroup_monthly || []).forEach((r: any) => spend.push(row('Naver', r)));
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const manual = (j.manual || [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((r: any) => ({
-      month: String(r.month).slice(0, 7),
-      item: String(r.item).trim().toUpperCase(),
+  (j.n_adgroup_monthly || []).forEach((r) => spend.push(toSpendRow('Naver', r)));
+
+  const manual: ManualRow[] = (j.manual || [])
+    .map((r) => ({
+      month: String(r.month ?? '').trim().slice(0, 7),
+      item: String(r.item ?? '').trim().toUpperCase(),
       amount: n(r.amount),
     }))
-    .filter((r: { amount: number }) => r.amount);
+    .filter((r) => r.amount > 0);
 
   manual
-    .filter((r: { item: string }) => r.item === 'META')
-    .forEach((r: { month: string; amount: number }) =>
+    .filter((r) => r.item === 'META')
+    .forEach((r) =>
       spend.push({
         month: r.month,
         media: 'Meta',
@@ -104,96 +119,112 @@ export function fromApi(j: any): DashboardData {
       })
     );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const kw = (media: string, r: any) => ({
+  // 네이버 파워링크는 2026-07-29부로 기존 nccQi.qiGrade가 폐지되어 모든 키워드가 고정값 4로 내려온다.
+  // 신규 지표(ad_relevance, expected_click)가 없고 네이버 키워드 전체가 4로만 채워진 경우 고정 기본값이므로 0 처리한다.
+  const naverRawKws = j.n_keywords || [];
+  const isLegacyUniformNaverQi =
+    naverRawKws.length > 0 &&
+    naverRawKws.every(
+      (r) =>
+        !n(r.ad_relevance) &&
+        !n(r.expected_click) &&
+        (n(r.quality) === 4 || n(r.quality) === 0)
+    );
+
+  const toKeywordRow = (media: string, r: RawKeywordApiRow): KeywordRow => {
+    const adRelevance = n(r.ad_relevance) || undefined;
+    const expectedClick = n(r.expected_click) || undefined;
+    const rawQ = n(r.quality);
+    const quality =
+      media === 'Naver'
+        ? adRelevance && expectedClick
+          ? Math.round((adRelevance + expectedClick) / 2)
+          : adRelevance || expectedClick || (isLegacyUniformNaverQi && rawQ === 4 ? 0 : rawQ)
+        : rawQ;
+
+    return {
+      media,
+      type: String(r.type || 'SA').trim(),
+      campaign: String(r.campaign ?? '').trim(),
+      adgroup: String(r.ad_group ?? '').trim(),
+      keyword: String(r.keyword ?? '').trim(),
+      match: r.match,
+      bid: n(r.bid),
+      quality,
+      adRelevance,
+      expectedClick,
+      cost: n(r.cost),
+      imp: n(r.impressions),
+      clk: n(r.clicks),
+      conv: n(r.conversions),
+    };
+  };
+
+  const toAdRow = (media: string, r: RawAdApiRow): AdRow => ({
     media,
-    type: String(r.type || 'SA'),
-    campaign: String(r.campaign),
-    adgroup: String(r.ad_group),
-    keyword: String(r.keyword),
-    match: r.match,
-    bid: n(r.bid),
-    quality: n(r.quality),
-    cost: n(r.cost),
-    imp: n(r.impressions),
-    clk: n(r.clicks),
-    conv: n(r.conversions),
+    type: String(r.type || 'SA').trim(),
+    campaign: String(r.campaign ?? '').trim(),
+    adgroup: String(r.ad_group ?? '').trim(),
+    title: String(r.title || r.ad_type || '').trim(),
+    url: String(r.url || '').trim(),
+    image: String(r.image || '').trim(),
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ad = (media: string, r: any) => ({
-    media,
-    type: String(r.type || 'SA'),
-    campaign: String(r.campaign),
-    adgroup: String(r.ad_group),
-    title: String(r.title || r.ad_type || ''),
-    url: String(r.url || ''),
-    image: String(r.image || ''),
-  });
+  const upd = (rows?: RawMetaApiRow[]) =>
+    (rows || []).find((r) => r.key === 'updated')?.value || '';
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const upd = (rows: any[]) => ((rows || []).find((r) => r.key === 'updated') || {}).value || '';
   const candidates = [j.served, upd(j.g_meta), upd(j.n_meta), upd(j.q_meta)]
     .map((v) => String(v || '').trim())
     .filter(Boolean);
   const precise = candidates.filter((s) => s.length >= 10);
   const rawUpdated = precise.length ? precise.sort().pop()! : candidates.sort().pop() || '';
 
-  const fmtUpdated = (s: string) => {
-    if (!s) return '';
-    if (s.includes('T')) {
-      const d = new Date(s);
-      if (!isNaN(d.getTime())) {
-        const pad = (v: number) => String(v).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      }
-    }
-    return s;
-  };
-
   return {
-    updated: fmtUpdated(rawUpdated),
+    updated: fmtUpdatedTimestamp(rawUpdated),
     sources: { google: upd(j.g_meta), naver: upd(j.n_meta), quote: upd(j.q_meta) },
     spend,
     manual,
     mapping: j.mapping || [],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    quotes: (j.quotes_monthly || []).map((r: any) => ({
-      month: String(r.month).slice(0, 7),
-      category: String(r.category),
-      source: String(r.source),
+    quotes: (j.quotes_monthly || []).map((r) => ({
+      month: String(r.month ?? '').trim().slice(0, 7),
+      category: String(r.category ?? '').trim(),
+      source: String(r.source ?? '').trim(),
       count: n(r.count),
     })),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    quotesRaw: (j.quotes_raw || []).map((r: any) => ({
-      date: String(r.date || ''),
-      category: String(r.category || ''),
-      source: String(r.source || ''),
-      status: String(r.status || ''),
-    })).filter((r: { date: string }) => r.date).sort((a: { date: string }, b: { date: string }) => b.date.localeCompare(a.date)),
-    keywords: (j.g_keywords || [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => kw('Google', r))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .concat((j.n_keywords || []).map((r: any) => kw('Naver', r))),
-    ads: (j.g_ads || [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => ad('Google', r))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .concat((j.n_ads || []).map((r: any) => ad('Naver', r))),
+    quotesRaw: (j.quotes_raw || [])
+      .map((r) => ({
+        date: String(r.date || '').trim(),
+        category: String(r.category || '').trim(),
+        source: String(r.source || '').trim(),
+        status: String(r.status || '').trim(),
+      }))
+      .filter((r) => r.date)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    keywords: [
+      ...(j.g_keywords || []).map((r) => toKeywordRow('Google', r)),
+      ...naverRawKws.map((r) => toKeywordRow('Naver', r)),
+    ],
+    ads: [
+      ...(j.g_ads || []).map((r) => toAdRow('Google', r)),
+      ...(j.n_ads || []).map((r) => toAdRow('Naver', r)),
+    ],
   };
+}
+
+function saveCacheSafe(payload: RawApiPayload): void {
+  try {
+    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore storage quota errors
+  }
 }
 
 function loadInitialCache(): { data: DashboardData; status: SyncStatus; restored: boolean } {
   try {
-    const cached = localStorage.getItem('adi_data_cache');
+    const cached = localStorage.getItem(CACHE_STORAGE_KEY);
     if (cached) {
-      const j = JSON.parse(cached);
-      if (
-        j &&
-        ((j.quotes_monthly && j.quotes_monthly.length) ||
-          (j.n_adgroup_monthly && j.n_adgroup_monthly.length))
-      ) {
+      const j = JSON.parse(cached) as RawApiPayload;
+      if (j && (j.quotes_monthly?.length || j.n_adgroup_monthly?.length) && j.quotes_raw?.length) {
         return { data: fromApi(j), status: 'live', restored: true };
       }
     }
@@ -211,6 +242,22 @@ export function useDashboardData() {
 
   const categoryMap = useMemo(() => buildCategoryMap(data.mapping), [data.mapping]);
 
+  const tryLoadStaticFallback = useCallback(async () => {
+    try {
+      const localRes = await fetch('data/latest.json');
+      if (!localRes.ok) return;
+      const localJ = (await localRes.json()) as RawApiPayload;
+      setData((prevData) => {
+        if (prevData.spend.length > 0 && prevData.quotesRaw.length > 0) return prevData;
+        saveCacheSafe(localJ);
+        return fromApi(localJ);
+      });
+      setStatus('live');
+    } catch {
+      // ignore fallback failure
+    }
+  }, []);
+
   const load = useCallback(async () => {
     const c = getCfg();
     if (!c.url || !c.key) {
@@ -220,78 +267,35 @@ export function useDashboardData() {
     setIsSyncing(true);
 
     try {
-      const fetchUrl = c.url + (c.url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(c.key);
+      const fetchUrl = `${c.url}${c.url.includes('?') ? '&' : '?'}key=${encodeURIComponent(c.key)}`;
       const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const j = await res.json();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = (await res.json()) as RawApiPayload;
       if (j.error) throw new Error(j.error);
-      const parsed = fromApi(j);
-      setData(parsed);
+      setData(fromApi(j));
       setStatus('live');
-      try {
-        localStorage.setItem('adi_data_cache', JSON.stringify(j));
-      } catch {
-        // ignore quota errors
-      }
+      saveCacheSafe(j);
     } catch (e) {
       console.error('[its-ad-insight] 실데이터 동기화 오류 (화면 데이터 유지):', e);
-      setStatus((prev) => {
-        if (prev === 'live') return 'live';
-        return 'error';
-      });
-      // 기존에 live 데이터가 없으면 로컬 정적 백업 data/latest.json 시도
-      try {
-        const localRes = await fetch('data/latest.json');
-        if (localRes.ok) {
-          const localJ = await localRes.json();
-          setData((prevData) => {
-            if (prevData.spend.length > 0 || prevData.quotes.length > 0) return prevData;
-            try {
-              localStorage.setItem('adi_data_cache', JSON.stringify(localJ));
-            } catch {
-              // ignore
-            }
-            return fromApi(localJ);
-          });
-          setStatus('live');
-        }
-      } catch {
-        // ignore fallback failure
-      }
+      setStatus((prev) => (prev === 'live' ? 'live' : 'error'));
+      await tryLoadStaticFallback();
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [tryLoadStaticFallback]);
 
   useEffect(() => {
     if (!initial.restored) {
-      fetch('data/latest.json')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((localJ) => {
-          if (localJ) {
-            setData((prev) => {
-              if (prev.spend.length > 0 || prev.quotes.length > 0) return prev;
-              try {
-                localStorage.setItem('adi_data_cache', JSON.stringify(localJ));
-              } catch {
-                // ignore
-              }
-              return fromApi(localJ);
-            });
-            setStatus('live');
-          }
-        })
-        .catch(() => {})
-        .finally(() => {
-          load();
-        });
+      tryLoadStaticFallback().finally(() => {
+        load();
+      });
     } else {
       load();
     }
 
-    const timer = setInterval(load, 10 * 60 * 1000);
+    const timer = setInterval(load, 15 * 60 * 1000);
     return () => clearInterval(timer);
-  }, [initial.restored, load]);
+  }, [initial.restored, load, tryLoadStaticFallback]);
 
   useEffect(() => {
     document.body.classList.toggle('live', status === 'live');

@@ -12,7 +12,7 @@
 | **웹 앱 URL** | `https://script.google.com/macros/s/AKfycbzQS9yMlp9L_eRaH77QWLsY6GOY7L5hyRk1fkuaAHg8GvJmHHwhPRgr2zWldgbX5-cNcg/exec` | Google Apps Script 최신 배포 엔드포인트 |
 | **웹 앱 비밀키 (Key)** | `2d3b0cc2b04a4873a835583968ca7a0b` | API 인증 파라미터 (`?key=...`) |
 | **취합 구글 스프레드시트 ID** | `1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg` | [광고비·전환·견적 취합 시트 바로가기](https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit) |
-| **자동 동기화 주기** | 10분마다 백그라운드 자동 갱신 | 브라우저 열어둘 시 10분 간격 SWR 무중단 갱신 |
+| **자동 동기화 주기** | 15분마다 백그라운드 자동 갱신 | 브라우저 열어둘 시 15분 간격 SWR 무중단 갱신 |
 
 ---
 

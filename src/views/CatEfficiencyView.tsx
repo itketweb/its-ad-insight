@@ -1,8 +1,20 @@
 import React from 'react';
-import type { CategoryBarItem, CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
-import { catSum, fmt, mLabel, prevM, sumBy, THIS_M } from '../utils/format';
+import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
+import {
+  buildCategoryBarItems,
+  catSum,
+  fmt,
+  mLabel,
+  prevM,
+  sumBy,
+  THIS_M,
+} from '../utils/format';
+import { EXTERNAL_LINKS } from '../utils/constants';
+import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
+import { CpaRankList } from '../components/cat-efficiency/CpaRankList';
+import { CatEfficiencyTable } from '../components/cat-efficiency/CatEfficiencyTable';
 
 interface CatEfficiencyViewProps {
   data: DashboardData;
@@ -10,25 +22,26 @@ interface CatEfficiencyViewProps {
   status: SyncStatus;
 }
 
+const CAT_EFF_SOURCES: SourceLinkItem[] = [
+  { label: 'Google Ads API', href: EXTERNAL_LINKS.googleAds },
+  { label: '네이버 검색광고 API', href: EXTERNAL_LINKS.naverSearchAd },
+  { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
+  { label: '광고비·클릭·전환 + 고도몰 견적 시트 교차 집계' },
+];
+
 export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   data,
   categoryMap,
   status,
 }) => {
-  const live = status === 'live';
-
   if (!data.spend.length) {
     return (
       <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
-        <div className="mod-h">
-          <div>
-            <h2>카테고리 효율 분석</h2>
-            <p>카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교</p>
-          </div>
-          <span className={`ex${live ? ' live' : ''}`} data-src>
-            {live ? '실제 취합 데이터' : '데이터 대기 중'}
-          </span>
-        </div>
+        <ViewHeader
+          title="카테고리 효율 분석"
+          description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교"
+          status={status}
+        />
         <div className="kpis" id="kpiCatEff">
           <div className="kpi">
             <div className="l">카테고리 데이터</div>
@@ -59,13 +72,18 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       .filter((r) => r.month === mo && r.category === c)
       .reduce((a, r) => a + r.count, 0);
 
-  const allCatKeys = [
-    ...new Set([...Object.keys(catSpendCur), ...Object.keys(catSpendPrev)]),
-  ].sort((a, b) => (catSpendCur[b] || 0) - (catSpendCur[a] || 0));
-
-  const totSpend = sumBy(rowsCur, (r) => r.cost);
   const curQuotes = data.quotes.filter((r) => r.month === curM);
   const totQuotes = sumBy(curQuotes, (r) => r.count);
+
+  const allCatKeys = [
+    ...new Set([
+      ...Object.keys(catSpendCur),
+      ...Object.keys(catSpendPrev),
+      ...curQuotes.map((r) => r.category).filter(Boolean),
+    ]),
+  ].sort((a, b) => (catSpendCur[b] || 0) - (catSpendCur[a] || 0) || qOf(curM, b) - qOf(curM, a));
+
+  const totSpend = sumBy(rowsCur, (r) => r.cost);
 
   const catData = allCatKeys.map((k) => {
     const cost = catSpendCur[k] || 0;
@@ -94,22 +112,13 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   const bestCpaCat = validCpaCats[0];
   const avgCpa = totQuotes > 0 ? totSpend / totQuotes : 0;
 
-  const top7 = allCatKeys.slice(0, 7);
-  const rest = allCatKeys.slice(7);
-  const list: CategoryBarItem[] = top7.map((k) => ({
-    k,
-    cur: (catSpendCur[k] || 0) / 1e4,
-    prev: (catSpendPrev[k] || 0) / 1e4,
-    q: qOf(curM, k),
-  }));
-  if (rest.length) {
-    list.push({
-      k: `기타 ${rest.length}개`,
-      cur: sumBy(rest, (k) => catSpendCur[k] || 0) / 1e4,
-      prev: sumBy(rest, (k) => catSpendPrev[k] || 0) / 1e4,
-      q: sumBy(rest, (k) => qOf(curM, k)),
-    });
-  }
+  const list = buildCategoryBarItems(
+    catSpendCur,
+    catSpendPrev,
+    (c) => qOf(curM, c),
+    true,
+    7
+  );
 
   const maxCpa = Math.max(...validCpaCats.map((c) => c.cpa), 1);
   const totClk = sumBy(rowsCur, (r) => r.clk);
@@ -117,31 +126,12 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
 
   return (
     <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
-      <div className="mod-h">
-        <div>
-          <h2>카테고리 효율 분석</h2>
-          <p>카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교</p>
-        </div>
-        <span className={`ex${live ? ' live' : ''}`} data-src>
-          {live ? '실제 취합 데이터' : '데이터 대기 중'}
-        </span>
-      </div>
-      <p className="sec-src">
-        <a href="https://ads.google.com" target="_blank" rel="noopener">
-          Google Ads API
-        </a>
-        <a href="https://searchad.naver.com" target="_blank" rel="noopener">
-          네이버 검색광고 API
-        </a>
-        <a
-          href="https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit"
-          target="_blank"
-          rel="noopener"
-        >
-          취합 스프레드시트
-        </a>
-        <span>광고비·클릭·전환 + 고도몰 견적 시트 교차 집계</span>
-      </p>
+      <ViewHeader
+        title="카테고리 효율 분석"
+        description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교"
+        status={status}
+        sources={CAT_EFF_SOURCES}
+      />
 
       <div className="kpis" id="kpiCatEff">
         <KpiCard
@@ -191,119 +181,18 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             </span>
           </div>
         </div>
-        <div className="card" id="cat-cpa">
-          <h3 id="ttCatCpa">
-            <span>
-              카테고리별 견적 획득 단가 (CPA){' '}
-              <span className="muted">({mLabel(curM)} 실적 기준)</span>
-            </span>
-          </h3>
-          <div id="chCatCpa">
-            {validCpaCats.length ? (
-              <div className="cpa-list">
-                {validCpaCats.map((c) => (
-                  <div key={c.k} className="cpa-row">
-                    <div className="cpa-name" title={c.k}>
-                      {c.k}
-                    </div>
-                    <div className="cpa-track">
-                      <div
-                        className="cpa-bar"
-                        style={{ width: `${Math.max(5, Math.round((c.cpa / maxCpa) * 100))}%` }}
-                      />
-                    </div>
-                    <div className="cpa-info">
-                      <span className="cpa-val">{fmt(c.cpa)}원</span>
-                      <span className="cpa-badge">{c.quotes}건 견적</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty">
-                기준월의 견적 접수 데이터가 없어 CPA를 산출할 수 없습니다.
-              </div>
-            )}
-          </div>
-        </div>
+        <CpaRankList validCpaCats={validCpaCats} curM={curM} />
       </div>
 
-      <div className="card tw" id="cat-table">
-        <h3 id="ttCatTable">
-          <span>
-            카테고리별 집행 성과 및 전환 효율 상세{' '}
-            <span className="muted">({mLabel(curM)} 기준)</span>
-          </span>
-        </h3>
-        <table className="stk" id="tbCatEfficiency">
-          <thead>
-            <tr>
-              <th>카테고리</th>
-              <th className="n">광고비</th>
-              <th className="n">비중</th>
-              <th className="n">클릭수</th>
-              <th className="n">광고전환</th>
-              <th className="n">접수견적</th>
-              <th className="n">견적전환율</th>
-              <th className="n">건당 광고비 (CPA)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {catData.map((c) => {
-              const convRate = c.clk > 0 ? `${((c.quotes / c.clk) * 100).toFixed(2)}%` : '–';
-              return (
-                <tr key={c.k}>
-                  <td>
-                    <b>{c.k}</b>
-                  </td>
-                  <td className="n">{fmt(c.cost)}원</td>
-                  <td className="n">{c.share.toFixed(1)}%</td>
-                  <td className="n">{fmt(c.clk)}</td>
-                  <td className="n">{fmt(c.conv)}</td>
-                  <td className="n">
-                    <b>{c.quotes ? `${fmt(c.quotes)}건` : '–'}</b>
-                  </td>
-                  <td className="n">{convRate}</td>
-                  <td className="n">
-                    <b>{c.cpa != null ? `${fmt(c.cpa)}원` : '–'}</b>
-                  </td>
-                </tr>
-              );
-            })}
-            <tr className="grp">
-              <td>합계</td>
-              <td className="n">{fmt(totSpend)}원</td>
-              <td className="n">100.0%</td>
-              <td className="n">{fmt(totClk)}</td>
-              <td className="n">{fmt(totConv)}</td>
-              <td className="n">
-                <b>{fmt(totQuotes)}건</b>
-              </td>
-              <td className="n">
-                {totClk > 0 ? `${((totQuotes / totClk) * 100).toFixed(2)}%` : '–'}
-              </td>
-              <td className="n">
-                <b>{avgCpa ? `${fmt(avgCpa)}원` : '–'}</b>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p id="srcCatEfficiency" className="tbl-src">
-          단위: 원·건&nbsp;
-          <span>
-            광고비·클릭·전환 —{' '}
-            <a href="https://ads.google.com" target="_blank" rel="noopener">
-              Google Ads
-            </a>{' '}
-            /{' '}
-            <a href="https://searchad.naver.com" target="_blank" rel="noopener">
-              네이버 검색광고
-            </a>{' '}
-            API 자동 수집
-          </span>
-          <span>접수 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)</span>
-        </p>
-      </div>
+      <CatEfficiencyTable
+        catData={catData}
+        curM={curM}
+        totSpend={totSpend}
+        totClk={totClk}
+        totConv={totConv}
+        totQuotes={totQuotes}
+        avgCpa={avgCpa}
+      />
     </div>
   );
 };

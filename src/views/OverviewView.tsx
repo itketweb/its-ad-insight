@@ -1,6 +1,8 @@
 import React from 'react';
-import type { CategoryBarItem, CategoryMap, DashboardData, DonutItem, SyncStatus } from '../types/dashboard';
+import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
 import {
+  buildCategoryBarItems,
+  buildSourceDonutData,
   catSum,
   fmt,
   mLabel,
@@ -12,6 +14,8 @@ import {
   THIS_M,
   ym,
 } from '../utils/format';
+import { EXTERNAL_LINKS } from '../utils/constants';
+import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
@@ -23,39 +27,26 @@ interface OverviewViewProps {
   status: SyncStatus;
 }
 
+const OVERVIEW_SOURCES: SourceLinkItem[] = [
+  { label: 'Google Ads API', href: EXTERNAL_LINKS.googleAds },
+  { label: '네이버 검색광고 API', href: EXTERNAL_LINKS.naverSearchAd },
+  { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
+  { label: '15분 자동 동기화' },
+];
+
 export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, status }) => {
-  const live = status === 'live';
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
 
   if (!hasSpend && !hasQuotes) {
     return (
       <div className="view on" data-view="overview" data-title="종합 요약">
-        <div className="mod-h">
-          <div>
-            <h2>종합 요약</h2>
-            <p>광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드</p>
-          </div>
-          <span className={`ex${live ? ' live' : ''}`} data-src>
-            {live ? '실제 취합 데이터' : '데이터 대기 중'}
-          </span>
-        </div>
-        <p className="sec-src">
-          <a href="https://ads.google.com" target="_blank" rel="noopener">
-            Google Ads API
-          </a>
-          <a href="https://searchad.naver.com" target="_blank" rel="noopener">
-            네이버 검색광고 API
-          </a>
-          <a
-            href="https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit"
-            target="_blank"
-            rel="noopener"
-          >
-            취합 스프레드시트
-          </a>
-          <span>15분 자동 동기화</span>
-        </p>
+        <ViewHeader
+          title="종합 요약"
+          description="광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드"
+          status={status}
+          sources={OVERVIEW_SOURCES}
+        />
         <div className="kpis" id="kpiOverview">
           <div className="kpi">
             <div className="l">데이터 상태</div>
@@ -120,86 +111,25 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
 
   // 카테고리별 소진 vs 견적
   const catsMap = (mo: string) => catSum(categoryMap, atSpend(mo), (r) => r.cost);
-  const ca = catsMap(curM);
-  const cb = catsMap(pv);
-  const catKeys = Object.keys(ca)
-    .concat(Object.keys(cb).filter((k) => !(k in ca)))
-    .sort((x, y) => (ca[y] || 0) - (ca[x] || 0));
-  const topCats = catKeys.slice(0, 7);
-  const restCats = catKeys.slice(7);
-  const qOf = (mo: string, c: string) =>
-    data.quotes
-      .filter((r) => r.month === mo && r.category === c)
-      .reduce((a, r) => a + r.count, 0);
+  const list = buildCategoryBarItems(
+    catsMap(curM),
+    catsMap(pv),
+    (c) => cnt(curM, c),
+    true,
+    7
+  );
 
-  const list: CategoryBarItem[] = topCats.map((k) => ({
-    k,
-    cur: (ca[k] || 0) / 1e4,
-    prev: (cb[k] || 0) / 1e4,
-    q: qOf(curM, k),
-  }));
-  if (restCats.length) {
-    list.push({
-      k: `기타 ${restCats.length}개`,
-      cur: sumBy(restCats, (k) => ca[k] || 0) / 1e4,
-      prev: sumBy(restCats, (k) => cb[k] || 0) / 1e4,
-      q: sumBy(restCats, (k) => qOf(curM, k)),
-    });
-  }
-
-  // 유입 매체 비중 — quotesRaw 기반으로 세분화된 매체 전체 집계
-  const quotesRaw = data.quotesRaw || [];
-  const bySrc: Record<string, number> = {};
-  quotesRaw
-    .filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집')
-    .forEach((r) => {
-      bySrc[r.source] = (bySrc[r.source] || 0) + 1;
-    });
-  const totSrc = Object.values(bySrc).reduce((a, b) => a + b, 0);
-  const srcColor = (s: string) => {
-    if (s.startsWith('네이버') || s.startsWith('Naver')) return '--c-n';
-    if (s.startsWith('구글') || s.startsWith('Google')) return '--c-g';
-    if (s.startsWith('Meta')) return '--c-m';
-    if (s.startsWith('카카오')) return '--c-ka';
-    return '--sub';
-  };
-  const srcItems: DonutItem[] = totSrc
-    ? Object.keys(bySrc)
-        .sort((a, b) => bySrc[b] - bySrc[a])
-        .map((k) => ({
-          k,
-          c: srcColor(k),
-          v: Math.round((bySrc[k] / totSrc) * 100),
-        }))
-    : [];
+  // 유입 매체 비중
+  const { items: srcItems } = buildSourceDonutData(data.quotesRaw || [], yr, data.quotes);
 
   return (
     <div className="view on" data-view="overview" data-title="종합 요약">
-      <div className="mod-h">
-        <div>
-          <h2>종합 요약</h2>
-          <p>광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드</p>
-        </div>
-        <span className={`ex${live ? ' live' : ''}`} data-src>
-          {live ? '실제 취합 데이터' : '데이터 대기 중'}
-        </span>
-      </div>
-      <p className="sec-src">
-        <a href="https://ads.google.com" target="_blank" rel="noopener">
-          Google Ads API
-        </a>
-        <a href="https://searchad.naver.com" target="_blank" rel="noopener">
-          네이버 검색광고 API
-        </a>
-        <a
-          href="https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit"
-          target="_blank"
-          rel="noopener"
-        >
-          취합 스프레드시트
-        </a>
-        <span>15분 자동 동기화</span>
-      </p>
+      <ViewHeader
+        title="종합 요약"
+        description="광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드"
+        status={status}
+        sources={OVERVIEW_SOURCES}
+      />
 
       <div className="kpis" id="kpiOverview">
         <KpiCard
