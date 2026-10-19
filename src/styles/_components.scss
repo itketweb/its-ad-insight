@@ -422,6 +422,34 @@ table.kv th {
   background: color-mix(in srgb, var(--pc) 20%, transparent);
   color: color-mix(in srgb, var(--pc) 70%, var(--ink));
 
+  &.icon-only {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    padding: 0;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    background: transparent !important;
+    border: none;
+    box-shadow: none;
+
+    svg {
+      display: block;
+      flex-shrink: 0;
+    }
+
+    &.n,
+    &.g,
+    &.m,
+    &.it,
+    &.etc {
+      background: transparent !important;
+    }
+  }
+
   &.g {
     --pc: var(--c-g);
   }

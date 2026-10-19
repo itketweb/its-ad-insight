@@ -55,13 +55,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   };
 
   // 같은 캠페인 이름이 Google·Naver 양쪽에 있으면 탭에 매체를 붙인다
-  const dupNames = new Set(
-    campaigns.map((c) => c.campaign.trim()).filter((n, i, arr) => arr.indexOf(n) !== i)
-  );
-  const campLabel = (c: CampaignKeywordBucket) => {
-    const name = c.campaign.trim();
-    return dupNames.has(name) ? `${c.media[0]} · ${name}` : name;
-  };
+  const campLabel = (c: CampaignKeywordBucket) => c.campaign.trim();
 
   const safeKwIdx = kwTabIdx >= 0 && kwTabIdx <= campaigns.length ? kwTabIdx : 0;
   const selectedCamp = safeKwIdx > 0 ? campaigns[safeKwIdx - 1] : null;
@@ -87,7 +81,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           <span>
             키워드{' '}
             <span className="muted">
-              {selectedCamp && <MediaPill media={selectedCamp.media} />} {selectedCamp?.campaign}
+              {selectedCamp?.campaign}
               <small className="kw-head-sub">({selectedCamp?.groups.length}개 광고그룹)</small>
             </span>
           </span>
@@ -107,7 +101,10 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               }
               onClick={() => onChangeTab(i)}
             >
-              {lbl}
+              <span>{lbl}</span>
+              {i > 0 && (
+                <MediaPill media={campaigns[i - 1].media} iconOnly size={12} />
+              )}
             </button>
           ))}
         </div>
@@ -117,7 +114,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
         <table className="stk" id="tbKw">
           <colgroup>
             <col className="col-kw-name" />
-            <col className="col-kw-bid" />
             <col className="col-kw-imp" />
             <col className="col-kw-clk" />
             <col className="col-kw-ctr" />
@@ -127,7 +123,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           {type === 'DA' ? (
             <tbody>
               <tr>
-                <td colSpan={7}>
+                <td colSpan={6}>
                   <div className="empty">
                     디스플레이 광고(DA)는 키워드 입찰을 진행하지 않습니다.
                     <br />
@@ -143,7 +139,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               <thead>
                 <tr>
                   <th>캠페인 › 광고그룹 › 키워드</th>
-                  <th className="n">현재 입찰가</th>
                   <th className="n">노출</th>
                   <th className="n">클릭</th>
                   <th className="n">CTR</th>
@@ -153,7 +148,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               </thead>
               <tbody>
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={6}>
                     <div className="empty">
                       {media === 'Google' ? (
                         <>
@@ -176,7 +171,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               <thead>
                 <tr>
                   <th>{selectedCamp ? '광고그룹 › 키워드' : '캠페인 › 광고그룹 › 키워드'}</th>
-                  <th className="n">현재 입찰가</th>
                   <th className="n">노출</th>
                   <th className="n">클릭</th>
                   <th className="n">CTR</th>
@@ -228,12 +222,11 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                             </span>
                             {!selectedCamp && (
                               <span className="grp-acc-pill">
-                                <MediaPill media={g.media} />
+                                <MediaPill media={g.media} iconOnly />
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="n grp-dash">–</td>
                         <td className="n">{fmt(grpImp)}</td>
                         <td className="n">{fmt(grpClk)}</td>
                         <td className="n">
@@ -249,7 +242,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                         sortedKws.map((k, ki) => (
                           <tr key={`${k.keyword}-${ki}`}>
                             <td className="ind">{k.keyword}</td>
-                            <td className="n">{fmt(k.bid)}원</td>
                             <td className="n">{fmt(k.imp)}</td>
                             <td className="n">{fmt(k.clk)}</td>
                             <td className="n">
@@ -262,7 +254,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 
                       {isOpen && remainCount > 0 && (
                         <tr className="kw-more-row">
-                          <td colSpan={7}>
+                          <td colSpan={6}>
                             <button
                               type="button"
                               className="kw-more-btn"

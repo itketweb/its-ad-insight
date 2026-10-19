@@ -210,28 +210,25 @@ p.small {
 #tbKw {
   table-layout: fixed;
   width: 100%;
-  min-width: 56rem;
+  min-width: 48rem;
 
   .col-kw-name {
-    width: 32%;
-  }
-  .col-kw-bid {
-    width: 12%;
+    width: 38%;
   }
   .col-kw-imp {
-    width: 12%;
+    width: 13%;
   }
   .col-kw-clk {
-    width: 8%;
+    width: 10%;
   }
   .col-kw-ctr {
-    width: 8%;
+    width: 10%;
   }
   .col-kw-conv {
     width: 12%;
   }
   .col-kw-cost {
-    width: 16%;
+    width: 17%;
   }
 }
 
@@ -362,8 +359,12 @@ tr.grp-accordion {
 }
 
 .grp-acc-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   margin-left: 0.5rem;
+  line-height: 1;
 }
 
 .grp-dash {

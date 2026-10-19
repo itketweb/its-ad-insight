@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { QuoteRawRow, QuoteRow } from '../../types/dashboard';
-import { fmt, mLabel, QUOTE_CATS, sumBy, ym } from '../../utils/format';
+import {
+  fmt,
+  mLabel,
+  QUOTE_CATS,
+  QUOTE_COLORS,
+  sourceColorVar,
+  sumBy,
+  ym,
+} from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { DeltaSpan } from '../charts/KpiCard';
 import { SegmentedControl } from '../common/SegmentedControl';
@@ -31,7 +39,9 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
   months,
   allMonths,
 }) => {
-  const [summaryTab, setSummaryTab] = useState<SummaryTab>('src');
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
+  const [timeScope, setTimeScope] = useState<'cur' | 'ytd'>('cur');
+  const [summaryTab, setSummaryTab] = useState<SummaryTab>('cat');
   const [srcPlatform, setSrcPlatform] = useState<SourcePlatform>('네이버');
 
   const isFuture = (mo: string) => mo > curM;
@@ -68,22 +78,138 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
   const totRawMonth = (mo: string) =>
     quotesRaw.filter((r) => r.date?.startsWith(mo)).length;
 
+  // 차트 모드 데이터 산출
+  const chartData = useMemo(() => {
+    if (summaryTab === 'cat') {
+      const items = QUOTE_CATS.map((c, ci) => {
+        const count =
+          timeScope === 'cur'
+            ? cntCat(curM, c)
+            : sumBy(months, (mo) => cntCat(mo, c));
+        return {
+          k: c,
+          count,
+          color: QUOTE_COLORS[ci],
+        };
+      });
+      const total = items.reduce((a, b) => a + b.count, 0);
+      const sorted = items
+        .filter((it) => it.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .map((it) => ({
+          ...it,
+          pct: total > 0 ? (it.count / total) * 100 : 0,
+        }));
+      return { items: sorted, total, max: Math.max(...sorted.map((s) => s.count), 1) };
+    } else {
+      // 유입 매체별
+      const bySrc: Record<string, number> = {};
+      const targetRows =
+        timeScope === 'cur'
+          ? quotesRaw.filter((r) => r.date?.startsWith(curM) && r.source && r.source !== '미수집')
+          : quotesRaw.filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집');
+
+      targetRows.forEach((r) => {
+        bySrc[r.source] = (bySrc[r.source] || 0) + 1;
+      });
+
+      const total = Object.values(bySrc).reduce((a, b) => a + b, 0);
+      const sorted = Object.keys(bySrc)
+        .sort((a, b) => bySrc[b] - bySrc[a])
+        .map((k) => ({
+          k,
+          count: bySrc[k],
+          color: sourceColorVar(k),
+          pct: total > 0 ? (bySrc[k] / total) * 100 : 0,
+        }));
+      return { items: sorted, total, max: Math.max(...sorted.map((s) => s.count), 1) };
+    }
+  }, [summaryTab, timeScope, curM, yr, months, quotes, quotesRaw]);
+
   return (
     <div className="card tw" id="quotes-table">
       <h3>
-        월별 견적 접수 현황
-        <SegmentedControl<SummaryTab>
-          mini
-          value={summaryTab}
-          onChange={setSummaryTab}
-          options={[
-            { value: 'src', label: '유입 매체별' },
-            { value: 'cat', label: '카테고리별' },
-          ]}
-        />
+        <span>월별 견적 접수 현황</span>
+        <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+          <SegmentedControl<'chart' | 'table'>
+            mini
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: 'chart', label: '그래프' },
+              { value: 'table', label: '표' },
+            ]}
+          />
+          <SegmentedControl<SummaryTab>
+            mini
+            value={summaryTab}
+            onChange={setSummaryTab}
+            options={[
+              { value: 'cat', label: '카테고리별' },
+              { value: 'src', label: '유입 매체별' },
+            ]}
+          />
+        </div>
       </h3>
 
-      {summaryTab === 'cat' ? (
+      {viewMode === 'chart' ? (
+        <div className="quote-chart-view">
+          <div className="quote-chart-toolbar">
+            <div className="quote-chart-total">
+              <span className="muted">
+                {timeScope === 'cur' ? `${mLabel(curM)} 견적 접수` : `${yr}년 누적 견적 접수`}
+              </span>
+              <b>총 {fmt(chartData.total)}건</b>
+            </div>
+            <SegmentedControl<'cur' | 'ytd'>
+              mini
+              value={timeScope}
+              onChange={setTimeScope}
+              options={[
+                { value: 'cur', label: `${mLabel(curM)} 실적` },
+                { value: 'ytd', label: `${yr}년 누적` },
+              ]}
+            />
+          </div>
+
+          {chartData.items.length ? (
+            <div className="cpa-list" style={{ marginTop: '0.75rem' }}>
+              {chartData.items.map((it, idx) => {
+                const widthPct = Math.max(5, Math.round((it.count / chartData.max) * 100));
+                return (
+                  <div key={it.k} className="cpa-row">
+                    <div
+                      className="cpa-name"
+                      title={it.k}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                      <span className="src-bar-rank">{idx + 1}</span>
+                      <span>{it.k}</span>
+                    </div>
+                    <div className="cpa-track">
+                      <div
+                        className="cpa-bar"
+                        style={{
+                          width: `${widthPct}%`,
+                          background: it.color ? `var(${it.color})` : 'var(--acc)',
+                        }}
+                      />
+                    </div>
+                    <div className="cpa-info">
+                      <span className="cpa-badge">{fmt(it.count)}건 견적</span>
+                      <span className="cpa-val">{it.pct.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty" style={{ margin: '1.5rem 0' }}>
+              선택한 조건의 견적 접수 데이터가 없습니다.
+            </div>
+          )}
+        </div>
+      ) : summaryTab === 'cat' ? (
         <div id="tbQuotesSummary">
           <table className="stk" id="tbQuotesCat">
             <colgroup>
