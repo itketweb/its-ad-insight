@@ -7,6 +7,7 @@ import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
 import { Tooltip } from './components/Layout/Tooltip';
 import { PeriodNav } from './components/common/PeriodNav';
+import { SkeletonView } from './components/common/SkeletonView';
 import { OverviewView } from './views/OverviewView';
 import { AdsView } from './views/AdsView';
 import { CatEfficiencyView } from './views/CatEfficiencyView';
@@ -40,6 +41,11 @@ export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [isDark, setIsDark] = useState<boolean>(getInitialDark);
+
+  // 캐시가 없어 보여 줄 데이터가 하나도 없는 첫 동기화 동안만 스켈레톤 (캐시가 있으면 이전 데이터를 그대로 보여 준다)
+  const hasData = data.spend.length > 0 || data.quotes.length > 0;
+  // 데이터 연결 화면은 연결 설정을 봐야 하므로 스켈레톤 없이 바로 보여 준다
+  const isLoading = !hasData && (status === 'init' || isSyncing) && currentView !== 'data';
 
   const allMonths = useMemo(() => {
     return [
@@ -190,7 +196,13 @@ export const App: React.FC = () => {
           )}
           <div className="cont">
             <main id="main">
-              {currentView === 'overview' && (
+              {isLoading && (
+                <SkeletonView
+                  title={VIEW_TITLES[currentView]}
+                  variant={currentView === 'keywords' ? 'table' : 'dashboard'}
+                />
+              )}
+              {!isLoading && currentView === 'overview' && (
                 <OverviewView
                   data={data}
                   categoryMap={categoryMap}
@@ -198,14 +210,14 @@ export const App: React.FC = () => {
                   selectedMonth={selectedMonth}
                 />
               )}
-              {currentView === 'ads' && (
+              {!isLoading && currentView === 'ads' && (
                 <AdsView
                   data={data}
                   status={status}
                   selectedMonth={selectedMonth}
                 />
               )}
-              {currentView === 'cat-efficiency' && (
+              {!isLoading && currentView === 'cat-efficiency' && (
                 <CatEfficiencyView
                   data={data}
                   categoryMap={categoryMap}
@@ -213,7 +225,7 @@ export const App: React.FC = () => {
                   selectedMonth={selectedMonth}
                 />
               )}
-              {currentView === 'keywords' && (
+              {!isLoading && currentView === 'keywords' && (
                 <KeywordsView
                   data={data}
                   categoryMap={categoryMap}
@@ -221,7 +233,7 @@ export const App: React.FC = () => {
                   selectedMonth={selectedMonth}
                 />
               )}
-              {currentView === 'quotes' && (
+              {!isLoading && currentView === 'quotes' && (
                 <QuotesView
                   data={data}
                   status={status}

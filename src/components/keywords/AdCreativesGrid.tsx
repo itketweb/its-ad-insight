@@ -12,12 +12,24 @@ interface AdCreativesGridProps {
 const CreativeThumb: React.FC<{ ad: AdRow; title: string }> = ({ ad, title }) => {
   const src = getCreativeImage(ad);
   const [broken, setBroken] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const showImg = src && !broken;
 
   return (
-    <div className="img" style={{ background: `var(${MEDIA_COLOR_VARS[ad.media] || '--c-it'})` }}>
+    // 이미지는 외부(소재 서버)에서 늦게 올 수 있어, 받기 전까지 스켈레톤 면을 보여 준다
+    <div
+      className={`img${showImg && !loaded ? ' is-loading' : ''}`}
+      style={showImg ? undefined : { background: `var(${MEDIA_COLOR_VARS[ad.media] || '--c-it'})` }}
+      aria-busy={showImg && !loaded ? true : undefined}
+    >
       {showImg ? (
-        <img src={src} alt={title} referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+        <img
+          src={src}
+          alt={title}
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
+          onError={() => setBroken(true)}
+        />
       ) : (
         <>
           {title}
