@@ -6,9 +6,111 @@
   <meta name="robots" content="noindex, nofollow">
   <title>아이티캣 광고 인사이트 · 광고 &amp; 견적 대시보드</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <script>
+    // 저장된 테마를 그리기 전에 적용해 첫 화면이 깜빡이지 않게 한다 (App 의 getInitialDark 와 같은 키)
+    try {
+      var t = localStorage.getItem('theme');
+      if (t) document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+  <style>
+    /* 앱 스크립트가 받아지는 동안 보이는 첫 화면 스켈레톤 (사이드바 · 상단바 · 기준월 · 본문) — React 가 그리면 #root 내용이 통째로 바뀐다.
+       플랫: 테두리·그림자 없이 회색 면만, 은은한 깜빡임 */
+    :root { --pl-bg: #f4f6f9; --pl-card: #fff; --pl-line: #e4e8ee; --pl-fill: #e4e8ee; }
+    :root[data-theme='dark'] { --pl-bg: #12151b; --pl-card: #1b2029; --pl-line: #283040; --pl-fill: #283040; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme='light']) { --pl-bg: #12151b; --pl-card: #1b2029; --pl-line: #283040; --pl-fill: #283040; }
+    }
+    body { margin: 0; background: var(--pl-bg); }
+    .pl { display: grid; grid-template-columns: 13.75rem minmax(0, 1fr); min-height: 100vh; }
+    .pl i { display: block; background: var(--pl-fill); animation: pl-pulse 1.6s ease-in-out infinite; }
+    @keyframes pl-pulse { 50% { opacity: 0.5; } }
+    @media (prefers-reduced-motion: reduce) { .pl i { animation: none; } }
+    .pl-row { display: flex; align-items: center; gap: 0.625rem; }
+
+    .pl-side { background: var(--pl-card); border-right: 1px solid var(--pl-line); padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.875rem; height: 100vh; box-sizing: border-box; position: sticky; top: 0; }
+    .pl-side .pl-gap { height: 0.75rem; }
+    .pl-side .pl-foot { margin-top: auto; }
+
+    .pl-wrap { min-width: 0; display: flex; flex-direction: column; }
+    .pl-top { height: 4rem; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--pl-card); border-bottom: 1px solid var(--pl-line); box-sizing: border-box; }
+    .pl-period { height: 3.0625rem; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; background: var(--pl-card); border-bottom: 1px solid var(--pl-line); box-sizing: border-box; }
+    .pl-cont { padding: 2rem; display: flex; flex-direction: column; gap: 1rem; }
+    .pl-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+    .pl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .pl-card { background: var(--pl-card); padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .pl-card.big { padding: 1.25rem; gap: 1rem; }
+    .pl-list { display: flex; align-items: center; gap: 0.75rem; }
+    .pl-list i:nth-child(2) { flex: 1; }
+    .pl-tr { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--pl-line); }
+    .pl-tr:last-child { border-bottom: 0; }
+    .pl-kpis .pl-card { gap: 1.125rem; } /* 실제 KPI 높이(약 117px)에 맞춤 */
+    .pl-title { display: flex; flex-direction: column; gap: 0.5rem; padding-left: 1rem; } /* 실제 제목의 왼쪽 강조선·여백만큼 */
+
+    @media (max-width: 1024px) { .pl { grid-template-columns: 12rem minmax(0, 1fr); } .pl-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) {
+      .pl { grid-template-columns: minmax(0, 1fr); }
+      .pl-side { display: none; }
+      .pl-top, .pl-period { padding: 0 1rem; }
+      .pl-cont { padding: 1.25rem 1rem; }
+      .pl-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pl-hide-sm { display: none !important; }
+    }
+  </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div class="pl" aria-busy="true" aria-label="대시보드를 불러오는 중">
+      <aside class="pl-side">
+        <div class="pl-row"><i style="width:1.5rem;height:1.5rem"></i><i style="width:7.5rem;height:0.875rem"></i></div>
+        <div class="pl-gap"></div>
+        <i style="width:3.5rem;height:0.625rem"></i>
+        <div class="pl-row"><i style="width:1rem;height:1rem"></i><i style="width:5rem;height:0.75rem"></i></div>
+        <div class="pl-row"><i style="width:1rem;height:1rem"></i><i style="width:5.5rem;height:0.75rem"></i></div>
+        <div class="pl-row"><i style="width:1rem;height:1rem"></i><i style="width:5rem;height:0.75rem"></i></div>
+        <div class="pl-row"><i style="width:1rem;height:1rem"></i><i style="width:5.5rem;height:0.75rem"></i></div>
+        <div class="pl-row"><i style="width:1rem;height:1rem"></i><i style="width:4.5rem;height:0.75rem"></i></div>
+        <div class="pl-gap"></div>
+        <i style="width:4rem;height:0.625rem"></i>
+        <div class="pl-row"><i style="width:1rem;height:1rem"></i><i style="width:5rem;height:0.75rem"></i></div>
+        <i class="pl-foot" style="width:9rem;height:0.625rem"></i>
+      </aside>
+      <div class="pl-wrap">
+        <div class="pl-top">
+          <div class="pl-row"><i style="width:7rem;height:0.875rem"></i><i style="width:4.5rem;height:1rem"></i></div>
+          <div class="pl-row"><i class="pl-hide-sm" style="width:13rem;height:1.5rem"></i><i style="width:2rem;height:2rem"></i></div>
+        </div>
+        <div class="pl-period">
+          <div class="pl-row" style="gap:0.25rem"><i style="width:2rem;height:2rem"></i><i style="width:10.5rem;height:2rem"></i><i style="width:2rem;height:2rem"></i><i style="width:3rem;height:2rem;margin-left:0.25rem"></i></div>
+          <i style="width:3.5rem;height:1.25rem"></i>
+        </div>
+        <div class="pl-cont">
+          <div class="pl-title"><i style="width:9rem;height:1.75rem"></i><i style="width:18rem;max-width:100%;height:0.875rem"></i></div>
+          <div class="pl-kpis">
+            <div class="pl-card"><i style="width:55%;height:0.75rem"></i><i style="width:70%;height:1.5rem"></i><i style="width:40%;height:0.75rem"></i></div>
+            <div class="pl-card"><i style="width:55%;height:0.75rem"></i><i style="width:70%;height:1.5rem"></i><i style="width:40%;height:0.75rem"></i></div>
+            <div class="pl-card"><i style="width:55%;height:0.75rem"></i><i style="width:70%;height:1.5rem"></i><i style="width:40%;height:0.75rem"></i></div>
+            <div class="pl-card"><i style="width:55%;height:0.75rem"></i><i style="width:70%;height:1.5rem"></i><i style="width:40%;height:0.75rem"></i></div>
+          </div>
+          <div class="pl-grid">
+            <div class="pl-card big"><i style="width:40%;height:1rem"></i><i style="height:12rem"></i><i style="width:50%;height:0.75rem"></i></div>
+            <div class="pl-card big"><i style="width:40%;height:1rem"></i><i style="height:12rem"></i><i style="width:50%;height:0.75rem"></i></div>
+          </div>
+          <div class="pl-grid">
+            <div class="pl-card big"><i style="width:45%;height:1rem"></i><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:90%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:70%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:55%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:40%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:28%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:18%"></i><i style="width:3rem;height:0.75rem"></i></div></div>
+            <div class="pl-card big"><i style="width:30%;height:1rem"></i><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:90%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:70%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:55%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:40%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:28%"></i><i style="width:3rem;height:0.75rem"></i></div><div class="pl-list"><i style="width:5.5rem;height:0.75rem"></i><i style="height:1.25rem;max-width:18%"></i><i style="width:3rem;height:0.75rem"></i></div></div>
+          </div>
+          <div class="pl-card big"><i style="width:30%;height:1rem"></i>
+            <div class="pl-tr"><i style="width:24%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:16%;height:0.875rem"></i></div>
+            <div class="pl-tr"><i style="width:24%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:16%;height:0.875rem"></i></div>
+            <div class="pl-tr"><i style="width:24%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:16%;height:0.875rem"></i></div>
+            <div class="pl-tr"><i style="width:24%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:16%;height:0.875rem"></i></div>
+            <div class="pl-tr"><i style="width:24%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:12%;height:0.875rem"></i><i style="width:16%;height:0.875rem"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

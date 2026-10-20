@@ -580,6 +580,21 @@ tr.kw-more-row td {
       object-fit: cover;
       display: block;
       background: var(--bg);
+      transition: opacity 0.2s ease;
+    }
+
+    // 이미지 받는 중: 공용 스켈레톤(.skel)과 같은 플랫 회색 면 + 깜빡임
+    &.is-loading {
+      background: var(--line);
+      animation: skel-pulse 1.6s ease-in-out infinite;
+
+      img {
+        opacity: 0;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
     }
 
     small {
