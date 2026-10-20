@@ -135,7 +135,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </nav>
         </div>
-        <div className="sfoot">아이티켓 마케팅팀 · 사내 업무용</div>
+        {/* 마케팅팀 · 배포 날짜 기준 릴리즈 (같은 날 여러 번이면 -2, -3 …) */}
+        <div className="sfoot">
+          마케팅팀 ·{' '}
+          <span className="rel" title={__APP_COMMIT__ ? `커밋 ${__APP_COMMIT__}` : undefined}>
+            {__APP_RELEASE__}
+          </span>
+        </div>
       </aside>
     </>
   );
