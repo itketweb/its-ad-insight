@@ -2,9 +2,36 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 
-export default defineConfig({
+/**
+ * 릴리즈 표기: 배포(=main 반영) 날짜 기준 YY.MM.DD, 같은 날 두 번째부터 -2, -3 …
+ * main 의 first-parent 커밋 하나가 배포(push) 하나에 해당하므로, HEAD 와 같은 날(KST)인 커밋 수가 그날의 배포 순번이다.
+ * git 을 못 읽으면(압축본 등) 빌드 날짜만 쓴다.
+ */
+function releaseInfo(): { tag: string; commit: string } {
+  const kstDay = (sec: number) => new Date(sec * 1000 + 9 * 3600 * 1000).toISOString().slice(2, 10).replace(/-/g, '.');
+  try {
+    const git = (cmd: string) => execSync(`git ${cmd}`, { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    const [sha, headSec] = git('log -1 --format=%h%x20%ct').split(' ');
+    const day = kstDay(Number(headSec));
+    const n = git('log --first-parent --format=%ct HEAD')
+      .split('\n')
+      .filter((s) => kstDay(Number(s)) === day).length;
+    return { tag: `v${day}${n > 1 ? `-${n}` : ''}`, commit: sha };
+  } catch {
+    return { tag: `v${kstDay(Date.now() / 1000)}`, commit: '' };
+  }
+}
+const release = releaseInfo();
+
+export default defineConfig(({ command }) => ({
   base: './',
+  // 로컬 개발 서버에서는 배포본과 헷갈리지 않게 -dev 를 붙인다
+  define: {
+    __APP_RELEASE__: JSON.stringify(command === 'serve' ? `${release.tag}-dev` : release.tag),
+    __APP_COMMIT__: JSON.stringify(release.commit),
+  },
   plugins: [
     react(),
     {
@@ -61,4 +88,4 @@ export default defineConfig({
     port: 2000,
     strictPort: true,
   },
-});
+}));

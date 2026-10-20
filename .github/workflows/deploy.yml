@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 릴리즈 표기(같은 날 배포 순번)를 git 이력에서 세므로 전체 이력이 필요
       - uses: actions/setup-node@v4
         with:
           node-version: 20

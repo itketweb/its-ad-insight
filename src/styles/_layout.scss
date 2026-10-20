@@ -32,6 +32,10 @@
     color: var(--sub);
     padding: 0 0.5rem;
     line-height: 1.5;
+
+    .rel {
+      font-variant-numeric: tabular-nums;
+    }
   }
 }
 
