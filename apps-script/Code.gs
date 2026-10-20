@@ -197,25 +197,62 @@ function collectNaverStats_(ss, t0, withKeywords) {
   const kHave = new Set(kOld.map((r) => r.month));
   const spentMs = new Set(keep.concat(rows).filter((r) => r[1] === 'SA').map((r) => r[0]));
   const kRows = [], kDone = [];
-  const kBack = back([...spentMs].filter((m) => m < fresh[1] && !kHave.has(m)));
+  // 조회했는데 현재 키워드의 실적이 하나도 없던 지난 달은 기억해 두고 다시 묻지 않는다 (매시간 약 250회 낭비 방지).
+  // 다시 확인하려면 스크립트 속성 NAVER_KW_EMPTY 를 지운다.
+  const kEmpty = new Set(JSON.parse(PROPS.getProperty('NAVER_KW_EMPTY') || '[]'));
+  const kBack = back([...spentMs].filter((m) => m < fresh[1] && !kHave.has(m) && !kEmpty.has(m)));
   for (const m of (withKeywords ? fresh : []).concat(kBack)) {
     if (Date.now() - t0 > CFG.BUDGET_MS) break;
     const since = m + '-01', until = lastDay_(m) < yday ? lastDay_(m) : yday;
     if (since > until) { kDone.push(m); continue; } // 매월 1일에는 당월 성과가 아직 없다
     const ks = Object.fromEntries(stats_(kws.map((k) => String(k.id)), since, until).map((s) => [s.id, s]));
+    const before = kRows.length;
     kws.forEach((k) => {
       const s = ks[String(k.id)] || {};
       // 당월은 노출 0건 대기 키워드도 남기고, 지난달은 실적이 있는 키워드만 쌓는다
       if (m === thisM || s.salesAmt || s.impCnt) kRows.push([m, 'SA', k.campaign, k.ad_group, k.keyword, '', Number(k.bid) || 0, k.quality, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0, k.ad_relevance, k.expected_click]);
     });
+    if (m < fresh[1] && kRows.length === before) {
+      kEmpty.add(m);
+      console.warn('collectNaverStats: ' + m + ' 현재 키워드 실적 없음 — 다시 묻지 않음 (NAVER_KW_EMPTY)');
+    }
     kDone.push(m);
   }
+  PROPS.setProperty('NAVER_KW_EMPTY', JSON.stringify([...kEmpty].sort()));
   const kKeep = kOld.filter((r) => !kDone.includes(r.month)).map((r) => kHead.map((h) => r[h]));
   if (kDone.length) put_(ss, 'n_keywords', [kHead].concat(kKeep.concat(kRows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
   put_(ss, 'n_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['customer_id', PROPS.getProperty('NAVER_CUSTOMER_ID')],
     ['structure', PROPS.getProperty('NAVER_STRUCT_AT') || ''], ['api_calls', apiCalls_]]);
   syncMapping_(ss);
 }
+/** 진단용 (편집기에서 직접 실행): 월마다 광고그룹 성과와 키워드 성과를 비교하고, 현재 키워드의 등록 시점을 로그로 남긴다.
+ * 과거 달 키워드 성과가 비는 원인(키워드 재등록 / 조회 기간 제한)을 가린다. API 약 50회. */
+function debugKeywordHistory() {
+  checkNaverKeys_();
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const groups = read_(ss, 'n_idx_groups'), kws = read_(ss, 'n_idx_keywords');
+  // 광고비가 가장 큰 광고그룹 5개와 그 키워드만 표본으로 쓴다
+  const thisM = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM');
+  const spend = {};
+  read_(ss, 'n_adgroup_monthly').filter((r) => r.type === 'SA').forEach((r) => { spend[r.ad_group_id] = (spend[r.ad_group_id] || 0) + (Number(r.cost) || 0); });
+  const topG = groups.map((g) => String(g.id)).sort((a, b) => (spend[b] || 0) - (spend[a] || 0)).slice(0, 5);
+  const sampleK = kws.filter((k) => topG.includes(String(k.ad_group_id))).slice(0, 50).map((k) => String(k.id));
+  console.log('표본: 광고그룹 ' + topG.length + '개, 키워드 ' + sampleK.length + '개');
+  // 키워드 등록 시점 (표본 광고그룹의 현재 키워드)
+  topG.forEach((gid) => {
+    const list = api_('GET', '/ncc/keywords', { nccAdgroupId: gid }).filter((k) => !k.userLock);
+    const reg = list.map((k) => String(k.regTm || '').slice(0, 10)).filter(Boolean).sort();
+    console.log('광고그룹 ' + gid + ': 키워드 ' + list.length + '개, 등록일 ' + (reg[0] || '?') + ' ~ ' + (reg[reg.length - 1] || '?'));
+  });
+  // 월별 광고그룹 성과 vs 키워드 성과
+  for (let m = addMonth_(thisM, -10); m <= thisM; m = addMonth_(m, 1)) {
+    const until = lastDay_(m);
+    const sum = (arr) => arr.reduce((a, s) => [a[0] + (s.impCnt || 0), a[1] + (s.salesAmt || 0)], [0, 0]);
+    const g = sum(stats_(topG, m + '-01', until)), k = sum(stats_(sampleK, m + '-01', until));
+    console.log(m + ' 광고그룹 노출 ' + g[0] + ' / 광고비 ' + g[1] + '  |  키워드 노출 ' + k[0] + ' / 광고비 ' + k[1]);
+  }
+}
+
 function checkNaverKeys_() {
   ['NAVER_API_KEY', 'NAVER_SECRET', 'NAVER_CUSTOMER_ID'].forEach((k) => { if (!PROPS.getProperty(k)) throw new Error('스크립트 속성에 ' + k + ' 가 없습니다'); });
 }
