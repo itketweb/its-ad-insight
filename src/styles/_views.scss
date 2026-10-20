@@ -55,7 +55,7 @@ p.small {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem; // 카드 사이(16px)보다 넓고 위 여백(32px)보다 좁게 — 페이지 머리말로 구분
 
   > div {
     flex: 1;

@@ -45,7 +45,7 @@
     .pl-tr { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--pl-line); }
     .pl-tr:last-child { border-bottom: 0; }
     .pl-kpis .pl-card { gap: 1.125rem; } /* 실제 KPI 높이(약 117px)에 맞춤 */
-    .pl-title { display: flex; flex-direction: column; gap: 0.5rem; padding-left: 1rem; } /* 실제 제목의 왼쪽 강조선·여백만큼 */
+    .pl-title { display: flex; flex-direction: column; gap: 0.5rem; padding-left: 1rem; margin-bottom: 0.5rem; } /* 왼쪽은 실제 제목의 강조선·여백만큼, 아래는 본문 gap 16px + 8px = 실제 제목 아래 24px */
 
     @media (max-width: 1024px) { .pl { grid-template-columns: 12rem minmax(0, 1fr); } .pl-grid { grid-template-columns: 1fr; } }
     @media (max-width: 768px) {

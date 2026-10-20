@@ -9,6 +9,8 @@ interface KeywordAccordionTableProps {
   topGroups: KeywordGroup[];
   campaigns: CampaignKeywordBucket[];
   month?: string;
+  /** 키워드 실적이 있는 가장 이른 달 (YYYY-MM) — 이보다 앞선 달이면 빈 표에 이유를 적는다 */
+  firstMonth?: string;
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
   kwTabIdx: number;
@@ -26,6 +28,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   topGroups,
   campaigns,
   month = THIS_M,
+  firstMonth,
   media,
   type,
   kwTabIdx,
@@ -249,6 +252,8 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                             Google Ads 스크립트 실행 후 자동 수집됩니다.
                           </small>
                         </>
+                      ) : firstMonth && month < firstMonth ? (
+                        '키워드 재구성 이전 기간이라 키워드별 실적이 없습니다.'
                       ) : (
                         '조회 조건에 해당하는 키워드가 없습니다.'
                       )}

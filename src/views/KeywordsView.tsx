@@ -76,6 +76,11 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
 
   // 키워드 그룹 집계 (SA) - 선택된 월(mo) 기준 집계
   const ks = data.keywords.filter((k) => k.month === mo && pass(k));
+  // 키워드 실적이 있는 가장 이른 달 — 이보다 앞선 달은 키워드 재구성 전이라 비어 있다
+  const kwFirstMonth = data.keywords
+    .filter(pass)
+    .map((k) => k.month)
+    .sort()[0];
   const groups: Record<string, KeywordGroup> = {};
   const sumClk = (list: KeywordRow[]) => list.reduce((a, k) => a + k.clk, 0);
   ks.forEach((k) => {
@@ -179,6 +184,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           topGroups={topGroups}
           campaigns={campaigns}
           month={mo}
+          firstMonth={kwFirstMonth}
           media={media}
           type={type}
           kwTabIdx={kwTabIdx}
