@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { ViewId } from './types/dashboard';
 import { VALID_VIEWS, VIEW_TITLES } from './utils/constants';
+import { THIS_M, THIS_Y } from './utils/format';
 import { useDashboardData } from './hooks/useDashboardData';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
 import { Tooltip } from './components/Layout/Tooltip';
+import { PeriodNav } from './components/common/PeriodNav';
 import { OverviewView } from './views/OverviewView';
 import { AdsView } from './views/AdsView';
 import { CatEfficiencyView } from './views/CatEfficiencyView';
@@ -38,6 +40,51 @@ export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [isDark, setIsDark] = useState<boolean>(getInitialDark);
+
+  const allMonths = useMemo(() => {
+    return [
+      ...new Set([
+        ...(data.spend || []).map((r) => r.month),
+        ...(data.quotes || []).map((r) => r.month),
+      ]),
+    ]
+      .filter(Boolean)
+      .sort();
+  }, [data.spend, data.quotes]);
+
+  const maxAvailableMonth = useMemo(() => {
+    return (
+      allMonths.filter((m) => m <= THIS_M).pop() ||
+      allMonths[allMonths.length - 1] ||
+      THIS_M
+    );
+  }, [allMonths]);
+
+  // 기준월 선택에서 데이터가 없는 이른 달(예: 2021년 1~11월)은 고를 수 없게 한다
+  const minAvailableMonth = useMemo(
+    () => allMonths.find((m) => /^\d{4}-\d{2}$/.test(m)) || maxAvailableMonth,
+    [allMonths, maxAvailableMonth]
+  );
+
+  const availableYears = useMemo(() => {
+    const yrs = [...new Set(allMonths.map((m) => m.slice(0, 4)))].sort((a, b) =>
+      b.localeCompare(a)
+    );
+    if (!yrs.includes(String(THIS_Y))) {
+      yrs.unshift(String(THIS_Y));
+    }
+    return yrs.length > 0 ? yrs : [String(THIS_Y)];
+  }, [allMonths]);
+
+  const [selectedYear, setSelectedYear] = useState<string>(String(THIS_Y));
+  const [selectedMonth, setSelectedMonth] = useState<string>(THIS_M);
+
+  useEffect(() => {
+    if (maxAvailableMonth) {
+      setSelectedYear((prev) => prev || maxAvailableMonth.slice(0, 4));
+      setSelectedMonth((prev) => prev || maxAvailableMonth);
+    }
+  }, [maxAvailableMonth]);
 
   const closeDrawer = () => {
     setDrawerOpen(false);
@@ -130,19 +177,57 @@ export const App: React.FC = () => {
             onToggleTheme={handleToggleTheme}
             onReload={load}
           />
+          {currentView !== 'data' && (
+            <PeriodNav
+              years={availableYears}
+              selectedYear={selectedYear}
+              selectedMonth={selectedMonth}
+              minAvailableMonth={minAvailableMonth}
+              maxAvailableMonth={maxAvailableMonth}
+              onSelectYear={setSelectedYear}
+              onSelectMonth={setSelectedMonth}
+            />
+          )}
           <div className="cont">
             <main id="main">
               {currentView === 'overview' && (
-                <OverviewView data={data} categoryMap={categoryMap} status={status} />
+                <OverviewView
+                  data={data}
+                  categoryMap={categoryMap}
+                  status={status}
+                  selectedMonth={selectedMonth}
+                />
               )}
-              {currentView === 'ads' && <AdsView data={data} status={status} />}
+              {currentView === 'ads' && (
+                <AdsView
+                  data={data}
+                  status={status}
+                  selectedMonth={selectedMonth}
+                />
+              )}
               {currentView === 'cat-efficiency' && (
-                <CatEfficiencyView data={data} categoryMap={categoryMap} status={status} />
+                <CatEfficiencyView
+                  data={data}
+                  categoryMap={categoryMap}
+                  status={status}
+                  selectedMonth={selectedMonth}
+                />
               )}
               {currentView === 'keywords' && (
-                <KeywordsView data={data} categoryMap={categoryMap} status={status} />
+                <KeywordsView
+                  data={data}
+                  categoryMap={categoryMap}
+                  status={status}
+                  selectedMonth={selectedMonth}
+                />
               )}
-              {currentView === 'quotes' && <QuotesView data={data} status={status} />}
+              {currentView === 'quotes' && (
+                <QuotesView
+                  data={data}
+                  status={status}
+                  selectedMonth={selectedMonth}
+                />
+              )}
               {currentView === 'data' && (
                 <DataView data={data} categoryMap={categoryMap} status={status} />
               )}

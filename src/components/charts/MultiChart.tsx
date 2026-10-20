@@ -410,7 +410,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
   return (
     <div className="card">
       <h3>
-        <span>{title}</span>
+        {title}
         <SegmentedControl<ChartType>
           mini
           dataChart={id}
@@ -442,6 +442,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
               {s.k}
             </span>
           ))}
+          <span className="leg-note">단위: {unit}</span>
         </div>
       )}
     </div>

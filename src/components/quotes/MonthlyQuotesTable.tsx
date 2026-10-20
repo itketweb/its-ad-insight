@@ -141,7 +141,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
     <div className="card tw" id="quotes-table">
       <h3>
         <span>월별 견적 접수 현황</span>
-        <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+        <div className="h3-tools">
           <SegmentedControl<'chart' | 'table'>
             mini
             value={viewMode}
@@ -151,6 +151,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
               { value: 'table', label: '표' },
             ]}
           />
+          <span className="h3-tool-sep" />
           <SegmentedControl<SummaryTab>
             mini
             value={summaryTab}
@@ -171,7 +172,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
               className={timeScope === 'cur' ? 'on' : ''}
               onClick={() => setTimeScope('cur')}
             >
-              <span>{mLabel(curM)} 실적</span>
+              <span>당월 실적</span>
               {curCount > 0 && <span className="tab-cnt">{fmt(curCount)}</span>}
             </button>
             <button
@@ -185,29 +186,18 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
           </div>
 
           {summaryTab === 'src' && (
-            <p
-              className="leg-note"
-              style={{
-                margin: '-0.375rem 0 0.75rem',
-                fontSize: '0.6875rem',
-                color: 'var(--sub)',
-              }}
-            >
+            <p className="leg-note quote-src-note">
               ※ 유입 매체 추적은 2026년 10월 12일부터 시작되어 10월 이전 데이터는 '미수집' 상태입니다.
             </p>
           )}
 
           {chartData.items.length ? (
-            <div className="cpa-list" style={{ marginTop: '0.75rem' }}>
+            <div className="cpa-list quote-rank-list">
               {chartData.items.map((it, idx) => {
                 const widthPct = Math.max(5, Math.round((it.count / chartData.max) * 100));
                 return (
                   <div key={it.k} className="cpa-row">
-                    <div
-                      className="cpa-name"
-                      title={it.k}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
+                    <div className="cpa-name has-rank" title={it.k}>
                       <span className="src-bar-rank">{idx + 1}</span>
                       <span>{it.k}</span>
                     </div>

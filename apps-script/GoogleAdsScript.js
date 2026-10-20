@@ -5,7 +5,7 @@
  * 개발자 토큰·관리자(MCC) 계정이 필요 없다. 이 광고 계정의 데이터를 같은 구글 계정의 시트에 쓴다.
  *  - g_campaign_monthly : 캠페인 × 월 비용·노출·클릭·전환 (전년 1월부터, 실적 최대 MAX 버전)
  *  - g_adgroup_monthly  : 광고그룹 × 월 (카테고리 매칭용, P-Max 처럼 그룹이 없는 캠페인은 제외됨)
- *  - g_keywords         : 사용 중 키워드의 현재 입찰가·품질점수 + 최근 30일 성과
+ *  - g_keywords         : 사용 중 키워드의 현재 입찰가·품질점수 + 월별 성과 (전년 1월부터)
  *  - g_ads              : 사용 중 광고 소재 (제목·연결 URL·이미지)
  *  - g_meta             : 마지막 수집 시각
  */
@@ -35,13 +35,14 @@ function main() {
   });
   put_(ss, 'g_adgroup_monthly', grp);
 
-  const kw = [['type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions']];
-  each_(`SELECT campaign.name, campaign.advertising_channel_type, ad_group.name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
+  // 키워드는 월별 성과 — 지금은 꺼진 키워드도 그 달에 노출됐으면 그 달 행으로 남는다
+  const kw = [['month', 'type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions']];
+  each_(`SELECT segments.month, campaign.name, campaign.advertising_channel_type, ad_group.name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
                 ad_group_criterion.effective_cpc_bid_micros, ad_group_criterion.quality_info.quality_score, ${M}
          FROM keyword_view
-         WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED' AND ad_group_criterion.status = 'ENABLED'`, (r) => {
+         WHERE ${range} AND metrics.impressions > 0`, (r) => {
     const c = r.adGroupCriterion;
-    kw.push([type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.adGroup.name || '').trim(), String(c.keyword.text || '').trim(), c.keyword.matchType,
+    kw.push([r.segments.month.slice(0, 7), type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.adGroup.name || '').trim(), String(c.keyword.text || '').trim(), c.keyword.matchType,
       Math.round(Number(c.effectiveCpcBidMicros || 0) / 1e6), (c.qualityInfo && c.qualityInfo.qualityScore) || '', ...met_(r)]);
   });
   put_(ss, 'g_keywords', kw);

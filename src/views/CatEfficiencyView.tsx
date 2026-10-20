@@ -10,7 +10,7 @@ import {
   THIS_M,
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
-import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
+import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { CpaRankList } from '../components/cat-efficiency/CpaRankList';
@@ -20,6 +20,7 @@ interface CatEfficiencyViewProps {
   data: DashboardData;
   categoryMap: CategoryMap;
   status: SyncStatus;
+  selectedMonth?: string;
 }
 
 const CAT_EFF_SOURCES: SourceLinkItem[] = [
@@ -33,6 +34,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   data,
   categoryMap,
   status,
+  selectedMonth,
 }) => {
   if (!data.spend.length) {
     return (
@@ -57,7 +59,11 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   }
 
   const allMonths = [...new Set(data.spend.map((r) => r.month))].sort();
-  const curM = allMonths.filter((m) => m <= THIS_M).pop() || allMonths[allMonths.length - 1];
+  const curM =
+    (selectedMonth && allMonths.includes(selectedMonth) ? selectedMonth : undefined) ||
+    selectedMonth ||
+    allMonths.filter((m) => m <= THIS_M).pop() ||
+    allMonths[allMonths.length - 1];
   const pv = prevM(curM);
 
   const rowsCur = data.spend.filter((r) => r.month === curM);
@@ -120,7 +126,6 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     7
   );
 
-  const maxCpa = Math.max(...validCpaCats.map((c) => c.cpa), 1);
   const totClk = sumBy(rowsCur, (r) => r.clk);
   const totConv = sumBy(rowsCur, (r) => r.conv);
 
@@ -130,26 +135,22 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         title="카테고리 효율 분석"
         description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교"
         status={status}
-        sources={CAT_EFF_SOURCES}
       />
 
       <div className="kpis" id="kpiCatEff">
         <KpiCard
           label="최다 집행 카테고리"
           value={topSpendCat?.k || '–'}
-          smallValue
           sub={`${fmt(topSpendCat?.cost || 0)}원 (${(topSpendCat?.share || 0).toFixed(1)}%)`}
         />
         <KpiCard
           label="최다 견적 카테고리"
           value={topQuoteCat?.k || '–'}
-          smallValue
           sub={`${fmt(topQuoteCat?.quotes || 0)}건 접수`}
         />
         <KpiCard
           label="최고 효율 (최저 CPA)"
           value={bestCpaCat?.k || '–'}
-          smallValue
           sub={bestCpaCat ? `건당 ${fmt(bestCpaCat.cpa)}원` : '–'}
         />
         <KpiCard
@@ -162,11 +163,9 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       <div className="grid">
         <div className="card" id="cat-spend">
           <h3 id="ttCatEff">
-            <span>
-              카테고리별 광고비 소진 비교{' '}
-              <span className="muted">
-                ({mLabel(curM)} vs {mLabel(pv)} · 만원)
-              </span>
+            카테고리별 광고비 소진 비교
+            <span className="muted">
+              ({mLabel(curM)} vs {mLabel(pv)})
             </span>
           </h3>
           <CategoryBarChart id="chCatEff" list={list} />
@@ -179,6 +178,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
               <i className="prev" />
               전월
             </span>
+            <span className="leg-note">단위: 만원</span>
           </div>
         </div>
         <CpaRankList validCpaCats={validCpaCats} curM={curM} />
@@ -193,6 +193,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         totQuotes={totQuotes}
         avgCpa={avgCpa}
       />
+      <SecSrc sources={CAT_EFF_SOURCES} />
     </div>
   );
 };

@@ -12,35 +12,36 @@ import {
   ym,
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
-import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
+import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { SegmentedControl } from '../components/common/SegmentedControl';
-import { DeltaSpan, KpiCard } from '../components/charts/KpiCard';
+import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SpendDetailTable } from '../components/ads/SpendDetailTable';
 
 interface AdsViewProps {
   data: DashboardData;
   status: SyncStatus;
+  selectedMonth?: string;
 }
 
 const ADS_SOURCES: SourceLinkItem[] = [
   { label: 'Google Ads API', href: EXTERNAL_LINKS.googleAds },
   { label: '네이버 검색광고 API', href: EXTERNAL_LINKS.naverSearchAd },
-  { label: 'Meta Ads 수동 입력' },
+  { label: 'Meta Ads 시트 (수동 입력)' },
   { label: '네이버 커머스 API', href: EXTERNAL_LINKS.naverSmartStore },
   { label: 'MDF 업로드 시트' },
   { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
 ];
 
-export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
+export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth }) => {
   const years = [...new Set(data.spend.map((r) => Number(r.month.slice(0, 4))))].sort(
     (a, b) => b - a
   );
   const availableYears = years.length ? years : [THIS_Y];
-  const [selectedYear, setSelectedYear] = useState<number>(availableYears[0]);
   const [mode, setMode] = useState<'chart' | 'table'>('chart');
 
-  const Y = availableYears.includes(selectedYear) ? selectedYear : availableYears[0];
+  const targetYear = selectedMonth ? Number(selectedMonth.slice(0, 4)) : availableYears[0];
+  const Y = availableYears.includes(targetYear) ? targetYear : availableYears[0];
 
   if (!data.spend.length) {
     return (
@@ -96,7 +97,10 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
     return manMdf || apiMdf;
   };
 
-  const curM = months[months.length - 1];
+  const curM =
+    selectedMonth && selectedMonth.startsWith(String(Y))
+      ? selectedMonth
+      : months[months.length - 1];
   const pv = prevM(curM);
   const upTo = +curM.slice(5);
   const ytd = (y: number) =>
@@ -124,17 +128,9 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
         title="월별 광고비"
         description="매체별·구분별 월간 광고비 집행 추이 및 소진 내역"
         status={status}
-        sources={ADS_SOURCES}
       />
 
       <div className="mock-bar">
-        <SegmentedControl<number>
-          id="segYear"
-          dataKey="year"
-          options={availableYears.map((y) => ({ value: y, label: y }))}
-          value={Y}
-          onChange={setSelectedYear}
-        />
         <SegmentedControl<'chart' | 'table'>
           dataKey="mode"
           options={[
@@ -191,11 +187,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
       {mode === 'chart' && (
         <MultiChart
           id="chSpend"
-          title={
-            <>
-              월별 매체·구분별 광고비 <span className="muted">만원</span>
-            </>
-          }
+          title="월별 매체·구분별 광고비"
           labels={months.map(mLabel)}
           series={series}
           unit="만원"
@@ -213,6 +205,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status }) => {
         storeCost={storeCost}
         lastY={lastY}
       />
+      <SecSrc sources={ADS_SOURCES} />
     </div>
   );
 };

@@ -12,7 +12,7 @@ import type {
   SpendRow,
   SyncStatus,
 } from '../types/dashboard';
-import { buildCategoryMap } from '../utils/format';
+import { buildCategoryMap, THIS_M } from '../utils/format';
 
 export const DEFAULT_URL =
   'https://script.google.com/macros/s/AKfycbzQS9yMlp9L_eRaH77QWLsY6GOY7L5hyRk1fkuaAHg8GvJmHHwhPRgr2zWldgbX5-cNcg/exec';
@@ -142,7 +142,10 @@ export function fromApi(j: RawApiPayload): DashboardData {
           : adRelevance || expectedClick || (isLegacyUniformNaverQi && rawQ === 4 ? 0 : rawQ)
         : rawQ;
 
+    const month = String(r.month ?? '').trim().slice(0, 7) || THIS_M;
+
     return {
+      month,
       media,
       type: String(r.type || 'SA').trim(),
       campaign: String(r.campaign ?? '').trim(),

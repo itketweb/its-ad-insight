@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
-  buildSourceDonutData,
+  buildSourceShareData,
   catSum,
   fmt,
   mLabel,
@@ -15,21 +15,17 @@ import {
   ym,
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
-import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
+import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
-import {
-  SourceDonut,
-  type SourceChartType,
-  SOURCE_CHART_OPTIONS,
-} from '../components/charts/SourceDonut';
-import { SegmentedControl } from '../components/common/SegmentedControl';
+import { SourceBarChart } from '../components/charts/SourceBarChart';
 
 interface OverviewViewProps {
   data: DashboardData;
   categoryMap: CategoryMap;
   status: SyncStatus;
+  selectedMonth?: string;
 }
 
 const OVERVIEW_SOURCES: SourceLinkItem[] = [
@@ -39,9 +35,12 @@ const OVERVIEW_SOURCES: SourceLinkItem[] = [
   { label: '15분 자동 동기화' },
 ];
 
-export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, status }) => {
-  const [srcChartType, setSrcChartType] = useState<SourceChartType>('donut');
-  const [catSort, setCatSort] = useState<'spend' | 'quotes'>('spend');
+export const OverviewView: React.FC<OverviewViewProps> = ({
+  data,
+  categoryMap,
+  status,
+  selectedMonth,
+}) => {
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
 
@@ -52,7 +51,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
           title="종합 요약"
           description="광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드"
           status={status}
-          sources={OVERVIEW_SOURCES}
         />
         <div className="kpis" id="kpiOverview">
           <div className="kpi">
@@ -61,6 +59,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
             <div className="d flat">상단 [연결 설정]을 완료해 주세요</div>
           </div>
         </div>
+        <SecSrc sources={OVERVIEW_SOURCES} />
       </div>
     );
   }
@@ -71,7 +70,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
     .filter(Boolean)
     .sort();
   const curM =
-    allMonths.filter((m) => m <= THIS_M).pop() || allMonths[allMonths.length - 1] || THIS_M;
+    (selectedMonth && allMonths.includes(selectedMonth) ? selectedMonth : undefined) ||
+    selectedMonth ||
+    allMonths.filter((m) => m <= THIS_M).pop() ||
+    allMonths[allMonths.length - 1] ||
+    THIS_M;
   const pv = prevM(curM);
   const yr = curM.slice(0, 4);
   const mm = +curM.slice(5, 7);
@@ -123,12 +126,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
     catsMap(pv),
     (c) => cnt(curM, c),
     true,
-    7,
-    catSort
+    7
   );
 
   // 유입 매체 비중
-  const { items: srcItems } = buildSourceDonutData(data.quotesRaw || [], yr, data.quotes);
+  const { items: srcItems } = buildSourceShareData(data.quotesRaw || [], yr, data.quotes);
 
   return (
     <div className="view on" data-view="overview" data-title="종합 요약">
@@ -136,7 +138,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
         title="종합 요약"
         description="광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드"
         status={status}
-        sources={OVERVIEW_SOURCES}
       />
 
       <div className="kpis" id="kpiOverview">
@@ -183,11 +184,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
       <div className="grid">
         <MultiChart
           id="chOverviewSpend"
-          title={
-            <>
-              월별 광고비 추이 <span className="muted">만원</span>
-            </>
-          }
+          title="월별 광고비 추이"
           labels={months.map(mLabel)}
           series={spendSeries}
           unit="만원"
@@ -195,11 +192,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
         />
         <MultiChart
           id="chOverviewQuotes"
-          title={
-            <>
-              월별 견적 접수 추이 <span className="muted">건</span>
-            </>
-          }
+          title="월별 견적 접수 추이"
           labels={months.map(mLabel)}
           series={quoteSeries}
           unit="건"
@@ -210,21 +203,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
       <div className="grid">
         <div className="card" id="overview-cat">
           <h3 id="ttOverviewCat">
-            <span>
-              카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
-            </span>
-            {hasQuotes && (
-              <SegmentedControl<'spend' | 'quotes'>
-                mini
-                dataChart="overview-cat"
-                options={[
-                  { value: 'spend', label: '소진순', title: '광고비 소진액 기준 정렬' },
-                  { value: 'quotes', label: '견적순', title: '견적 유입 건수 기준 정렬' },
-                ]}
-                value={catSort}
-                onChange={setCatSort}
-              />
-            )}
+            카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
           </h3>
           <CategoryBarChart
             id="chOverviewCat"
@@ -240,28 +219,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ data, categoryMap, s
               <i className="prev" />
               전월
             </span>
-            <span className="leg-note">우측: 견적 건수</span>
+            <span className="leg-note">단위: 만원{hasQuotes ? ' · 우측: 견적 건수' : ''}</span>
           </div>
         </div>
         <div className="card" id="overview-src">
-          <h3>
-            <span>유입 매체 비중</span>
-            <SegmentedControl<SourceChartType>
-              mini
-              dataChart="overview-src"
-              options={SOURCE_CHART_OPTIONS}
-              value={srcChartType}
-              onChange={setSrcChartType}
-            />
-          </h3>
-          <SourceDonut
+          <h3>유입 매체 비중</h3>
+          <SourceBarChart
             id="chOverviewSrc"
             items={srcItems}
-            chartType={srcChartType}
             emptyMessage="취합된 유입 매체 데이터가 없습니다."
           />
         </div>
       </div>
+      <SecSrc sources={OVERVIEW_SOURCES} />
     </div>
   );
 };

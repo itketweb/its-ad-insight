@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { fmt, mLabel } from '../../utils/format';
-import { SegmentedControl } from '../common/SegmentedControl';
 import { EmptyState } from '../common/EmptyState';
 
 interface CpaItem {
@@ -14,47 +13,23 @@ interface CpaRankListProps {
   curM: string;
 }
 
-type CpaSort = 'cpa' | 'quotes';
-
 export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) => {
-  const [cpaSort, setCpaSort] = useState<CpaSort>('cpa');
-
-  const sortedCats = [...validCpaCats].sort((a, b) => {
-    if (cpaSort === 'quotes') {
-      return b.quotes - a.quotes || a.cpa - b.cpa;
-    }
-    return a.cpa - b.cpa || b.quotes - a.quotes;
-  });
+  // 단가 낮은 순(고효율 먼저) 고정
+  const sortedCats = [...validCpaCats].sort((a, b) => a.cpa - b.cpa || b.quotes - a.quotes);
 
   const maxCpa = Math.max(...validCpaCats.map((c) => c.cpa), 1);
-  const maxQuotes = Math.max(...validCpaCats.map((c) => c.quotes), 1);
 
   return (
     <div className="card" id="cat-cpa">
       <h3 id="ttCatCpa">
-        <span>
-          카테고리별 견적 획득 단가 (CPA){' '}
-          <span className="muted">({mLabel(curM)} 실적 기준)</span>
-        </span>
-        <SegmentedControl<CpaSort>
-          mini
-          dataChart="cat-cpa"
-          options={[
-            { value: 'cpa', label: '단가순', title: 'CPA 낮은 순 (고효율)' },
-            { value: 'quotes', label: '견적순', title: '견적 건수 많은 순' },
-          ]}
-          value={cpaSort}
-          onChange={setCpaSort}
-        />
+        카테고리별 견적 획득 단가 (CPA)
+        <span className="muted">({mLabel(curM)} 실적 기준)</span>
       </h3>
       <div id="chCatCpa">
         {sortedCats.length ? (
           <div className="cpa-list">
             {sortedCats.map((c) => {
-              const widthPct =
-                cpaSort === 'quotes'
-                  ? Math.max(5, Math.round((c.quotes / maxQuotes) * 100))
-                  : Math.max(5, Math.round((c.cpa / maxCpa) * 100));
+              const widthPct = Math.max(5, Math.round((c.cpa / maxCpa) * 100));
 
               return (
                 <div key={c.k} className="cpa-row">

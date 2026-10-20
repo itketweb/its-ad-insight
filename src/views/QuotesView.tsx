@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { DashboardData, SyncStatus } from '../types/dashboard';
 import {
-  buildSourceDonutData,
+  buildSourceShareData,
   fmt,
   mLabel,
   prevM,
@@ -11,20 +11,16 @@ import {
   ym,
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
-import { ViewHeader, type SourceLinkItem } from '../components/common/ViewHeader';
+import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
-import {
-  SourceDonut,
-  type SourceChartType,
-  SOURCE_CHART_OPTIONS,
-} from '../components/charts/SourceDonut';
+import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
-import { SegmentedControl } from '../components/common/SegmentedControl';
 
 interface QuotesViewProps {
   data: DashboardData;
   status: SyncStatus;
+  selectedMonth?: string;
 }
 
 const QUOTES_SOURCES: SourceLinkItem[] = [
@@ -34,8 +30,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
   { label: 'collectQuotes · 15분 자동 동기화' },
 ];
 
-export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
-  const [srcChartType, setSrcChartType] = useState<SourceChartType>('donut');
+export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMonth }) => {
   const quotes = data.quotes || [];
   const quotesRaw = data.quotesRaw || [];
 
@@ -63,7 +58,12 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
     );
   }
 
-  const last = quotes.reduce((m, r) => (r.month > m ? r.month : m), '');
+  const allAvailable = quotes.map((r) => r.month).filter(Boolean).sort();
+  const fallbackLast = quotes.reduce((m, r) => (r.month > m ? r.month : m), '');
+  const last =
+    (selectedMonth && allAvailable.includes(selectedMonth) ? selectedMonth : undefined) ||
+    selectedMonth ||
+    fallbackLast;
   const yr = last.slice(0, 4);
   const mm = +last.slice(5, 7);
   const curM = `${yr}-${String(mm).padStart(2, '0')}`;
@@ -87,7 +87,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
     (r) => r.count
   );
 
-  const { bySource: bySrcAll, topSourceKey: topSrcKey, items: srcItems } = buildSourceDonutData(
+  const { bySource: bySrcAll, topSourceKey: topSrcKey, items: srcItems } = buildSourceShareData(
     quotesRaw,
     yr,
     quotes
@@ -113,7 +113,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
         title="ITKET 견적 상세 현황"
         description="쇼핑몰(고도몰5) 및 직영 채널 접수 견적의 월별·카테고리별 유입 추이"
         status={status}
-        sources={QUOTES_SOURCES}
       />
 
       <div className="kpis" id="kpiQuotes">
@@ -134,13 +133,11 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
         <KpiCard
           label={`${yr}년 최다 유입 매체`}
           value={topSrcKey}
-          smallValue
           sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : '집계 중'}
         />
         <KpiCard
           label={`${yr}년 최다 견적 카테고리`}
           value={topCat?.k || '–'}
-          smallValue
           sub={`${fmt(topCat?.c || 0)}건 (${ytdQuotes > 0 ? ((topCat.c / ytdQuotes) * 100).toFixed(1) : 0}%)`}
         />
       </div>
@@ -148,30 +145,16 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
       <div className="grid">
         <MultiChart
           id="chQuote"
-          title={
-            <>
-              월별 견적 접수 수 <span className="muted">건</span>
-            </>
-          }
+          title="월별 견적 접수 수"
           labels={labels}
           series={series}
           unit="건"
         />
         <div className="card" id="quotes-src">
-          <h3>
-            <span>유입 매체 비중</span>
-            <SegmentedControl<SourceChartType>
-              mini
-              dataChart="quotes-src"
-              options={SOURCE_CHART_OPTIONS}
-              value={srcChartType}
-              onChange={setSrcChartType}
-            />
-          </h3>
-          <SourceDonut
+          <h3>유입 매체 비중</h3>
+          <SourceBarChart
             id="chSrc"
             items={srcItems}
-            chartType={srcChartType}
             emptyMessage="취합된 실제 유입 매체 데이터가 없습니다."
           />
         </div>
@@ -185,6 +168,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status }) => {
         months={months}
         allMonths={allMonths}
       />
+      <SecSrc sources={QUOTES_SOURCES} />
     </div>
   );
 };
