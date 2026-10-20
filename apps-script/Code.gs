@@ -2,8 +2,10 @@
  * its-ad-insight — 네이버 검색광고 수집 + 대시보드용 웹앱 (Google Apps Script, 데이터 시트에 연결)
  *
  * script.google.com 에서 새 프로젝트(데이터 시트와 같은 구글 계정)에 붙여넣는다. 시트는 SHEET_ID 로 연다.
- *  - setup        : 처음 한 번. 관리용 시트(mapping·manual)와 웹앱 비밀키를 만들고, 1시간마다 collectNaver 를 예약한다.
- *  - collectNaver : 네이버 검색광고 API → n_adgroup_monthly · n_keywords · n_ads (당월·전월은 매번, 과거 월은 비어 있을 때만)
+ *  - setup        : 처음 한 번. 관리용 시트(mapping·manual)와 웹앱 비밀키를 만들고, 15분마다 syncAll 을 예약한다.
+ *  - syncAll      : 15분마다. 네이버는 구조+키워드 성과(collectNaver) 하루 1번 + 광고그룹 광고비(collectNaverStats) 15분마다로 나눠 UrlFetch 한도를 지킨다.
+ *  - collectNaver : 네이버 캠페인·광고그룹·키워드·소재 목록 → n_idx_groups · n_idx_keywords · n_ads, 이어서 성과까지
+ *  - collectNaverStats : 색인의 ID 로 /stats 만 → n_adgroup_monthly (당월·전월은 매번, 과거 월은 비어 있는 달만). n_keywords 는 비어 있는 과거 달만 채운다
  *  - doGet        : ?key=비밀키 로 부르면 시트 전체를 JSON 으로 내려준다 (대시보드가 읽음). 키가 틀리면 아무것도 주지 않는다.
  * 네이버 키는 코드에 쓰지 않는다 — 프로젝트 설정 → 스크립트 속성에 NAVER_API_KEY · NAVER_SECRET · NAVER_CUSTOMER_ID 로 넣는다.
  * Google Ads 데이터(g_*)는 Google Ads 스크립트(GoogleAdsScript.js)가 같은 시트에 쓴다.
@@ -14,6 +16,12 @@ const CFG = {
   BASE: 'https://api.searchad.naver.com',
   CHUNK: 50,                                 // /stats 한 번에 묻는 ID 수
   BUDGET_MS: 4.5 * 60 * 1000,                // 한 번 실행에 쓸 최대 시간(6분 제한 대비)
+  KW_STATS_RESERVE_MS: 70 * 1000,            // 광고그룹 순회를 일찍 끝내 키워드 성과(/stats) 조회 시간을 남긴다
+  BACKFILL_MONTHS: 5,                        // 성과 수집 한 번에 채우는 지난 달 수 (한 번에 몰려 한도를 넘지 않게)
+  // UrlFetch 하루 2만 회는 이 구글 계정의 모든 스크립트(견적문의·상담접수 연동 등)가 함께 쓴다.
+  // 네이버 API 는 하루 이 횟수까지만 부르고 멈춰, 고장으로 폭주해도 나머지 스크립트 몫을 남긴다. 스크립트 속성 NAVER_DAILY_CAP 로 바꿀 수 있다.
+  NAVER_DAILY_CAP: 6000,
+  RUN_LIMIT_MS: 5 * 60 * 1000,               // syncAll 전체가 이 시간을 넘기면 남은 수집은 다음 실행으로 (6분 강제 종료 방지)
   SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_meta',
     'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_meta', 'quotes_monthly', 'quotes_raw', 'q_meta', 'mapping', 'manual'],
 };
@@ -38,74 +46,87 @@ function setup() {
 function syncAll() {
   const t0 = Date.now();
   console.log('=== [its-ad-insight] 전체 매체 통합 동기화 시작 ===');
-  try { collectNaver(); console.log('✓ 네이버 검색광고 동기화 완료'); } catch (e) { console.error('collectNaver: ' + e.message); }
-  try { if (PROPS.getProperty('QUOTE_SHEET_ID')) { collectQuotes(); console.log('✓ 견적 데이터 동기화 완료'); } } catch (e) { console.error('collectQuotes: ' + e.message); }
-  try { collectGoogleAdsEmail(); console.log('✓ 구글 광고 이메일 리포트 파싱 완료'); } catch (e) { console.error('collectGoogleAdsEmail: ' + e.message); }
-  try { collectGfaEmail(); console.log('✓ 네이버 GFA 리포트 파싱 완료'); } catch (e) { console.error('collectGfaEmail: ' + e.message); }
-  try { collectCommerce(); console.log('✓ 네이버 커머스 동기화 완료'); } catch (e) { console.error('collectCommerce: ' + e.message); }
+  try { syncAllBody_(t0); } finally { saveApiCount_(); }
+}
+function syncAllBody_(t0) {
+  // 네이버는 하루 UrlFetch 한도(2만 회)를 지키려고 둘로 나눈다.
+  //  - 구조(캠페인·광고그룹·키워드·소재 목록): 하루 1번, 06시 이후 첫 실행 (약 500~700회)
+  //    키워드 성과는 어제까지 집계라 하루 중에는 바뀌지 않으므로 구조 수집 때 함께 받는다 (약 100회)
+  //  - 광고그룹 광고비(/stats 만, 오늘 포함): NAVER_EVERY_MIN(기본 15분)마다 (약 10회)
+  const now = Date.now(), kst = (f) => Utilities.formatDate(new Date(), 'Asia/Seoul', f);
+  const structDue = PROPS.getProperty('NAVER_STRUCT_DAY') !== kst('yyyy-MM-dd') && Number(kst('H')) >= 6
+    && now - (Number(PROPS.getProperty('NAVER_STRUCT_TRY')) || 0) >= 2 * 3600 * 1000; // 실패하면 2시간 뒤 다시
+  const statsEvery = Number(PROPS.getProperty('NAVER_EVERY_MIN')) || 15;
+  const statsLast = Number(PROPS.getProperty('NAVER_LAST_RUN')) || 0;
+  if (apiLeft_() <= 0) {
+    console.warn('- 네이버 검색광고: 오늘 호출 상한(' + apiCap_() + '회)에 도달해 내일까지 쉽니다');
+    notifyOnce_('cap', '네이버 API 하루 상한 ' + apiCap_() + '회에 도달해 오늘 네이버 수집을 멈췄습니다. 평소 하루 약 1,300회이므로 수집 코드가 폭주하고 있을 수 있습니다.');
+  } else if (structDue) {
+    PROPS.setProperty('NAVER_STRUCT_TRY', String(now));
+    PROPS.setProperty('NAVER_LAST_RUN', String(now));
+    try { collectNaver(); console.log('✓ 네이버 구조+성과 동기화 완료 (API ' + apiCalls_ + '회)'); } catch (e) { fail_('collectNaver', e); }
+  } else if (now - statsLast >= statsEvery * 60 * 1000 - 60 * 1000) {
+    PROPS.setProperty('NAVER_LAST_RUN', String(now)); // 실패해도 다음 주기까지 재시도하지 않아 한도를 지킨다
+    try { collectNaverStats(); console.log('✓ 네이버 광고비 동기화 완료 (API ' + apiCalls_ + '회)'); } catch (e) { fail_('collectNaverStats', e); }
+  } else {
+    console.log('- 네이버 검색광고: ' + statsEvery + '분 주기 대기 중 (마지막 ' + Utilities.formatDate(new Date(statsLast), 'Asia/Seoul', 'HH:mm') + ')');
+  }
+  const rest = [
+    ['견적 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotes(); }, 'collectQuotes'],
+    ['구글 광고 이메일 리포트', collectGoogleAdsEmail, 'collectGoogleAdsEmail'],
+    ['네이버 GFA 리포트', collectGfaEmail, 'collectGfaEmail'],
+    ['네이버 커머스', collectCommerce, 'collectCommerce'],
+  ];
+  for (const [label, fn, name] of rest) {
+    if (Date.now() - t0 > CFG.RUN_LIMIT_MS) { console.warn('- ' + label + ': 실행 시간 ' + Math.round(CFG.RUN_LIMIT_MS / 60000) + '분을 넘겨 다음 실행으로 미룸'); continue; }
+    try { fn(); console.log('✓ ' + label + ' 동기화 완료'); } catch (e) { fail_(name, e); }
+  }
   console.log('=== [its-ad-insight] 전체 매체 통합 동기화 완료 (' + Math.round((Date.now() - t0) / 1000) + '초 소요) ===');
 }
 
-/* ── 네이버 검색광고 수집 ── */
+/* ── 네이버 검색광고: 구조 수집 (하루 1번) ──
+ * 캠페인·광고그룹·키워드·소재 목록과 입찰가·품질지수를 읽어 n_idx_groups · n_idx_keywords · n_ads 에 쓰고, 이어서 성과도 받는다.
+ * n_idx_* 는 성과 수집(collectNaverStats)이 API 를 다시 부르지 않고 ID 를 꺼내 쓰는 색인이다 (대시보드로는 내보내지 않는다). */
 function collectNaver() {
-  ['NAVER_API_KEY', 'NAVER_SECRET', 'NAVER_CUSTOMER_ID'].forEach((k) => { if (!PROPS.getProperty(k)) throw new Error('스크립트 속성에 ' + k + ' 가 없습니다'); });
+  checkNaverKeys_();
   const t0 = Date.now(), ss = SpreadsheetApp.openById(CFG.SHEET_ID);
   const camps = api_('GET', '/ncc/campaigns');
-  // 캠페인 단위 확장소재 이미지 캐싱 (파워링크 캠페인 공통 이미지 확장소재)
-  const campExtImgs = {};
-  camps.forEach((c) => {
-    try {
-      const exts = api_('GET', '/ncc/ad-extensions', { ownerId: c.nccCampaignId });
-      for (const ex of (exts || [])) {
-        if (ex.userLock) continue;
-        const u = extractExtImage_(ex);
-        if (u) { campExtImgs[c.nccCampaignId] = u; break; }
-      }
-    } catch (_) {}
-  });
+  // 확장소재 이미지는 이미지 없는 소재가 나올 때만 조회한다 (광고그룹 단위 우선, 없으면 캠페인 단위 상속).
+  const extImgCache = {};
+  const extImg_ = (ownerId) => {
+    if (!(ownerId in extImgCache)) {
+      extImgCache[ownerId] = '';
+      try {
+        for (const ex of (api_('GET', '/ncc/ad-extensions', { ownerId }) || [])) {
+          if (ex.userLock) continue;
+          const u = extractExtImage_(ex);
+          if (u) { extImgCache[ownerId] = u; break; }
+        }
+      } catch (_) {}
+    }
+    return extImgCache[ownerId];
+  };
 
   const groups = [];
   camps.forEach((c) => api_('GET', '/ncc/adgroups', { nccCampaignId: c.nccCampaignId })
-    .forEach((g) => groups.push({ id: g.nccAdgroupId, name: String(g.name || '').trim(), bid: g.bidAmt, campaign: String(c.name || '').trim(), ctype: c.campaignTp, campaignId: c.nccCampaignId })));
-  const gById = Object.fromEntries(groups.map((g) => [g.id, g]));
+    .forEach((g) => groups.push({ id: g.nccAdgroupId, name: String(g.name || '').trim(), bid: g.bidAmt, campaign: String(c.name || '').trim(), ctype: c.campaignTp, campaignId: c.nccCampaignId, on: !c.userLock && !g.userLock })));
+  put_(ss, 'n_idx_groups', [['id', 'name', 'bid', 'campaign', 'ctype', 'campaign_id', 'on']]
+    .concat(groups.map((g) => [g.id, g.name, g.bid || 0, g.campaign, g.ctype, g.campaignId, g.on ? 1 : 0])));
 
-  // 월별: 당월·전월은 매번 다시, 그 이전은 시트에 없는 달만 채운다
-  const head = ['month', 'type', 'campaign', 'campaign_tp', 'ad_group', 'ad_group_id', 'cost', 'impressions', 'clicks', 'conversions'];
-  const old = read_(ss, 'n_adgroup_monthly');
-  const thisM = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM');
-  const fresh = [thisM, addMonth_(thisM, -1)];
-  const have = new Set(old.map((r) => r.month));
-  const want = [];
-  for (let m = CFG.FROM_YEAR + '-01'; m <= thisM; m = addMonth_(m, 1)) if (fresh.includes(m) || !have.has(m)) want.push(m);
-  const keep = old.filter((r) => !want.includes(r.month)).map((r) => head.map((h) => r[h]));
-  const rows = [];
-  for (const m of want) {
-    if (Date.now() - t0 > CFG.BUDGET_MS) break; // 남은 달은 다음 실행에서
-    stats_(groups.map((g) => g.id), m + '-01', lastDay_(m)).forEach((s) => {
-      const g = gById[s.id];
-      if (g && (s.salesAmt || s.impCnt)) rows.push([m, 'SA', g.campaign, g.ctype, g.name, g.id, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0]);
-    });
-  }
-  put_(ss, 'n_adgroup_monthly', [head].concat(keep.concat(rows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
-
-  // 키워드·소재: 사용 중인 것의 현재 상태 + 최근 30일 성과
-  const until = Utilities.formatDate(new Date(Date.now() - 864e5), 'Asia/Seoul', 'yyyy-MM-dd');
-  const since = Utilities.formatDate(new Date(Date.now() - 30 * 864e5), 'Asia/Seoul', 'yyyy-MM-dd');
-  const kws = [], ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image']];
-  for (const g of groups) {
-    if (Date.now() - t0 > CFG.BUDGET_MS) break;
-    // 확장소재 이미지 조회 (광고그룹 단위 우선, 없으면 캠페인 단위 상속)
-    let grpExtImg = '';
-    try {
-      const exts = api_('GET', '/ncc/ad-extensions', { ownerId: g.id });
-      for (const ex of (exts || [])) {
-        if (ex.userLock) continue;
-        const u = extractExtImage_(ex);
-        if (u) { grpExtImg = u; break; }
-      }
-    } catch (_) {}
-    const finalExtImg = grpExtImg || campExtImgs[g.campaignId] || '';
-
+  // 당월·전월 광고비가 큰 광고그룹부터 → 운영 중 그룹 → 꺼진 그룹 순으로 읽어, 시간이 모자라도 주요 캠페인은 빠지지 않게 한다.
+  const thisM = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM'), fresh = [thisM, addMonth_(thisM, -1)];
+  const recent = {};
+  read_(ss, 'n_adgroup_monthly').filter((r) => fresh.includes(r.month)).forEach((r) => { recent[r.ad_group_id] = (recent[r.ad_group_id] || 0) + (Number(r.cost) || 0) + (Number(r.impressions) || 0) / 1e6; });
+  const rank = (g) => (recent[g.id] ? 2e9 + recent[g.id] : g.on ? 1 : 0);
+  const ordered = groups.slice().sort((a, b) => rank(b) - rank(a));
+  const kHead = ['id', 'ad_group_id', 'campaign', 'ad_group', 'keyword', 'bid', 'quality', 'ad_relevance', 'expected_click'];
+  const kIdx = [], ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image']];
+  const adsOld = read_(ss, 'n_ads');
+  const oldImg = Object.fromEntries(adsOld.filter((r) => r.image).map((r) => [String(r.ad_id), String(r.image)])); // 지난 실행에서 찾은 확장소재 이미지 재사용
+  const visited = new Set();
+  for (const g of ordered) {
+    if (Date.now() - t0 > CFG.BUDGET_MS - CFG.KW_STATS_RESERVE_MS) break; // 못 읽은 그룹은 아래에서 지난 값을 남긴다
+    visited.add(g.campaign + '\u0001' + g.name);
     api_('GET', '/ncc/keywords', { nccAdgroupId: g.id }).filter((k) => !k.userLock)
       .forEach((k) => {
         const rel = Number(k.adRelevanceScore) || 0;
@@ -113,21 +134,90 @@ function collectNaver() {
         const rawQi = k.nccQi && k.nccQi.qiGrade;
         // 파워링크(WEB_SITE) 기존 nccQi.qiGrade는 2026-07-29부로 고정 기본값(4)만 반환하므로 신규 최적화 지표 우선 사용
         const qi = rel && exp ? Math.round((rel + exp) / 2) : (rel || exp || (g.ctype !== 'WEB_SITE' && rawQi ? rawQi : ''));
-        kws.push({ id: k.nccKeywordId, g, keyword: String(k.keyword || '').trim(), bid: k.useGroupBidAmt ? g.bid : k.bidAmt, qi, rel: rel || '', exp: exp || '' });
+        kIdx.push([k.nccKeywordId, g.id, g.campaign, g.name, String(k.keyword || '').trim(), (k.useGroupBidAmt ? g.bid : k.bidAmt) || 0, qi, rel || '', exp || '']);
       });
     api_('GET', '/ncc/ads', { nccAdgroupId: g.id }).filter((a) => !a.userLock).forEach((a) => {
       const ad = a.ad || {};
-      const imgUrl = extractAdImage_(ad) || finalExtImg || '';
+      const imgUrl = extractAdImage_(ad) || oldImg[a.nccAdId] || extImg_(g.id) || extImg_(g.campaignId) || '';
       const title = ad.headline || (a.assets && a.assets[0] && a.assets[0].assetData && a.assets[0].assetData.text) || a.name || '';
       ads.push(['SA', g.campaign, g.name, a.nccAdId, a.type, title, (ad.pc && ad.pc.final) || (ad.mobile && ad.mobile.final) || '', imgUrl]);
     });
   }
-  const ks = Object.fromEntries(stats_(kws.map((k) => k.id), since, until).map((s) => [s.id, s]));
-  put_(ss, 'n_keywords', [['type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions', 'ad_relevance', 'expected_click']]
-    .concat(kws.map((k) => { const s = ks[k.id] || {}; return ['SA', k.g.campaign, k.g.name, k.keyword, '', k.bid || 0, k.qi, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0, k.rel, k.exp]; })));
-  put_(ss, 'n_ads', ads);
-  put_(ss, 'n_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['customer_id', PROPS.getProperty('NAVER_CUSTOMER_ID')]]);
+  // 이번에 못 읽은 광고그룹은 지난 실행 값을 그대로 둔다 (통째로 지우면 대시보드에서 캠페인이 사라진다)
+  const unseen = (r) => !visited.has(String(r.campaign) + '\u0001' + String(r.ad_group));
+  const kKeep = read_(ss, 'n_idx_keywords').filter(unseen).map((r) => kHead.map((h) => r[h]));
+  put_(ss, 'n_idx_keywords', [kHead].concat(kIdx, kKeep));
+  put_(ss, 'n_ads', ads.concat(adsOld.filter(unseen).map((r) => ads[0].map((h) => r[h]))));
+  const skipped = groups.length - visited.size;
+  if (skipped) console.warn('collectNaver: 시간 예산 초과로 광고그룹 ' + skipped + '개는 지난 값을 유지');
+  PROPS.setProperty('NAVER_STRUCT_DAY', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd'));
+  PROPS.setProperty('NAVER_STRUCT_AT', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm') + ' (' + visited.size + '/' + groups.length + ')');
+  collectNaverStats_(ss, t0, true);
+}
+
+/* ── 네이버 검색광고: 성과 수집 (1시간마다) ──
+ * 색인(n_idx_*)의 ID 로 /stats 만 불러 n_adgroup_monthly · n_keywords(월별)를 갱신한다.
+ * 당월·전월은 매번 다시, 그 이전은 비어 있는 달을 한 번에 CFG.BACKFILL_MONTHS 개씩만 채운다.
+ * withKeywords 가 아니면(15분 주기) 키워드는 당월·전월을 건너뛰고 비어 있는 과거 달만 채운다 — 다 채워지면 키워드 호출은 0회. */
+function collectNaverStats() {
+  checkNaverKeys_();
+  collectNaverStats_(SpreadsheetApp.openById(CFG.SHEET_ID), Date.now(), false);
+}
+function collectNaverStats_(ss, t0, withKeywords) {
+  const groups = read_(ss, 'n_idx_groups');
+  if (!groups.length) throw new Error('n_idx_groups 가 비어 있습니다 — collectNaver 를 먼저 한 번 실행하세요');
+  const gById = Object.fromEntries(groups.map((g) => [String(g.id), g]));
+  const thisM = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM'), fresh = [thisM, addMonth_(thisM, -1)];
+  const yday = Utilities.formatDate(new Date(Date.now() - 864e5), 'Asia/Seoul', 'yyyy-MM-dd');
+  const back = (ms) => ms.sort().reverse().slice(0, CFG.BACKFILL_MONTHS);
+
+  // 광고그룹 × 월
+  const head = ['month', 'type', 'campaign', 'campaign_tp', 'ad_group', 'ad_group_id', 'cost', 'impressions', 'clicks', 'conversions'];
+  const old = read_(ss, 'n_adgroup_monthly');
+  const have = new Set(old.map((r) => r.month));
+  const missing = [];
+  for (let m = CFG.FROM_YEAR + '-01'; m < fresh[1]; m = addMonth_(m, 1)) if (!have.has(m)) missing.push(m);
+  const rows = [], done = [];
+  for (const m of fresh.concat(back(missing))) {
+    if (Date.now() - t0 > CFG.BUDGET_MS) break; // 남은 달은 다음 실행에서
+    stats_(groups.map((g) => String(g.id)), m + '-01', lastDay_(m)).forEach((s) => {
+      const g = gById[s.id];
+      if (g && (s.salesAmt || s.impCnt)) rows.push([m, 'SA', g.campaign, g.ctype, g.name, String(g.id), s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0]);
+    });
+    done.push(m);
+  }
+  // GFA(DA) 행은 다른 수집기가 쓰므로 그대로 둔다
+  const keep = old.filter((r) => r.type !== 'SA' || !done.includes(r.month)).map((r) => head.map((h) => r[h]));
+  put_(ss, 'n_adgroup_monthly', [head].concat(keep.concat(rows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
+
+  // 키워드 × 월 (당월은 1일~어제). 월 열이 없는 예전 행은 버린다.
+  const kws = read_(ss, 'n_idx_keywords');
+  const kHead = ['month', 'type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions', 'ad_relevance', 'expected_click'];
+  const kOld = read_(ss, 'n_keywords').filter((r) => /^\d{4}-\d{2}$/.test(String(r.month || '')));
+  const kHave = new Set(kOld.map((r) => r.month));
+  const spentMs = new Set(keep.concat(rows).filter((r) => r[1] === 'SA').map((r) => r[0]));
+  const kRows = [], kDone = [];
+  const kBack = back([...spentMs].filter((m) => m < fresh[1] && !kHave.has(m)));
+  for (const m of (withKeywords ? fresh : []).concat(kBack)) {
+    if (Date.now() - t0 > CFG.BUDGET_MS) break;
+    const since = m + '-01', until = lastDay_(m) < yday ? lastDay_(m) : yday;
+    if (since > until) { kDone.push(m); continue; } // 매월 1일에는 당월 성과가 아직 없다
+    const ks = Object.fromEntries(stats_(kws.map((k) => String(k.id)), since, until).map((s) => [s.id, s]));
+    kws.forEach((k) => {
+      const s = ks[String(k.id)] || {};
+      // 당월은 노출 0건 대기 키워드도 남기고, 지난달은 실적이 있는 키워드만 쌓는다
+      if (m === thisM || s.salesAmt || s.impCnt) kRows.push([m, 'SA', k.campaign, k.ad_group, k.keyword, '', Number(k.bid) || 0, k.quality, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0, k.ad_relevance, k.expected_click]);
+    });
+    kDone.push(m);
+  }
+  const kKeep = kOld.filter((r) => !kDone.includes(r.month)).map((r) => kHead.map((h) => r[h]));
+  if (kDone.length) put_(ss, 'n_keywords', [kHead].concat(kKeep.concat(kRows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
+  put_(ss, 'n_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['customer_id', PROPS.getProperty('NAVER_CUSTOMER_ID')],
+    ['structure', PROPS.getProperty('NAVER_STRUCT_AT') || ''], ['api_calls', apiCalls_]]);
   syncMapping_(ss);
+}
+function checkNaverKeys_() {
+  ['NAVER_API_KEY', 'NAVER_SECRET', 'NAVER_CUSTOMER_ID'].forEach((k) => { if (!PROPS.getProperty(k)) throw new Error('스크립트 속성에 ' + k + ' 가 없습니다'); });
 }
 
 /** 캠페인·광고그룹명 → 표준 카테고리(서버·워크스테이션·스토리지·PC·노트북·기타) 자동 분류 */
@@ -301,7 +391,12 @@ function collectGoogleAdsEmail() {
         // [2] 키워드 실적 보고서 파싱 (통합 로우 데이터 추출)
         if (name.includes('통합') || name.includes('키워드') || csvStr.includes('검색 키워드,광고 최종 도착 URL')) {
           const parsed = Utilities.parseCsv(csvStr);
-          while (parsed.length && !String(parsed[0][0] || '').startsWith('캠페인')) parsed.shift();
+          // 머리말의 보고 기간("2026년 10월 1일 - 2026년 10월 19일")에서 마지막 날짜의 월을 쓴다. 없으면 메일 수신월.
+          let kwMonth = Utilities.formatDate(msg.getDate(), 'Asia/Seoul', 'yyyy-MM');
+          while (parsed.length && !String(parsed[0][0] || '').startsWith('캠페인')) {
+            const ds = parsed.shift().join(' ').match(/(\d{4})\s*[년.\-/]\s*(\d{1,2})/g);
+            if (ds) kwMonth = quoteMonth_(ds[ds.length - 1].replace(/\s*[년.\-/]\s*/, '-')) || kwMonth;
+          }
           if (parsed.length >= 2) {
             parsed.shift(); // remove header
             const rows = [];
@@ -317,6 +412,7 @@ function collectGoogleAdsEmail() {
               const conv = Number(String(r[14] || '').replace(/[^0-9.-]/g, '')) || 0;
               if (kw) {
                 rows.push({
+                  month: kwMonth,
                   type: 'SA',
                   campaign: camp,
                   ad_group: grp,
@@ -367,10 +463,14 @@ function saveGoogleMonthlyRows_(ss, rows) {
   syncMapping_(ss);
 }
 
+/** 월별로 갈아 끼운다: 새로 받은 달의 행만 바꾸고 다른 달은 그대로 둔다. month 가 없으면 당월로 본다. */
 function saveGoogleKeywordRows_(ss, rows) {
-  const head = ['type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions'];
-  const toAdd = rows.map((r) => [r.type || 'SA', r.campaign, r.ad_group, r.keyword, r.match || '', Number(r.bid) || 0, r.quality || '', Number(r.cost) || 0, Number(r.impressions) || 0, Number(r.clicks) || 0, Number(r.conversions) || 0]);
-  put_(ss, 'g_keywords', [head].concat(toAdd));
+  const head = ['month', 'type', 'campaign', 'ad_group', 'keyword', 'match', 'bid', 'quality', 'cost', 'impressions', 'clicks', 'conversions'];
+  const thisM = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM');
+  const toAdd = rows.map((r) => [quoteMonth_(r.month) || thisM, r.type || 'SA', r.campaign, r.ad_group, r.keyword, r.match || '', Number(r.bid) || 0, r.quality || '', Number(r.cost) || 0, Number(r.impressions) || 0, Number(r.clicks) || 0, Number(r.conversions) || 0]);
+  const newMs = new Set(toAdd.map((r) => r[0]));
+  const keep = read_(ss, 'g_keywords').filter((r) => /^\d{4}-\d{2}$/.test(String(r.month || '')) && !newMs.has(r.month)).map((r) => head.map((h) => r[h]));
+  put_(ss, 'g_keywords', [head].concat(keep.concat(toAdd).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
   syncMapping_(ss);
 }
 
@@ -663,7 +763,42 @@ function getCommerceToken_(clientId, clientSecret) {
 }
 
 /* ── 네이버 API ── */
+let apiCalls_ = 0; // 이번 실행의 네이버 API 호출 수 (한도 점검용)
+let apiDay_ = null, apiBase_ = 0, apiSaved_ = 0; // 오늘(KST) 앞선 실행들이 쓴 호출 수 — 스크립트 속성 NAVER_CALLS_DAY · NAVER_CALLS
+function apiCap_() { return Number(PROPS.getProperty('NAVER_DAILY_CAP')) || CFG.NAVER_DAILY_CAP; }
+function apiLeft_() {
+  if (apiDay_ === null) {
+    apiDay_ = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+    apiBase_ = PROPS.getProperty('NAVER_CALLS_DAY') === apiDay_ ? Number(PROPS.getProperty('NAVER_CALLS')) || 0 : 0;
+  }
+  return apiCap_() - apiBase_ - apiCalls_;
+}
+function saveApiCount_() {
+  if (apiDay_ === null || apiCalls_ === apiSaved_) return;
+  PROPS.setProperties({ NAVER_CALLS_DAY: apiDay_, NAVER_CALLS: String(apiBase_ + apiCalls_) });
+  apiSaved_ = apiCalls_;
+}
+/** 수집 실패를 기록하고, 계정 UrlFetch 한도 소진이면 하루 한 번 메일로 알린다. */
+function fail_(name, e) {
+  console.error(name + ': ' + e.message + ' (API ' + apiCalls_ + '회)');
+  if (/urlfetch|너무 많이 호출|too many times/i.test(e.message)) {
+    notifyOnce_('quota', '구글 계정의 UrlFetch 하루 한도(2만 회)가 소진됐습니다. 같은 계정의 견적문의(팀즈)·상담접수 시트 연동도 멈춰 있을 수 있습니다.\n'
+      + 'Apps Script → 내 실행 에서 오래 걸린 실행을 찾아 원인을 확인하세요. 한도는 하루 안에 다시 채워집니다.\n\n' + name + ': ' + e.message);
+  }
+}
+/** 같은 종류(kind)의 알림은 하루(KST) 한 번만 보낸다. Gmail 수집 때문에 이미 있는 Gmail 권한으로 보낸다(새 권한 승인 불필요). */
+function notifyOnce_(kind, msg) {
+  const day = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd'), key = 'NOTIFY_' + kind.toUpperCase();
+  if (PROPS.getProperty(key) === day) return;
+  try {
+    GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), '[its-ad-insight 수집기] ' + (kind === 'cap' ? '네이버 API 하루 상한 도달' : 'UrlFetch 하루 한도 소진'), msg);
+    PROPS.setProperty(key, day);
+  } catch (err) { console.error('알림 메일 실패: ' + err.message); }
+}
 function api_(method, path, query) {
+  if (apiLeft_() <= 0) throw new Error('네이버 API 하루 상한(' + apiCap_() + '회)에 도달해 멈춤');
+  apiCalls_++;
+  if (apiCalls_ % 50 === 0) saveApiCount_(); // 6분 강제 종료돼도 센 수가 크게 사라지지 않게
   const ts = String(Date.now());
   const sig = Utilities.base64Encode(Utilities.computeHmacSha256Signature(ts + '.' + method + '.' + path, PROPS.getProperty('NAVER_SECRET')));
   // 배열은 ids=a&ids=b 처럼 같은 이름을 반복해 보낸다 (네이버 공식 예제 방식)
@@ -710,29 +845,43 @@ function put_(ss, name, rows) {
 function addMonth_(m, n) { const [y, mo] = m.split('-').map(Number); return Utilities.formatDate(new Date(Date.UTC(y, mo - 1 + n, 1)), 'UTC', 'yyyy-MM'); }
 function lastDay_(m) { const [y, mo] = m.split('-').map(Number); return Utilities.formatDate(new Date(Date.UTC(y, mo, 0)), 'UTC', 'yyyy-MM-dd'); }
 
-/** 네이버 확장소재(ad-extension) 응답 객체에서 이미지 URL 추출 */
+// 네이버 검색광고 이미지는 imagePath 로 경로만 내려올 수 있어 이 주소를 앞에 붙인다
+const NAVER_IMG_HOST = 'https://searchad-phinf.pstatic.net';
+// 소재 이미지로 쓸 확장소재 종류 — 파워링크 이미지·이미지형 서브링크만 (블로그 리뷰·플레이스 사진 등은 소재 이미지가 아니다)
+const EXT_IMAGE_TYPES = ['POWER_LINK_IMAGE', 'IMAGE_SUB_LINKS'];
+
+/** API 명세상 ad·adExtension 은 JSON 문자열일 수 있다 — 문자열이면 풀어서 돌려준다 */
+function parseJson_(v) {
+  if (typeof v !== 'string' || !/^\s*[{[]/.test(v)) return v;
+  try { return JSON.parse(v); } catch (_) { return v; }
+}
+
+/** 네이버 확장소재(ad-extension) 중 이미지형에서만 이미지 URL 추출 */
 function extractExtImage_(ext) {
-  if (!ext || !ext.adExtension) return '';
-  return findUrlInObj_(ext.adExtension);
+  if (!ext || !EXT_IMAGE_TYPES.includes(ext.type) || ext.status === 'DELETED' || ext.inspectStatus === 'DENIED') return '';
+  return findUrlInObj_(parseJson_(ext.adExtension));
 }
 
 /** 소재 객체 내 이미지 URL 추출 */
 function extractAdImage_(ad) {
-  if (!ad) return '';
-  if (ad.image) return findUrlInObj_(ad.image);
-  if (ad.images) return findUrlInObj_(ad.images);
+  ad = parseJson_(ad);
+  if (!ad || typeof ad !== 'object') return '';
+  return findUrlInObj_(ad.image) || findUrlInObj_(ad.images) || imageUrlOf_(ad.imagePath);
+}
+
+/** 이미지 주소 문자열만 인정한다: http(s) 이미지 주소, 또는 네이버 이미지 경로(/...)는 NAVER_IMG_HOST 를 붙인다 */
+function imageUrlOf_(v, isPath) {
+  if (typeof v !== 'string' || !v.trim()) return '';
+  const s = v.trim();
+  if (/^https?:\/\//i.test(s)) return /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(s) || /(^|\.)pstatic\.net\//i.test(s.replace(/^https?:\/\//i, '')) ? s : '';
+  if (isPath !== false && /^\/[^\s/][^\s]*$/.test(s)) return NAVER_IMG_HOST + s;
   return '';
 }
 
-/** 객체나 배열 내에서 searchad-phinf.pstatic.net 등 이미지 URL을 안전하게 재귀 탐색 */
+/** 객체나 배열 내에서 이미지 URL을 재귀 탐색 (imagePath 등 경로 키는 네이버 이미지 서버 주소로 바꾼다) */
 function findUrlInObj_(o) {
   if (!o) return '';
-  if (typeof o === 'string') {
-    if (/^https?:\/\/.+\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(o) || o.includes('pstatic.net') || o.includes('searchad-phinf')) {
-      return o;
-    }
-    return '';
-  }
+  if (typeof o === 'string') return imageUrlOf_(o, false);
   if (Array.isArray(o)) {
     for (const item of o) {
       const u = findUrlInObj_(item);
@@ -741,12 +890,13 @@ function findUrlInObj_(o) {
     return '';
   }
   if (typeof o === 'object') {
-    const keys = ['imageUrl', 'imgUrl', 'url', 'image', 'fullSizeUrl', 'thumbnailUrl', 'mediaUrl'];
-    for (const k of keys) {
-      if (o[k]) {
-        const u = findUrlInObj_(o[k]);
-        if (u) return u;
-      }
+    for (const k of ['imagePath', 'imgPath', 'thumbnailPath']) {
+      const u = imageUrlOf_(o[k]);
+      if (u) return u;
+    }
+    for (const k of ['imageUrl', 'imgUrl', 'image', 'fullSizeUrl', 'thumbnailUrl', 'mediaUrl', 'url']) {
+      const u = typeof o[k] === 'string' ? imageUrlOf_(o[k], false) : findUrlInObj_(o[k]);
+      if (u) return u;
     }
     for (const k of Object.keys(o)) {
       if (typeof o[k] === 'object') {
@@ -756,5 +906,28 @@ function findUrlInObj_(o) {
     }
   }
   return '';
+}
+
+/**
+ * 점검용 (편집기에서 직접 실행): 광고그룹·캠페인에 걸린 확장소재의 종류와 원본 adExtension 을 로그로 찍고,
+ * 이미지 추출 결과를 함께 보여 준다. API 호출은 캠페인 수 + 광고그룹 최대 20개 정도.
+ */
+function debugNaverAdExtensions() {
+  checkNaverKeys_();
+  const owners = api_('GET', '/ncc/campaigns').map((c) => ({ id: c.nccCampaignId, name: '캠페인 ' + c.name }));
+  read_(SpreadsheetApp.openById(CFG.SHEET_ID), 'n_idx_groups').slice(0, 20).forEach((g) => owners.push({ id: String(g.id), name: '그룹 ' + g.campaign + ' › ' + g.name }));
+  const byType = {};
+  owners.forEach((o) => {
+    (api_('GET', '/ncc/ad-extensions', { ownerId: o.id }) || []).forEach((ex) => {
+      byType[ex.type] = (byType[ex.type] || 0) + 1;
+      if (EXT_IMAGE_TYPES.includes(ex.type) || /IMAGE/.test(ex.type)) {
+        console.log(o.name + ' | ' + ex.type + ' | 상태 ' + ex.status + '/' + ex.inspectStatus + ' | adExtension 형식 ' + typeof ex.adExtension
+          + '\n  원본: ' + String(typeof ex.adExtension === 'string' ? ex.adExtension : JSON.stringify(ex.adExtension)).slice(0, 600)
+          + '\n  추출: ' + (extractExtImage_(ex) || '(없음)'));
+      }
+    });
+  });
+  console.log('확장소재 종류별 개수: ' + JSON.stringify(byType));
+  saveApiCount_();
 }
 

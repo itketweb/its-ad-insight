@@ -30,9 +30,8 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
   return (
     <div className="card" id="kw-cat">
       <h3 id="ttCatConv">
-        <span>
-          카테고리별 전환 · 소진 <span className="muted">({mLabel(curMonth)} 기준)</span>
-        </span>
+        카테고리별 전환 · 소진
+        <span className="muted">({mLabel(curMonth)} 기준)</span>
       </h3>
       <div className="tw">
         <table className="stk" id="tbCatConv">

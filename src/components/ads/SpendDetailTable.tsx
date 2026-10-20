@@ -125,38 +125,30 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
         </table>
         <TableFootnote
           unit="원"
-          basis="산출 근거: 부가세(VAT) 포함 실제 소진 광고비 · 당해연도 진행 월은 수집 시점 누적치"
+          basis="산출 근거: VAT 포함 실소진액 (진행 월은 수집 시점 누적)"
+          // 출처는 수집 방식(API 자동 / 시트)별로 묶어 한 줄로 — 세부 설명은 마우스를 올리면 보인다
           sources={[
-            <span key="g">
-              Google SA·DA —{' '}
-              <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
+            <span key="api">
+              API:{' '}
+              <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener" title="Google SA·DA 자동 수집">
                 Google Ads
               </a>{' '}
-              API 자동 수집
-            </span>,
-            <span key="n">
-              Naver SA —{' '}
-              <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
+              ·{' '}
+              <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener" title="Naver SA 자동 수집">
                 네이버 검색광고
               </a>{' '}
-              API 자동 수집
+              ·{' '}
+              <a href={EXTERNAL_LINKS.naverSmartStore} target="_blank" rel="noopener" title="네이버 커머스 API 자동 수집">
+                스마트스토어
+              </a>
             </span>,
-            'Naver DA — 네이버 DA 리포트 시트',
-            <span key="m">
-              Meta —{' '}
-              <a href={EXTERNAL_LINKS.metaAds} target="_blank" rel="noopener">
-                Meta Ads 관리자
+            <span key="sheet">
+              시트: <span title="네이버 DA 리포트 시트">네이버 DA</span> ·{' '}
+              <a href={EXTERNAL_LINKS.metaAds} target="_blank" rel="noopener" title="Meta Ads 관리자 수치를 시트에 수동 입력">
+                Meta
               </a>{' '}
-              시트
+              · <span title="MDF 업로드 시트 + HPE_MDF 캠페인">MDF</span>
             </span>,
-            <span key="s">
-              스토어 —{' '}
-              <a href={EXTERNAL_LINKS.naverSmartStore} target="_blank" rel="noopener">
-                네이버 스마트스토어
-              </a>{' '}
-              커머스 API 자동 수집
-            </span>,
-            'MDF — MDF 업로드 시트 + HPE_MDF 캠페인',
           ]}
         />
       </div>

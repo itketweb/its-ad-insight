@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CampaignKeywordBucket, KeywordGroup } from '../../types/dashboard';
-import { fmt } from '../../utils/format';
+import { fmt, mLabel, THIS_M } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { MediaPill } from '../common/MediaPill';
 import { TableFootnote } from '../common/TableFootnote';
@@ -8,6 +8,7 @@ import { TableFootnote } from '../common/TableFootnote';
 interface KeywordAccordionTableProps {
   topGroups: KeywordGroup[];
   campaigns: CampaignKeywordBucket[];
+  month?: string;
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
   kwTabIdx: number;
@@ -15,10 +16,16 @@ interface KeywordAccordionTableProps {
 }
 
 const mediaKo = (m: string) => (m === 'Naver' ? '네이버' : m === 'Google' ? '구글' : m);
+// CTR = 클릭 ÷ 노출 × 100 (노출 0 이면 –)
+const ctr = (clk: number, imp: number) => (imp ? `${((clk / imp) * 100).toFixed(1)}%` : '–');
+
+/** 탭으로 바로 보이는 캠페인 수. 나머지는 '더보기' 목록에서 고른다 */
+const VISIBLE_TABS = 10;
 
 export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   topGroups,
   campaigns,
+  month = THIS_M,
   media,
   type,
   kwTabIdx,
@@ -26,6 +33,25 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 }) => {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [expandedKwGroups, setExpandedKwGroups] = useState<Set<string>>(new Set());
+  const [moreOpen, setMoreOpen] = useState(false);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+
+  // 더보기 목록: 바깥 클릭·Esc 로 닫는다
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!tabBarRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreOpen]);
 
   const toggleGroup = (groupKey: string) => {
     setOpenGroups((prev) => {
@@ -57,12 +83,23 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
     });
   };
 
-  // 같은 캠페인 이름이 Google·Naver 양쪽에 있으면 탭에 매체를 붙인다
+  // 같은 캠페인 이름이 Google·Naver 양쪽에 있으면 한 탭으로 합치고, 탭 오른쪽에 매체 아이콘을 모두 붙인다
   const campLabel = (c: CampaignKeywordBucket) => c.campaign.trim();
 
   const safeKwIdx = kwTabIdx >= 0 && kwTabIdx <= campaigns.length ? kwTabIdx : 0;
   const selectedCamp = safeKwIdx > 0 ? campaigns[safeKwIdx - 1] : null;
   const displayGroups = selectedCamp ? selectedCamp.groups : topGroups;
+  const hiddenCamps = campaigns.slice(VISIBLE_TABS);
+  const hiddenSelected = safeKwIdx > VISIBLE_TABS;
+  const selectTab = (idx: number) => {
+    setMoreOpen(false);
+    onChangeTab(idx);
+  };
+  const campTitle = (c: CampaignKeywordBucket) =>
+    `${c.medias.map(mediaKo).join('·')} · ${c.campaign} (${c.groups.length}개 그룹)`;
+  const campIcons = (c: CampaignKeywordBucket) =>
+    c.medias.map((m) => <MediaPill key={m} media={m} iconOnly size={10} />);
+  const periodLabel = `${month.slice(0, 4)}년 ${mLabel(month)}`;
 
   return (
     <div className="card" id="kw-list">
@@ -70,46 +107,97 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
         {type === 'DA' ? (
           '키워드'
         ) : !campaigns.length ? (
-          <span>
-            키워드 <span className="muted">최근 30일 · 광고비 상위 캠페인</span>
-          </span>
+          <>
+            키워드
+            <span className="muted">{periodLabel} · 광고비 상위 캠페인</span>
+          </>
         ) : safeKwIdx === 0 ? (
-          <span>
-            키워드{' '}
+          <>
+            키워드
             <span className="muted">
-              최근 30일 · 광고비 상위 {topGroups.length}개 그룹, 그룹당 상위 10개
+              {periodLabel} · 광고비 상위 {topGroups.length}개 그룹, 그룹당 상위 10개
             </span>
-          </span>
+          </>
         ) : (
-          <span>
-            키워드{' '}
+          <>
+            키워드
             <span className="muted">
-              {selectedCamp?.campaign}
+              {periodLabel} · {selectedCamp?.campaign}
               <small className="kw-head-sub">({selectedCamp?.groups.length}개 광고그룹)</small>
             </span>
-          </span>
+          </>
         )}
       </h3>
 
       {type === 'SA' && campaigns.length > 0 && (
-        <div id="kwTabBar" className="kw-tabs">
-          {['전체', ...campaigns.map(campLabel)].map((lbl, i) => (
+        <div id="kwTabBar" className="kw-tabs" ref={tabBarRef}>
+          {['전체', ...campaigns.slice(0, VISIBLE_TABS).map(campLabel)].map((lbl, i) => (
             <button
               key={i}
               className={safeKwIdx === i ? 'on' : ''}
-              title={
-                i === 0
-                  ? '전체 (상위 10개 광고그룹)'
-                  : `${campaigns[i - 1].media} · ${campaigns[i - 1].campaign} (${campaigns[i - 1].groups.length}개 그룹)`
-              }
-              onClick={() => onChangeTab(i)}
+              title={i === 0 ? '전체 (상위 10개 광고그룹)' : campTitle(campaigns[i - 1])}
+              onClick={() => selectTab(i)}
             >
               <span>{lbl}</span>
-              {i > 0 && (
-                <MediaPill media={campaigns[i - 1].media} iconOnly size={10} />
-              )}
+              {i > 0 && campIcons(campaigns[i - 1])}
             </button>
           ))}
+
+          {hiddenCamps.length > 0 && (
+            <button
+              type="button"
+              className={`kw-more${hiddenSelected ? ' on' : ''}`}
+              aria-haspopup="listbox"
+              aria-expanded={moreOpen}
+              title={hiddenSelected && selectedCamp ? campTitle(selectedCamp) : '광고비 11위 이하 캠페인'}
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              {hiddenSelected && selectedCamp ? (
+                <>
+                  <span>{campLabel(selectedCamp)}</span>
+                  {campIcons(selectedCamp)}
+                </>
+              ) : (
+                <span>+{hiddenCamps.length}개 더보기</span>
+              )}
+              <svg
+                className={`kw-more-chev${moreOpen ? ' open' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          )}
+
+          {moreOpen && (
+            <div className="kw-more-menu" role="listbox" aria-label="광고비 11위 이하 캠페인">
+              {hiddenCamps.map((c, j) => {
+                const idx = VISIBLE_TABS + j + 1;
+                return (
+                  <button
+                    key={c.campaign}
+                    type="button"
+                    role="option"
+                    aria-selected={safeKwIdx === idx}
+                    className={safeKwIdx === idx ? 'on' : ''}
+                    title={campTitle(c)}
+                    onClick={() => selectTab(idx)}
+                  >
+                    <span className="kw-more-rank">{idx}</span>
+                    <span className="kw-more-name">{campLabel(c)}</span>
+                    {campIcons(c)}
+                    <span className="kw-more-cost">{fmt(c.cost)}원</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -228,7 +316,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                         <td className="n">{fmt(grpImp)}</td>
                         <td className="n">{fmt(grpClk)}</td>
                         <td className="n">
-                          {grpImp ? `${((grpClk / grpImp) * 100).toFixed(1)}%` : '–'}
+                          {ctr(grpClk, grpImp)}
                         </td>
                         <td className="n">{fmt(grpConv)}</td>
                         <td className="n">
@@ -243,7 +331,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                             <td className="n">{fmt(k.imp)}</td>
                             <td className="n">{fmt(k.clk)}</td>
                             <td className="n">
-                              {k.imp ? `${((k.clk / k.imp) * 100).toFixed(1)}%` : '–'}
+                              {ctr(k.clk, k.imp)}
                             </td>
                             <td className="n">{fmt(k.conv)}</td>
                             <td className="n">{fmt(k.cost)}원</td>
@@ -287,7 +375,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
         </table>
         <TableFootnote
           unit="원·회"
-          basis="산출 근거: 최근 30일 광고비 상위 캠페인/그룹 · CTR = (클릭수 ÷ 노출수) × 100"
+          basis={`산출 근거: ${periodLabel} 월간 실적(당월은 1일~수집 시점) 광고비 상위 캠페인/그룹 · CTR = (클릭수 ÷ 노출수) × 100`}
           sources={[
             <span key="g">
               Google SA —{' '}

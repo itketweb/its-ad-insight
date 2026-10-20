@@ -45,6 +45,7 @@ export interface QuoteRawRow {
 }
 
 export interface KeywordRow {
+  month: string;
   media: string;
   type: string;
   campaign: string;
@@ -70,7 +71,8 @@ export interface KeywordGroup {
 }
 
 export interface CampaignKeywordBucket {
-  media: string;
+  /** 같은 캠페인명이 Google·Naver 양쪽에 있으면 한 탭으로 합치므로 매체가 여럿일 수 있다 */
+  medias: string[];
   campaign: string;
   cost: number;
   groups: KeywordGroup[];
@@ -123,7 +125,7 @@ export interface CategoryBarItem {
   q?: number;
 }
 
-export interface DonutItem {
+export interface SourceShareItem {
   k: string;
   c: string;
   v: number;
@@ -148,6 +150,7 @@ export interface RawManualApiRow {
 }
 
 export interface RawKeywordApiRow {
+  month?: unknown;
   type?: unknown;
   campaign?: unknown;
   ad_group?: unknown;

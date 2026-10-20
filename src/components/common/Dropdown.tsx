@@ -1,0 +1,169 @@
+import React, { useEffect, useId, useRef, useState } from 'react';
+
+export interface DropdownOption<T extends string | number> {
+  value: T;
+  label: React.ReactNode;
+  title?: string;
+  disabled?: boolean;
+}
+
+interface DropdownProps<T extends string | number> {
+  options: DropdownOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+  className?: string;
+  id?: string;
+}
+
+/** 대시보드 톤에 맞춘 드롭다운 (기본 select 의 OS 목록 대신). 바깥 클릭·Esc 로 닫고 ↑↓·Home·End·Enter 로 고른다 */
+export function Dropdown<T extends string | number>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+  className,
+  id,
+}: DropdownProps<T>): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+
+  const selectedIdx = options.findIndex((o) => o.value === value);
+  const selected = options[selectedIdx];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    listRef.current?.focus({ preventScroll: true });
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  // 키보드로 옮긴 항목이 목록 밖이면 보이게 스크롤
+  useEffect(() => {
+    if (!open || active < 0) return;
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-idx="${active}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [open, active]);
+
+  const openList = () => {
+    setActive(selectedIdx);
+    setOpen(true);
+  };
+
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  };
+
+  const pick = (idx: number) => {
+    const opt = options[idx];
+    if (!opt || opt.disabled) return;
+    close();
+    if (opt.value !== value) onChange(opt.value);
+  };
+
+  const step = (from: number, dir: 1 | -1) => {
+    for (let i = from + dir; i >= 0 && i < options.length; i += dir) {
+      if (!options[i].disabled) return i;
+    }
+    return from;
+  };
+
+  const onListKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') setActive((a) => step(a, 1));
+    else if (e.key === 'ArrowUp') setActive((a) => step(a, -1));
+    else if (e.key === 'Home') setActive(step(-1, 1));
+    else if (e.key === 'End') setActive(step(options.length, -1));
+    else if (e.key === 'Enter' || e.key === ' ') pick(active);
+    else if (e.key === 'Escape' || e.key === 'Tab') close();
+    else return;
+    e.preventDefault();
+  };
+
+  return (
+    <div className={`dd${open ? ' open' : ''}${className ? ` ${className}` : ''}`} ref={rootRef} id={id}>
+      <button
+        type="button"
+        className="dd-trigger"
+        ref={triggerRef}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-label={ariaLabel}
+        onClick={() => (open ? close() : openList())}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            openList();
+          }
+        }}
+      >
+        <span className="dd-value">{selected?.label}</span>
+        <svg
+          className="dd-chev"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="dd-menu"
+          role="listbox"
+          id={listId}
+          ref={listRef}
+          tabIndex={-1}
+          aria-label={ariaLabel}
+          aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
+          onKeyDown={onListKey}
+        >
+          {options.map((o, i) => (
+            <div
+              key={String(o.value)}
+              id={`${listId}-${i}`}
+              data-idx={i}
+              role="option"
+              aria-selected={o.value === value}
+              aria-disabled={o.disabled || undefined}
+              title={o.title}
+              className={`dd-opt${o.value === value ? ' on' : ''}${i === active ? ' active' : ''}${o.disabled ? ' disabled' : ''}`}
+              onMouseEnter={() => !o.disabled && setActive(i)}
+              onClick={() => pick(i)}
+            >
+              <span>{o.label}</span>
+              {o.value === value && (
+                <svg
+                  className="dd-check"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

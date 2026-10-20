@@ -2,7 +2,7 @@ import type {
   CategoryBarItem,
   CategoryMap,
   CategoryWeight,
-  DonutItem,
+  SourceShareItem,
   MappingRow,
   QuoteRawRow,
   QuoteRow,
@@ -177,11 +177,11 @@ export function sourceColorVar(source: string): string {
   return '--sub';
 }
 
-export function buildSourceDonutData(
+export function buildSourceShareData(
   quotesRaw: QuoteRawRow[],
   yearPrefix: string,
   quotesMonthly?: QuoteRow[]
-): { bySource: Record<string, number>; topSourceKey: string; items: DonutItem[] } {
+): { bySource: Record<string, number>; topSourceKey: string; items: SourceShareItem[] } {
   const bySource: Record<string, number> = {};
   const rawFiltered = quotesRaw.filter(
     (r) => r.date?.startsWith(yearPrefix) && r.source && r.source !== '미수집'
@@ -202,7 +202,7 @@ export function buildSourceDonutData(
   const sortedKeys = Object.keys(bySource).sort((a, b) => bySource[b] - bySource[a]);
   const topSourceKey = sortedKeys[0] || '–';
   const total = Object.values(bySource).reduce((a, b) => a + b, 0);
-  const items: DonutItem[] = total
+  const items: SourceShareItem[] = total
     ? sortedKeys.map((k) => {
         const rawPct = (bySource[k] / total) * 100;
         const v = rawPct > 0 && rawPct < 0.1 ? 0.1 : Math.round(rawPct * 10) / 10;

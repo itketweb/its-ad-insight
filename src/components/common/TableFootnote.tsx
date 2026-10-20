@@ -30,8 +30,7 @@ export const TableFootnote: React.FC<TableFootnoteProps> = ({
 }) => {
   return (
     <div id={id} className={`tbl-src ${className}`.trim()}>
-      {unit && <span className="tbl-src-unit">단위: {unit}</span>}
-      {basis && <span className="tbl-src-basis">{basis}</span>}
+      {basis &&<span className="tbl-src-basis">{basis}</span>}
       {sources.map((item, idx) => {
         if (!item) return null;
         if (typeof item === 'string') {
@@ -65,6 +64,8 @@ export const TableFootnote: React.FC<TableFootnoteProps> = ({
           {action.text} ↗
         </a>
       )}
+      {/* 단위는 차트 범례와 같이 우측 하단에 둔다 */}
+      {unit && <span className="tbl-src-unit">단위: {unit}</span>}
     </div>
   );
 };

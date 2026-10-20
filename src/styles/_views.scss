@@ -105,7 +105,7 @@ p.small {
 .sec-src {
   font-size: 0.75rem;
   color: var(--sub);
-  margin: -0.25rem 0 1.25rem;
+  margin: 1.25rem 0 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -167,6 +167,7 @@ p.small {
 }
 
 .kw-tabs {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 0;
@@ -204,6 +205,70 @@ p.small {
         color: var(--accink);
       }
     }
+  }
+
+  // 광고비 11위 이하 캠페인 — 탭 바 오른쪽 아래에 목록을 연다
+  .kw-more-chev {
+    width: 0.75rem;
+    height: 0.75rem;
+    flex-shrink: 0;
+    transition: transform 0.12s;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+
+  .kw-more-menu {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    right: 0;
+    z-index: 20;
+    width: min(20rem, 100%);
+    max-height: 20rem;
+    overflow-y: auto;
+    padding: 0.25rem;
+    background: var(--card);
+    border: 1px solid var(--line2);
+    border-radius: 0.5rem;
+
+    button {
+      display: flex;
+      width: 100%;
+      margin: 0;
+      padding: 0.5rem 0.625rem;
+      border: none;
+      border-radius: 0.375rem;
+      text-align: left;
+
+      &:hover:not(.on) {
+        background: var(--bg);
+        border-bottom-color: transparent;
+      }
+
+      &.on {
+        background: var(--accbg);
+        color: var(--accink);
+      }
+    }
+  }
+
+  .kw-more-rank {
+    min-width: 1.25rem;
+    color: var(--sub);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kw-more-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .kw-more-cost {
+    margin-left: auto;
+    padding-left: 0.75rem;
+    color: var(--ink2);
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -248,6 +313,34 @@ p.small {
   }
   .col-mo-total {
     width: 8rem;
+  }
+}
+
+// 광고비는 월마다 천만 원대(10,594,254)라 견적 건수 표보다 숫자 칸이 넓어야 한다.
+// 구분 칸을 줄이고 숫자 칸 여백·글자를 한 단계 줄여 보통 모니터 폭에 맞추고, 더 좁으면 겹치지 않고 가로 스크롤되게 한다.
+#tbSpendDetail {
+  min-width: 77rem;
+
+  .col-mo-label {
+    width: 6rem;
+  }
+  .col-mo-val {
+    width: 5.375rem;
+  }
+  .col-mo-total {
+    width: 6.5rem;
+  }
+
+  th.n,
+  td.n {
+    padding-left: 0.25rem;
+    padding-right: 0.375rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  td.n:not(.sub-t) {
+    font-size: 0.8125rem;
   }
 }
 
@@ -358,20 +451,6 @@ tr.grp-accordion {
   flex-shrink: 0;
 }
 
-.grp-acc-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-left: 0.5rem;
-  line-height: 1;
-}
-
-.grp-dash {
-  color: var(--sub);
-  font-size: 0.75rem;
-}
-
 tr.kw-more-row td {
   text-align: center;
   padding: 0.375rem 0.75rem !important;
@@ -428,6 +507,15 @@ tr.kw-more-row td {
 
   .tbl-src-unit {
     font-weight: 500;
+    margin-left: auto;
+
+    &::before {
+      content: none !important; // 근거·출처와 떨어져 있으므로 구분점(·)을 붙이지 않는다
+    }
+  }
+
+  .tbl-src-action + .tbl-src-unit {
+    margin-left: 0; // 바로 앞 링크가 이미 오른쪽으로 밀려 있으면 그 옆에 나란히
   }
 
   .tbl-src-basis {
@@ -451,12 +539,6 @@ tr.kw-more-row td {
       color: var(--acc);
     }
   }
-}
-
-.sub-h {
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin: 1.5rem 0 0.75rem;
 }
 
 .creatives {
@@ -602,62 +684,6 @@ tr.kw-more-row td {
     border-color: color-mix(in srgb, var(--acc) 25%, transparent);
     color: var(--accink);
     font-weight: 600;
-  }
-}
-
-.rules {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13.75rem, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-
-  > div {
-    border-left: 0.25rem solid var(--acc);
-    background: var(--card);
-    border-radius: 0;
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-    color: var(--sub);
-  }
-
-  b {
-    display: block;
-    color: var(--ink);
-    margin-bottom: 0.25rem;
-  }
-}
-
-/* ── 원본 시트 연동 ── */
-.sheet-open-btn {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--accink);
-  text-decoration: none;
-  margin-left: auto;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.raw-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  font-size: 0.75rem;
-  color: var(--sub);
-
-  .btn.sm {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.6rem;
-    min-height: 1.75rem;
-
-    &:disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
   }
 }
 
@@ -871,6 +897,22 @@ tr.kw-more-row td {
     min-height: 2.75rem;
     font-size: 1rem;
   }
+  .period-nav-bar {
+    order: 2;
+    padding: 0.5rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    top: 3.75rem;
+
+    .period-nav-left {
+      width: 100%;
+    }
+
+    .period-nav-right {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
   .cont {
     order: 3;
     padding: 1.25rem max(1rem, env(safe-area-inset-right)) calc(2rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
@@ -892,10 +934,6 @@ tr.kw-more-row td {
     .v {
       font-size: 1.25rem;
       margin: 0.25rem 0;
-
-      &.sm {
-        font-size: 1.125rem;
-      }
     }
   }
   .d {
@@ -966,10 +1004,6 @@ tr.kw-more-row td {
   }
   section {
     margin-bottom: 2rem;
-  }
-  .rules {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.5rem;
   }
   .mod-h > div {
     flex-basis: 12rem;

@@ -315,7 +315,7 @@ async function main() {
 
   if (orphanActiveKws.length === 0) {
     pass(
-      `활성 키워드 ${fmt(kws.length)}개(최근 30일 ${fmt(kwTotalCost)}원 / ${fmt(kwTotalClk)}클릭) · 소재 ${fmt(ads.length)}개 실집행 캠페인 매칭 100% 정상${zeroSpendKws.length ? ` (노출 0건 대기 키워드 ${zeroSpendKws.length}개 별도)` : ''}`
+      `키워드 ${fmt(kws.length)}행(월별 누적 ${fmt(kwTotalCost)}원 / ${fmt(kwTotalClk)}클릭) · 소재 ${fmt(ads.length)}개 실집행 캠페인 매칭 100% 정상${zeroSpendKws.length ? ` (노출 0건 대기 키워드 ${zeroSpendKws.length}개 별도)` : ''}`
     );
   } else {
     fail(`실집행 캠페인 미매칭 키워드 ${orphanActiveKws.length}개 발견`);

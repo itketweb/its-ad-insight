@@ -4,7 +4,6 @@ import { pct } from '../../utils/format';
 interface KpiCardProps {
   label: React.ReactNode;
   value: string;
-  smallValue?: boolean;
   cur?: number | null;
   prev?: number | null;
   cmpLabel?: string;
@@ -14,7 +13,6 @@ interface KpiCardProps {
 export const KpiCard: React.FC<KpiCardProps> = ({
   label,
   value,
-  smallValue,
   cur,
   prev,
   cmpLabel,
@@ -26,7 +24,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   return (
     <div className={`kpi${cls}`}>
       <div className="l">{label}</div>
-      <div className={`v${smallValue ? ' sm' : ''}`}>{value}</div>
+      <div className="v">{value}</div>
       {cmpLabel ? (
         p ? (
           <div className={`d ${p.cls}`}>

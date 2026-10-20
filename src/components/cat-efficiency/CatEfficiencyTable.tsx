@@ -26,10 +26,8 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
   return (
     <div className="card tw" id="cat-table">
       <h3 id="ttCatTable">
-        <span>
-          카테고리별 집행 성과 및 전환 효율 상세{' '}
-          <span className="muted">({mLabel(curM)} 기준)</span>
-        </span>
+        카테고리별 집행 성과 및 전환 효율 상세
+        <span className="muted">({mLabel(curM)} 기준)</span>
       </h3>
       <table className="stk" id="tbCatEfficiency">
         <colgroup>

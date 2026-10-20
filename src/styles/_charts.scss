@@ -210,80 +210,6 @@ svg {
   justify-content: flex-start;
 }
 
-.donut-wrap {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 0.5rem 0;
-}
-
-.donut-chart {
-  width: 8rem;
-  height: 8rem;
-  flex: none;
-  position: relative;
-
-  svg {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-.donut-bars {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  min-width: 0;
-}
-
-.donut-row {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  font-size: 0.75rem;
-
-  .pill {
-    min-width: 6.25rem;
-    text-align: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .pct {
-    width: 2.5rem;
-    text-align: right;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--ink);
-    flex-shrink: 0;
-  }
-}
-
-.donut-track {
-  flex: 1;
-  height: 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-
-.donut-fill {
-  height: 100%;
-  transition: width 0.3s ease-out;
-}
-
-@media (max-width: 600px) {
-  .donut-wrap {
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-  .donut-bars {
-    width: 100%;
-  }
-}
-
 /* ── 유입 매체 순위형 막대 (bar) ── */
 .src-bars-wrap {
   display: flex;
@@ -361,98 +287,6 @@ svg {
   }
 }
 
-/* ── 유입 매체 100% 누적 막대 (stacked) ── */
-.src-stacked-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 1.125rem;
-  padding: 0.5rem 0;
-  width: 100%;
-}
-
-.src-stacked-bar {
-  display: flex;
-  height: 2rem;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  overflow: hidden;
-  width: 100%;
-}
-
-.src-stacked-seg {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  transition: opacity 0.2s ease, width 0.3s ease-out;
-  cursor: pointer;
-
-  &:hover {
-    opacity: 0.85;
-  }
-
-  .seg-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 0 0.25rem;
-  }
-}
-
-.src-stacked-legend {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 0.5rem 0.75rem;
-}
-
-.src-stacked-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4375rem;
-  font-size: 0.75rem;
-  min-width: 0;
-  cursor: default;
-
-  i {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .name {
-    color: var(--ink2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  .val {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
-
-    small {
-      color: var(--sub);
-      font-size: 0.6875rem;
-    }
-
-    b {
-      color: var(--ink);
-      font-weight: 600;
-    }
-  }
-}
-
-
 /* ── CPA 랭킹 ── */
 .cpa-list {
   display: flex;
@@ -481,6 +315,23 @@ svg {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  // 순위 번호 + 이름 (월별 견적 순위 막대)
+  &.has-rank {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+// 월별 견적 순위 막대 (MonthlyQuotesTable)
+.quote-rank-list {
+  margin-top: 0.75rem;
+}
+
+.leg-note.quote-src-note {
+  display: block;
+  margin: -0.375rem 0 0.75rem;
 }
 
 .cpa-track {
