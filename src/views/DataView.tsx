@@ -135,7 +135,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
       />
 
       {/* 실시간 연동 현황 및 제어 카드 */}
-      <div className="card accent">
+      <div className="card card-summary accent" id="data-summary" data-card="summary">
         <div className="card-head">
           <div>
             <h3>현재 연동 상태</h3>
@@ -185,6 +185,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
         </table>
       </div>
 
+
       {/* 실시간 데이터 매칭 · 통계 무결성 자동 검증 섹션 */}
       <DataAuditTable audit={audit} />
 
@@ -197,7 +198,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
       <section>
         <h2 className="sec">갱신 · 보안</h2>
         <div className="grid">
-          <div className="card">
+          <div className="card card-refresh" id="refresh-policy" data-card="refresh">
             <h3>갱신 주기</h3>
             <table className="kv">
               <tbody>
@@ -222,7 +223,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
               </tbody>
             </table>
           </div>
-          <div className="card warn">
+          <div className="card card-security warn" id="security-policy" data-card="security">
             <h3>보안 정책</h3>
             <ul>
               <li>광고비·입찰가·견적 수는 사내 영업 정보 (외부 비공개)</li>

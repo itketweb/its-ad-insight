@@ -1,5 +1,6 @@
 /* ── 차트 스타일 · 스마트 툴팁 · 도넛 · CPA 랭킹 ── */
-svg {
+.ch svg,
+svg.chart-svg {
   width: 100%;
   height: auto;
   display: block;

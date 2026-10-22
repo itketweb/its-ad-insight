@@ -49,7 +49,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
             <div className="d flat">데이터 연결 필요</div>
           </div>
         </div>
-        <div className="card">
+        <div className="card card-empty" id="quotes-empty" data-card="empty">
           <div className="empty">
             취합된 실제 견적 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요.
           </div>
@@ -150,7 +150,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
           series={series}
           unit="건"
         />
-        <div className="card" id="quotes-src">
+        <div className="card card-quotes-src" id="quotes-src" data-card="quotes-src">
           <h3>유입 매체 비중</h3>
           <SourceBarChart
             id="chSrc"

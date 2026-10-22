@@ -23,7 +23,7 @@ const CFG = {
   NAVER_DAILY_CAP: 6000,
   RUN_LIMIT_MS: 5 * 60 * 1000,               // syncAll 전체가 이 시간을 넘기면 남은 수집은 다음 실행으로 (6분 강제 종료 방지)
   SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_meta',
-    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_meta', 'quotes_monthly', 'quotes_raw', 'q_meta', 'mapping', 'manual'],
+    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_meta', 'quotes_monthly', 'quotes_raw', 'q_meta', 'mapping', 'manual', 'manual_categories'],
 };
 const PROPS = PropertiesService.getScriptProperties();
 const STAT_FIELDS = '["impCnt","clkCnt","salesAmt","ccnt"]';
@@ -34,6 +34,7 @@ function setup() {
   if (!ss.getSheetByName('mapping')) put_(ss, 'mapping', [['media', 'campaign', 'ad_group', 'category', 'ratio']]);
   if (!ss.getSheetByName('manual')) put_(ss, 'manual', [['month', 'item', 'amount', 'memo'], ['2026-01', 'MDF', 0, '예시 — MDF / META / STORE 중 하나']]);
   if (!ss.getSheetByName('quotes_raw')) put_(ss, 'quotes_raw', [['date', 'site', 'subject', 'category', 'source', 'created_at']]);
+  if (!ss.getSheetByName('manual_categories')) put_(ss, 'manual_categories', [['sno', 'category', 'updated_at']]);
   if (!PROPS.getProperty('API_TOKEN')) PROPS.setProperty('API_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   const allFuncs = ['collectNaver', 'collectGfaEmail', 'collectGoogleAdsEmail', 'collectCommerce', 'collectQuotes', 'syncAll'];
   ScriptApp.getProjectTriggers().filter((t) => allFuncs.includes(t.getHandlerFunction())).forEach((t) => ScriptApp.deleteTrigger(t));
@@ -257,15 +258,88 @@ function checkNaverKeys_() {
   ['NAVER_API_KEY', 'NAVER_SECRET', 'NAVER_CUSTOMER_ID'].forEach((k) => { if (!PROPS.getProperty(k)) throw new Error('스크립트 속성에 ' + k + ' 가 없습니다'); });
 }
 
-/** 캠페인·광고그룹명 → 표준 카테고리(서버·워크스테이션·스토리지·PC·노트북·기타) 자동 분류 */
+/* 캠페인·광고그룹 → 카테고리 분류표 (마케팅 담당자 "카테고리 분류_최종(ads)" 기준).
+ * 웹앱 src/utils/format.ts 의 CAT_LOOKUP 과 같은 표 — 한쪽을 고치면 다른 쪽도 고친다.
+ * 광고그룹이 '' 이면 그 캠페인 전체에 적용되고, 광고그룹 지정 항목이 먼저 맞는다. */
+const CAT_LOOKUP_ = [
+  // 광고그룹으로 2차 분기
+  ['LG전자',        '사이니지',         'LG전자 > 사이니지'],
+  ['LG전자',        '전자칠판',         'LG전자 > 전자칠판'],
+  ['SAN 스토리지',  '화웨이',           'SAN 스토리지 > 화웨이'],
+  ['SAN 스토리지',  'NetAPP',           'SAN 스토리지 > NetAPP'],
+  ['SAN 스토리지',  'MSA',              'SAN 스토리지 > MSA'],
+  ['네트워크/방화벽','화웨이',           '네트워크/방화벽 > 화웨이'],
+  ['네트워크/방화벽','FortiGate',        '네트워크/방화벽 > FortiGate'],
+  ['네트워크/방화벽','PaloAlto',         '네트워크/방화벽 > PaloAlto'],
+  ['소프트웨어',    '보안 소프트웨어',   '소프트웨어 > 보안 소프트웨어'],
+  ['소프트웨어',    '기타 소프트웨어',   '소프트웨어 > 기타 소프트웨어'],
+  // 캠페인명 자체가 노트북 2차
+  ['HP 노트북',     '',                 '노트북 > HP 노트북'],
+  ['Lenovo 노트북', '',                 '노트북 > Lenovo 노트북'],
+  // 캠페인명 = 1차 카테고리
+  ['3Dconnexion',           '', '3Dconnexion'],
+  ['Dell 서버',             '', 'Dell 서버'],
+  ['HPE 서버',              '', 'HPE 서버'],
+  ['Lenovo 서버',           '', 'Lenovo 서버'],
+  ['서버공통(주변장비)',     '', '서버공통(주변장비)'],
+  ['GPU/AI 서버',           '', 'GPU/AI 서버'],
+  ['LG전자',                '', 'LG전자'],
+  ['MS서피스',              '', 'MS서피스'],
+  ['데스크탑',              '', '데스크탑'],
+  ['모니터',                '', '모니터'],
+  ['데스크탑 워크스테이션', '', '데스크탑 워크스테이션'],
+  ['AI Station',            '', 'AI Station'],
+  ['모바일 워크스테이션',   '', '모바일 워크스테이션'],
+  ['UPS',                   '', 'UPS'],
+  ['NAS 스토리지',          '', 'NAS 스토리지'],
+  ['SAN 스토리지',          '', 'SAN 스토리지'],
+  ['네트워크/방화벽',       '', '네트워크/방화벽'],
+  ['이중화 솔루션',         '', '이중화 솔루션'],
+  ['백업 솔루션',           '', '백업 솔루션'],
+  ['가상화 솔루션',         '', '가상화 솔루션'],
+  ['화상회의솔루션',        '', '화상회의솔루션'],
+  ['소프트웨어',            '', '소프트웨어'],
+  ['GstarCAD',              '', 'GstarCAD'],
+  ['유지보수/기술문의',     '', '유지보수/기술문의'],
+  ['리스/렌탈/데모',        '', '리스/렌탈/데모'],
+  // 이름만으로 카테고리를 알 수 없는 예외 캠페인 (엑셀 37~59행). 광고그룹 지정 항목을 먼저 둔다.
+  // 구글·네이버 공통 적용 — 자사 광고·중소기업패키지·GDN_자사몰_최신 은 카테고리 없음('기타')이라 적지 않는다
+  ['GDN_방화벽',            '(2606) GDN_방화벽_화웨이',    '네트워크/방화벽 > 화웨이'],
+  ['GDN_방화벽',            '(2606) GDN_방화벽_FortiGate', '네트워크/방화벽 > FortiGate'],
+  ['GDN_방화벽',            '(2606) GDN_방화벽_PaloAlto',  '네트워크/방화벽 > PaloAlto'],
+  ['GDN_SAN스토리지',       'GDN_화웨이 스토리지',         'SAN 스토리지 > 화웨이'],
+  ['★HPE_MDF',             '', 'HPE 서버'],
+  ['★HPE_MDF_0706~',       '', 'HPE 서버'],
+  ['HP 데모',               '', '리스/렌탈/데모'],
+  ['GDN_이중화솔루션',      '', '이중화 솔루션'],
+  ['GDN_HP노트북',          '', '노트북 > HP 노트북'],
+  ['GDN_유지보수',          '', '유지보수/기술문의'],
+  ['GDN_HP모니터',          '', '모니터'],
+  ['GDN_GPU',               '', 'GPU/AI 서버'],
+  ['GDN_방화벽',            '', '네트워크/방화벽'],
+  ['GDN_HPE 서버',          '', 'HPE 서버'],
+  ['GDN_Dell 서버',         '', 'Dell 서버'],
+  ['GDN_화웨이MDF',         '', 'SAN 스토리지 > 화웨이'],
+  ['GDN_SAN스토리지',       '', 'SAN 스토리지'],
+  ['GDN_GstarCAD',          '', 'GstarCAD'],
+  ['GDN_HP데스크탑',        '', '데스크탑'],
+  ['GDN_ZBook',             '', '모바일 워크스테이션'],
+  ['GDN_3Dconnexion',       '', '3Dconnexion'],
+  ['GDN_데스크탑 워크스테이션', '', '데스크탑 워크스테이션'],
+];
+
+/** 카테고리 개편 전 옛 7분류. mapping 시트에 이 값이 있으면 새 체계로 다시 계산한다 */
+const LEGACY_CATS_ = ['서버', '워크스테이션', '스토리지', '노트북', 'PC', 'PC·노트북', '모니터', '기타'];
+
+/** 캠페인·광고그룹명 → 카테고리(1차 또는 "1차 > 2차"). 표에 없으면 '기타' */
 function standardCategoryOf_(campaign, adgroup) {
   const c = String(campaign || '').trim();
   const g = String(adgroup || '').trim();
-  const s = (c + ' ' + g).toLowerCase();
-  if (/스토리지|storage|\bnas\b|\bsan\b|\bdas\b|\bmsa\b|netapp|시놀로지|synology|qnap|백업/.test(s)) return '스토리지';
-  if (/워크스테이션|workstation|z\s*by\s*hp|zbyhp|zbook|\bz[12468]\b|z\s*central|zgx|data\s*science|\bgpu\b|ai\s*컴퓨터|딥러닝|머신러닝|타워형|미니\s*워크|모바일\s*워크/.test(s)) return '워크스테이션';
-  if (/서버|server|hpe|dell|델\b|lenovo|랙|rack|poweredge|proliant|\bdl\d|\bml\d|아이티시스템/.test(s) && !/노트북/.test(s)) return '서버';
-  if (/노트북|laptop|데스크탑|데스크톱|desktop|\bpc\b|모니터|서피스|surface|엘리트북|엘리트보드|프로북|폴리오|드래곤플라이|파빌리온|옴니북|엘리트데스크|프로데스크|콤팩트|컴팩트|비즈니스|렌탈|올인원/.test(s)) return 'PC·노트북';
+  if (c.indexOf(' > ') >= 0) return c; // 캠페인명 자체가 카테고리 경로인 경우
+  for (let i = 0; i < CAT_LOOKUP_.length; i++) {
+    const row = CAT_LOOKUP_[i];
+    if (c === row[0] && (row[1] === '' || g === row[1])) return row[2];
+  }
   return '기타';
 }
 
@@ -279,7 +353,8 @@ function syncMapping_(ss) {
   existing.forEach((r) => {
     const camp = String(r.campaign || '').trim();
     const grp = String(r.ad_group || '').trim();
-    const cat = String(r.category || '').trim() || standardCategoryOf_(camp, grp);
+    const cur = String(r.category || '').trim();
+    const cat = (cur && LEGACY_CATS_.indexOf(cur) < 0) ? cur : standardCategoryOf_(camp, grp);
     byKey.set(key(r), [String(r.media || '').trim(), camp, grp, cat, Number(r.ratio) || 100]);
   });
   [
@@ -512,9 +587,10 @@ function saveGoogleKeywordRows_(ss, rows) {
 }
 
 /* ── 견적 집계 ──
- * 아이티켓 쇼핑몰이 견적 접수 때마다 구글 시트(견적요청 리스트)에 한 줄씩 쌓는다. 그 시트를 읽어 월·카테고리·유입경로별 건수만 만든다.
- * 스크립트 속성: QUOTE_SHEET_ID(견적 시트 ID, 필수), QUOTE_SHEET_TAB(탭 이름, 기본 '견적문의').
- * 이름·이메일·연락처는 읽지도 옮기지도 않는다 (제목·접수날짜·유입 경로 열만 사용). */
+ * 아이티켓 쇼핑몰이 견적 접수 때마다 구글 시트(견적요청 리스트)에 한 줄씩 쌓는다.
+ * 월·카테고리·유입경로별 건수를 quotes_monthly 에 집계하고,
+ * 번호·제목·작성자·회사명·연락처·이메일·접수날짜·주문상태·유입경로·표준카테고리를 quotes_raw 에 1:1 보존한다.
+ * 스크립트 속성: QUOTE_SHEET_ID(견적 시트 ID, 필수), QUOTE_SHEET_TAB(탭 이름, 기본 '견적문의'). */
 function collectQuotes() {
   const id = PROPS.getProperty('QUOTE_SHEET_ID');
   if (!id) throw new Error('스크립트 속성에 QUOTE_SHEET_ID 가 없습니다');
@@ -522,34 +598,64 @@ function collectQuotes() {
   const sh = src.getSheetByName(PROPS.getProperty('QUOTE_SHEET_TAB') || '견적문의') || src.getSheets()[0];
   const v = sh.getDataRange().getValues();
   const h = v.shift().map((x) => String(x).replace(/\s+/g, ''));
-  const iSub = h.indexOf('제목'), iDate = h.indexOf('접수날짜'), iSrc = h.indexOf('유입경로');
+
+  // 여러 컬럼명 후보 중 처음 존재하는 열 인덱스를 반환한다
+  const findCol_ = (...names) => { for (const n of names) { const i = h.indexOf(n); if (i >= 0) return i; } return -1; };
+
+  const iSub = findCol_('제목', '문의제목', '내용');
+  const iDate = findCol_('접수날짜', '접수일', '작성일', '신청일', '주문일');
+  const iSrc  = findCol_('유입경로', '유입채널', '방문경로', '채널');
   if (iSub < 0 || iDate < 0) throw new Error('견적 시트에 제목·접수날짜 열이 없습니다');
+  const iSno     = findCol_('번호', 'No', 'NO', '순번', '주문번호', 'sno');
+
+  // 어드민에서 수동 지정한 카테고리 오버라이드 로드 (sno → category)
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const overrideMap = {};
+  const shOv = ss.getSheetByName('manual_categories');
+  if (shOv && shOv.getLastRow() >= 2) {
+    const ov = shOv.getDataRange().getValues();
+    const oh = ov.shift();
+    const oiSno = oh.indexOf('sno'), oiCat = oh.indexOf('category');
+    if (oiSno >= 0 && oiCat >= 0) {
+      ov.forEach((r) => { if (r[oiSno] && r[oiCat]) overrideMap[String(r[oiSno])] = String(r[oiCat]); });
+    }
+  }
+
   const agg = {};
   v.forEach((r) => {
     const m = quoteMonth_(r[iDate]);
     if (!m) return;
-    const k = [m, quoteCategory_(r[iSub]), iSrc < 0 ? '미수집' : quoteSource_(r[iSrc])].join('\u0001');
+    const snoVal = iSno >= 0 ? String(r[iSno] || r[0] || '') : String(r[0] || '');
+    const cat = overrideMap[snoVal] || quoteCategory_(r[iSub]);
+    const k = [m, cat, iSrc < 0 ? '미수집' : quoteSource_(r[iSrc])].join('\u0001');
     agg[k] = (agg[k] || 0) + 1;
   });
   const rows = [['month', 'category', 'source', 'count']];
   Object.keys(agg).sort().forEach((k) => rows.push(k.split('\u0001').concat(agg[k])));
-  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
   put_(ss, 'quotes_monthly', rows);
   put_(ss, 'q_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['rows', v.length]]);
 
-  // quotes_raw: 원본 시트의 개별 행 데이터 (이름·이메일·연락처 제외)
-  const iStatus = h.indexOf('주문상태');
-  const rawHead = ['date', 'category', 'source', 'status'];
+  // quotes_raw: 원본 시트 보존 (관리자 전용 대시보드 연동)
+  const iName    = findCol_('작성자', '이름', '신청자', '신청자명', '고객명', '주문자명', '주문자', '담당자');
+  const iCompany = findCol_('회사명', '업체명', '회사', '기업명', '기관명');
+  const iEmail   = findCol_('이메일', 'email', 'Email', 'EMAIL');
+
+  const rawHead = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category'];
   const rawRows = [rawHead];
   v.forEach((r) => {
     const d = r[iDate];
     const dateStr = d instanceof Date ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '');
     if (!dateStr || !quoteMonth_(r[iDate])) return;
+    const snoVal = iSno >= 0 ? String(r[iSno] || r[0] || '') : String(r[0] || '');
     rawRows.push([
+      snoVal,
+      iSub < 0 ? '' : String(r[iSub] || ''),
+      iName < 0 ? '' : String(r[iName] || ''),
+      iCompany < 0 ? '' : String(r[iCompany] || ''),
+      iEmail < 0 ? '' : String(r[iEmail] || ''),
       dateStr,
-      quoteCategory_(r[iSub]),
       iSrc < 0 ? '미수집' : quoteSource_(r[iSrc]),
-      iStatus < 0 ? '' : String(r[iStatus] || ''),
+      overrideMap[snoVal] || quoteCategory_(r[iSub]),
     ]);
   });
   put_(ss, 'quotes_raw', rawRows);
@@ -567,7 +673,9 @@ function quoteCategory_(subject) {
   if (has(/스토리지|storage|\bnas\b|\bsan\b|백업|netapp|synology|qnap/)) return '스토리지';
   if (has(/서버|server|poweredge|proliant|\bdl\d|\bml\d|랙|rack/) && !has(/zbook/)) return '서버';
   if (has(/워크스테이션|workstation|z by hp|zbyhp|zbook|\bz[2-9]\b|딥러닝|머신러닝|gpu/)) return '워크스테이션';
-  if (has(/노트북|laptop|데스크탑|데스크톱|desktop|\bpc\b|모니터|올인원/)) return 'PC·노트북';
+  if (has(/모니터|monitor|사이니지|전자칠판/)) return '모니터';
+  if (has(/노트북|laptop|엘리트북|프로북|파빌리온|서피스|surface/)) return '노트북';
+  if (has(/데스크탑|데스크톱|desktop|\bpc\b|올인원|엘리트데스크|프로데스크|본체/)) return 'PC';
   return '기타';
 }
 /** 유입 경로 열 → 세분화 매체. 비어 있으면(수집 전) '미수집'. */
@@ -674,6 +782,34 @@ function doPost(e) {
     if (data.action === 'syncAll') {
       syncAll();
       return json_({ success: true, message: 'All channels synced simultaneously' });
+    }
+
+    // [F] 어드민 카테고리 수동 지정 저장 (sno 기준 upsert)
+    // body: { key, action: 'saveManualCategories', overrides: [{sno, category}, ...] }
+    if (data.action === 'saveManualCategories' && Array.isArray(data.overrides)) {
+      const ss2 = SpreadsheetApp.openById(CFG.SHEET_ID);
+      let shOv = ss2.getSheetByName('manual_categories');
+      if (!shOv) {
+        shOv = ss2.insertSheet('manual_categories');
+        shOv.appendRow(['sno', 'category', 'updated_at']);
+      }
+      const now = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss');
+      const ov = shOv.getDataRange().getValues();
+      const oh = ov[0];
+      const oiSno = oh.indexOf('sno'), oiCat = oh.indexOf('category'), oiAt = oh.indexOf('updated_at');
+      // sno → 1-indexed sheet row
+      const rowIndex = {};
+      for (let i = 1; i < ov.length; i++) rowIndex[String(ov[i][oiSno])] = i + 1;
+      data.overrides.forEach(({ sno, category }) => {
+        const s = String(sno);
+        if (rowIndex[s]) {
+          shOv.getRange(rowIndex[s], oiCat + 1).setValue(category);
+          shOv.getRange(rowIndex[s], oiAt + 1).setValue(now);
+        } else {
+          shOv.appendRow([s, category, now]);
+        }
+      });
+      return json_({ success: true, saved: data.overrides.length });
     }
 
     // [B] 쇼핑몰 실시간 견적 접수 수신

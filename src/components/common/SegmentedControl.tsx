@@ -36,7 +36,8 @@ export function SegmentedControl<T extends string | number>({
         <button
           key={String(opt.value)}
           data-v={opt.value}
-          className={value === opt.value ? 'on' : ''}
+          data-btn={`seg-${String(opt.value).toLowerCase()}`}
+          className={`seg-btn seg-btn-${String(opt.value).toLowerCase()}${value === opt.value ? ' on' : ''}`}
           title={opt.title}
           onClick={() => onChange(opt.value)}
         >

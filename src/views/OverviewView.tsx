@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
@@ -7,8 +7,8 @@ import {
   fmt,
   mLabel,
   prevM,
-  QUOTE_CATS,
   QUOTE_COLORS,
+  quoteCountFor,
   SERIES_DEFS,
   sumBy,
   THIS_M,
@@ -20,6 +20,7 @@ import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
+import { MoreButton } from '../components/common/MoreButton';
 
 interface OverviewViewProps {
   data: DashboardData;
@@ -43,6 +44,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 }) => {
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
+  const [visibleCount, setVisibleCount] = useState(10);
+  const prevMonthRef = useRef('');
 
   if (!hasSpend && !hasQuotes) {
     return (
@@ -113,21 +116,44 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     data.quotes
       .filter((r) => r.month === mo && r.category === k)
       .reduce((a, r) => a + r.count, 0);
-  const quoteSeries = QUOTE_CATS.map((k, ci) => ({
+
+  // 견적 추이: 실제 데이터 카테고리 동적 추출 (견적 시트 분류 변경 시 자동 반영)
+  const allQuoteCats = [
+    ...new Set(
+      data.quotes
+        .filter((r) => r.month >= ym(+yr, 1) && r.month <= curM)
+        .map((r) => r.category)
+        .filter(Boolean)
+    ),
+  ].sort((a, b) => {
+    const va = data.quotes.filter((r) => r.category === a).reduce((s, r) => s + r.count, 0);
+    const vb = data.quotes.filter((r) => r.category === b).reduce((s, r) => s + r.count, 0);
+    return vb - va;
+  });
+  const quoteSeries = allQuoteCats.map((k, ci) => ({
     k,
-    c: QUOTE_COLORS[ci],
+    c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
     v: months.map((mo) => cnt(mo, k)),
   })).filter((s) => s.v.some((x) => x));
 
-  // 카테고리별 소진 vs 견적
+  // 카테고리별 소진 vs 견적 (새 카테고리 기준, 견적 비례 배분 적용)
   const catsMap = (mo: string) => catSum(categoryMap, atSpend(mo), (r) => r.cost);
-  const list = buildCategoryBarItems(
-    catsMap(curM),
+  const catSpendCur = catsMap(curM);
+  const curQuotesRows = data.quotes.filter((r) => r.month === curM);
+  const fullList = buildCategoryBarItems(
+    catSpendCur,
     catsMap(pv),
-    (c) => cnt(curM, c),
+    (c) => quoteCountFor(curQuotesRows, c, catSpendCur),
     true,
-    7
+    Infinity
   );
+
+  // 월 변경 시 visibleCount 리셋
+  if (prevMonthRef.current !== curM) {
+    prevMonthRef.current = curM;
+    setVisibleCount(10);
+  }
+  const list = fullList.slice(0, visibleCount);
 
   // 유입 매체 비중
   const { items: srcItems } = buildSourceShareData(data.quotesRaw || [], yr, data.quotes);
@@ -201,7 +227,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       </div>
 
       <div className="grid">
-        <div className="card" id="overview-cat">
+        <div className="card card-overview-cat" id="overview-cat" data-card="overview-cat">
           <h3 id="ttOverviewCat">
             카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
           </h3>
@@ -221,8 +247,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </span>
             <span className="leg-note">단위: 만원{hasQuotes ? ' · 우측: 견적 건수' : ''}</span>
           </div>
+          {visibleCount < fullList.length && (
+            <div className="kw-more-wrap">
+              <MoreButton
+                label={`카테고리 더보기 (+${Math.min(fullList.length - visibleCount, 10)}개 · 전체 ${fullList.length}개)`}
+                onClick={() => setVisibleCount((v) => Math.min(v + 10, fullList.length))}
+              />
+            </div>
+          )}
         </div>
-        <div className="card" id="overview-src">
+        <div className="card card-overview-src" id="overview-src" data-card="overview-src">
           <h3>유입 매체 비중</h3>
           <SourceBarChart
             id="chOverviewSrc"

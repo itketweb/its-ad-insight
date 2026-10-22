@@ -1,5 +1,6 @@
 import React from 'react';
-import type { SyncStatus } from '../../types/dashboard';
+import type { SyncStatus, ViewId } from '../../types/dashboard';
+import { HeaderProfileMenu } from './HeaderProfileMenu';
 
 interface HeaderProps {
   title: string;
@@ -11,6 +12,7 @@ interface HeaderProps {
   onOpenDrawer: () => void;
   onToggleTheme: () => void;
   onReload: () => void;
+  onNavigate?: (view: ViewId) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDrawer,
   onToggleTheme,
   onReload,
+  onNavigate,
 }) => {
   const live = status === 'live';
 
@@ -31,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
       <button
         className="btn ic burger"
         id="burger"
+        data-btn="burger"
         aria-label="메뉴 열기"
         aria-expanded={drawerOpen}
         aria-controls="side"
@@ -61,16 +65,21 @@ export const Header: React.FC<HeaderProps> = ({
         ) : (
           <>
             {status === 'error' ? '연동 지연 (자동 재시도 중)' : '실데이터 자동 연결 중...'}{' '}
-            <button className="link-btn" onClick={onReload}>
+            <button className="link-btn btn-reload" id="btn-reload" data-btn="reload" onClick={onReload}>
               지금 새로고침
             </button>
           </>
         )}
       </span>
       <div className="acts">
+        {/* 헤더 프로필 & 로그인 유도 버튼 */}
+        <HeaderProfileMenu onNavigate={onNavigate} />
+
+        {/* 테마 전환 버튼 */}
         <button
-          className="tgl"
+          className="tgl btn-theme"
           id="theme"
+          data-btn="theme"
           role="switch"
           aria-checked={isDark}
           aria-label="다크 모드"

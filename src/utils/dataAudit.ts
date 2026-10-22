@@ -8,6 +8,7 @@ import {
   sumBy,
   THIS_M,
 } from './format';
+import { CATEGORY_HIERARCHY } from './constants';
 
 export type AuditLevel = 'ok' | 'warn' | 'err';
 
@@ -102,7 +103,11 @@ export function runDataAudit(
     }
   });
 
-  const stdCatSet = new Set(QUOTE_CATS);
+  const stdCatSet = new Set<string>(['기타']);
+  CATEGORY_HIERARCHY.forEach((n) => {
+    stdCatSet.add(n.cat1);
+    n.cat2.forEach((c2) => stdCatSet.add(`${n.cat1} > ${c2}`));
+  });
   let nonStandardGroupCount = 0;
   let invalidWeightCount = 0;
   const groupCountByCat: Record<string, number> = {};
@@ -130,10 +135,10 @@ export function runDataAudit(
   const catMatchOk = nonStandardGroupCount === 0 && invalidWeightCount === 0;
   checks.push({
     id: 'cat-matching',
-    title: '광고그룹 ↔ 5대 표준 카테고리 매핑 무결성',
-    summary: `전체 ${fmt(distinctGroups.size)}개 광고그룹 → 표준 카테고리 5종 100% 매칭`,
+    title: '광고그룹 ↔ 표준 카테고리 매핑 무결성',
+    summary: `전체 ${fmt(distinctGroups.size)}개 광고그룹 → 표준 카테고리 100% 매칭`,
     detail: catMatchOk
-      ? QUOTE_CATS.map((c) => `${c} ${groupCountByCat[c] || 0}개`).join(' · ')
+      ? `1차 카테고리 ${new Set(Object.keys(groupCountByCat).map((c) => c.split(' > ')[0])).size}개 · 카테고리 ${Object.keys(groupCountByCat).length}종`
       : `비표준 카테고리 ${nonStandardGroupCount}개 · 비율 오류 ${invalidWeightCount}개`,
     level: catMatchOk ? 'ok' : 'err',
     badgeText: catMatchOk ? `${distinctGroups.size}/${distinctGroups.size} 매칭` : '매핑 점검',

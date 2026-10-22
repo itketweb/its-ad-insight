@@ -59,7 +59,9 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({ value, min, max, onCha
     <div className="month-picker" role="group" aria-label="기준월">
       <button
         type="button"
-        className="mp-step"
+        className="mp-step btn-prev"
+        id="mp-prev"
+        data-btn="prev"
         aria-label="이전 달"
         title={prev < min ? '이전 달 데이터 없음' : '이전 달'}
         disabled={prev < min}
@@ -85,7 +87,9 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({ value, min, max, onCha
       </div>
       <button
         type="button"
-        className="mp-step"
+        className="mp-step btn-next"
+        id="mp-next"
+        data-btn="next"
         aria-label="다음 달"
         title={next > max ? '다음 달 데이터 없음' : '다음 달'}
         disabled={next > max}
@@ -96,7 +100,9 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({ value, min, max, onCha
       {/* 당월(데이터가 있는 최신월)로 바로 가기 — 당월에서도 자리를 지켜 폭이 바뀌지 않게 비활성으로만 표시 */}
       <button
         type="button"
-        className="mp-today"
+        className="mp-today btn-today"
+        id="mp-today"
+        data-btn="today"
         aria-label={`당월(${maxLabel})로 이동`}
         title={value === max ? `당월(${maxLabel}) 조회 중` : `당월(${maxLabel})로 이동`}
         disabled={value === max}

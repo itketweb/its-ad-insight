@@ -32,7 +32,7 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows }) 
           키워드 <small>SA</small> / 배너 <small>DA</small>
         </span>
       </div>
-      <div className="card tw">
+      <div className="card card-sources tw" id="data-sources" data-card="sources">
         <table className="stk">
           <thead>
             <tr>

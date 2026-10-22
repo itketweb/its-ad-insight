@@ -16,7 +16,7 @@ export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit }) => {
           {audit.passedCount}/{audit.totalCount} 항목 통과
         </StatusBadge>
       </h2>
-      <div className="card tw">
+      <div className="card card-audit tw" id="data-audit" data-card="audit">
         <table className="stk" id="tbDataAudit">
           <thead>
             <tr>

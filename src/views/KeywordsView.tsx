@@ -7,11 +7,17 @@ import type {
   KeywordRow,
   SyncStatus,
 } from '../types/dashboard';
-import { catSum, THIS_M } from '../utils/format';
+import { catSum, catsOf, THIS_M } from '../utils/format';
 import { selectRoundRobinAds } from '../utils/creativeImage';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { SegmentedControl } from '../components/common/SegmentedControl';
+import {
+  CategoryFilter,
+  buildCategoryFilter,
+  matchesCategory,
+  useCategoryFilterState,
+} from '../components/common/CategoryFilter';
 import { KeywordCategoryTable } from '../components/keywords/KeywordCategoryTable';
 import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTable';
 import { AdCreativesGrid } from '../components/keywords/AdCreativesGrid';
@@ -39,6 +45,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const [media, setMedia] = useState<'all' | 'Google' | 'Naver'>('all');
   const [type, setType] = useState<'SA' | 'DA'>('SA');
   const [kwTabIdx, setKwTabIdx] = useState<number>(0);
+  const catState = useCategoryFilterState();
 
   if (!data.keywords.length && !data.spend.length) {
     return (
@@ -48,7 +55,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           description="광고그룹별 검색 키워드 입찰/품질/전환 지표 및 배너·확장 소재 현황"
           status={status}
         />
-        <div className="card">
+        <div className="card card-empty" id="kw-empty" data-card="empty">
           <div className="empty">
             취합된 키워드 및 소재 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요.
           </div>
@@ -73,6 +80,10 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const clk = catSum(categoryMap, rows, (r) => r.clk);
   const conv = catSum(categoryMap, rows, (r) => r.conv);
   const ck = Object.keys(cost).sort((a, b) => cost[b] - cost[a]);
+
+  // 1차/2차 카테고리 필터 — ck에 실제로 존재하는 값만 노출
+  const catFilter = buildCategoryFilter(ck, catState);
+  const filteredCk = ck.filter((k) => matchesCategory(k, catFilter.cat1, catFilter.cat2));
 
   // 키워드 그룹 집계 (SA) - 선택된 월(mo) 기준 집계
   const ks = data.keywords.filter((k) => k.month === mo && pass(k));
@@ -101,11 +112,23 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const allGroups = Object.values(groups).sort(
     (a, b) => b.cost - a.cost || sumClk(b.list) - sumClk(a.list)
   );
-  const topGroups = allGroups.slice(0, 10);
+
+  // 카테고리 필터 적용 시 keyword group도 함께 필터링
+  const activeGroups = catFilter.cat1
+    ? allGroups.filter((g) => {
+        const cats = catsOf(categoryMap, {
+          month: mo, media: g.media, type,
+          campaign: g.campaign, adgroup: g.adgroup,
+          cost: 0, imp: 0, clk: 0, conv: 0,
+        });
+        return cats.some(({ c }) => matchesCategory(c, catFilter.cat1, catFilter.cat2));
+      })
+    : allGroups;
+  const topGroups = activeGroups;
 
   // 캠페인 탭: 캠페인명 단위로 묶고(같은 이름은 Google·Naver 합산) 광고비 상위 10개 캠페인
   const campMap: Record<string, CampaignKeywordBucket> = {};
-  allGroups.forEach((g) => {
+  activeGroups.forEach((g) => {
     const key = g.campaign.trim();
     if (!campMap[key]) {
       campMap[key] = { medias: [], campaign: key, cost: 0, groups: [] };
@@ -167,11 +190,12 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           }}
         />
         <span className="sp" />
+        <CategoryFilter filter={catFilter} />
       </div>
 
       <KeywordCategoryTable
         month={mo}
-        categoryKeys={ck}
+        categoryKeys={filteredCk}
         costByCat={cost}
         clkByCat={clk}
         convByCat={conv}
