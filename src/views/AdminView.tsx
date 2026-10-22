@@ -288,23 +288,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, onUpdateQuotesRaw })
                 <span>Google 관리자 계정으로 로그인</span>
               </button>
 
-              {/* 개발/테스트용 즉시 로그인 버튼 */}
-              <button
-                type="button"
-                className="btn btn-dev"
-                id="gate-dev"
-                data-btn="dev"
-                onClick={loginAsDevAdmin}
-                style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--sub)',
-                  background: 'transparent',
-                  border: '1px dashed var(--line2)',
-                  padding: '0.4375rem',
-                }}
-              >
-                ⚡ 테스트용 관리자로 바로 시작
-              </button>
+              {/* 개발 환경 전용 즉시 로그인 버튼 */}
+              {import.meta.env.DEV && (
+                <button
+                  type="button"
+                  className="btn btn-dev"
+                  id="gate-dev"
+                  data-btn="dev"
+                  onClick={loginAsDevAdmin}
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--sub)',
+                    background: 'transparent',
+                    border: '1px dashed var(--line2)',
+                    padding: '0.4375rem',
+                  }}
+                >
+                  ⚡ 테스트용 관리자로 바로 시작
+                </button>
+              )}
             </div>
           </div>
         </div>
