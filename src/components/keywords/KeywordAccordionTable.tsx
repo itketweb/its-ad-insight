@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type { CampaignKeywordBucket, KeywordGroup } from '../../types/dashboard';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { CampaignKeywordBucket, KeywordGroup, KeywordRow } from '../../types/dashboard';
 import { fmt, mLabel, THIS_M } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { MediaPill } from '../common/MediaPill';
 import { TableFootnote } from '../common/TableFootnote';
+import { MoreButton } from '../common/MoreButton';
+import { SortIcon } from '../common/SortIcon';
 
 interface KeywordAccordionTableProps {
   topGroups: KeywordGroup[];
@@ -21,6 +23,36 @@ const mediaKo = (m: string) => (m === 'Naver' ? '네이버' : m === 'Google' ? '
 // CTR = 클릭 ÷ 노출 × 100 (노출 0 이면 –)
 const ctr = (clk: number, imp: number) => (imp ? `${((clk / imp) * 100).toFixed(1)}%` : '–');
 
+type SortKey = 'imp' | 'clk' | 'ctr' | 'conv' | 'cost';
+type SortOrder = 'asc' | 'desc';
+
+const NUMERIC_COLS: { key: SortKey; label: string }[] = [
+  { key: 'imp', label: '노출' },
+  { key: 'clk', label: '클릭' },
+  { key: 'ctr', label: 'CTR' },
+  { key: 'conv', label: '전환' },
+  { key: 'cost', label: '광고비' },
+];
+
+const getGroupMetric = (g: KeywordGroup, key: SortKey) => {
+  if (key === 'cost') return g.cost;
+  const imp = g.list.reduce((sum, k) => sum + k.imp, 0);
+  const clk = g.list.reduce((sum, k) => sum + k.clk, 0);
+  if (key === 'imp') return imp;
+  if (key === 'clk') return clk;
+  if (key === 'ctr') return imp > 0 ? clk / imp : 0;
+  if (key === 'conv') return g.list.reduce((sum, k) => sum + k.conv, 0);
+  return 0;
+};
+
+const getKwMetric = (k: KeywordRow, key: SortKey) => {
+  if (key === 'cost') return k.cost;
+  if (key === 'imp') return k.imp;
+  if (key === 'clk') return k.clk;
+  if (key === 'conv') return k.conv;
+  if (key === 'ctr') return k.imp > 0 ? k.clk / k.imp : 0;
+  return 0;
+};
 /** 탭으로 바로 보이는 캠페인 수. 나머지는 '더보기' 목록에서 고른다 */
 const VISIBLE_TABS = 10;
 
@@ -36,8 +68,20 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 }) => {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [expandedKwGroups, setExpandedKwGroups] = useState<Set<string>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(10);
   const [moreOpen, setMoreOpen] = useState(false);
   const tabBarRef = useRef<HTMLDivElement>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('cost');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortKey(key);
+      setSortOrder('desc');
+    }
+  };
 
   // 더보기 목록: 바깥 클릭·Esc 로 닫는다
   useEffect(() => {
@@ -91,7 +135,26 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 
   const safeKwIdx = kwTabIdx >= 0 && kwTabIdx <= campaigns.length ? kwTabIdx : 0;
   const selectedCamp = safeKwIdx > 0 ? campaigns[safeKwIdx - 1] : null;
-  const displayGroups = selectedCamp ? selectedCamp.groups : topGroups;
+
+  // 탭 또는 월 변경 시 더보기 리셋
+  const prevKey = useRef(`${month}-${safeKwIdx}`);
+  if (prevKey.current !== `${month}-${safeKwIdx}`) {
+    prevKey.current = `${month}-${safeKwIdx}`;
+    setVisibleCount(10);
+  }
+
+  const displayGroups = selectedCamp ? selectedCamp.groups : topGroups.slice(0, visibleCount);
+  const sortedDisplayGroups = useMemo(() => {
+    const list = [...displayGroups];
+    list.sort((a, b) => {
+      const valA = getGroupMetric(a, sortKey);
+      const valB = getGroupMetric(b, sortKey);
+      const diff = sortOrder === 'desc' ? valB - valA : valA - valB;
+      if (diff !== 0) return diff;
+      return b.cost - a.cost;
+    });
+    return list;
+  }, [displayGroups, sortKey, sortOrder]);
   const hiddenCamps = campaigns.slice(VISIBLE_TABS);
   const hiddenSelected = safeKwIdx > VISIBLE_TABS;
   const selectTab = (idx: number) => {
@@ -105,7 +168,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   const periodLabel = `${month.slice(0, 4)}년 ${mLabel(month)}`;
 
   return (
-    <div className="card" id="kw-list">
+    <div className="card card-kw-list" id="kw-list" data-card="kw-list">
       <h3 id="ttKw">
         {type === 'DA' ? (
           '키워드'
@@ -118,7 +181,10 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           <>
             키워드
             <span className="muted">
-              {periodLabel} · 광고비 상위 {topGroups.length}개 그룹, 그룹당 상위 10개
+              {periodLabel} · 광고비 상위{' '}
+              {visibleCount < topGroups.length
+                ? `${visibleCount} / ${topGroups.length}`
+                : topGroups.length}개 그룹, 그룹당 상위 10개
             </span>
           </>
         ) : (
@@ -137,7 +203,8 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           {['전체', ...campaigns.slice(0, VISIBLE_TABS).map(campLabel)].map((lbl, i) => (
             <button
               key={i}
-              className={safeKwIdx === i ? 'on' : ''}
+              className={`kw-tab-btn btn-camp-tab${safeKwIdx === i ? ' on' : ''}`}
+              data-btn="camp-tab"
               title={i === 0 ? '전체 (상위 10개 광고그룹)' : campTitle(campaigns[i - 1])}
               onClick={() => selectTab(i)}
             >
@@ -149,7 +216,9 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           {hiddenCamps.length > 0 && (
             <button
               type="button"
-              className={`kw-more${hiddenSelected ? ' on' : ''}`}
+              className={`kw-more btn-kw-more${hiddenSelected ? ' on' : ''}`}
+              id="btn-kw-more"
+              data-btn="kw-more"
               aria-haspopup="listbox"
               aria-expanded={moreOpen}
               title={hiddenSelected && selectedCamp ? campTitle(selectedCamp) : '광고비 11위 이하 캠페인'}
@@ -188,7 +257,8 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                     type="button"
                     role="option"
                     aria-selected={safeKwIdx === idx}
-                    className={safeKwIdx === idx ? 'on' : ''}
+                    className={`kw-more-item btn-kw-more-item${safeKwIdx === idx ? ' on' : ''}`}
+                    data-btn="kw-more-item"
                     title={campTitle(c)}
                     onClick={() => selectTab(idx)}
                   >
@@ -267,21 +337,38 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               <thead>
                 <tr>
                   <th>{selectedCamp ? '광고그룹 › 키워드' : '캠페인 › 광고그룹 › 키워드'}</th>
-                  <th className="n">노출</th>
-                  <th className="n">클릭</th>
-                  <th className="n">CTR</th>
-                  <th className="n">전환</th>
-                  <th className="n">광고비</th>
+                  {NUMERIC_COLS.map(({ key, label }) => {
+                    const isSorted = sortKey === key;
+                    return (
+                      <th
+                        key={key}
+                        className={`n sortable${isSorted ? ` sorted ${sortOrder}` : ''}`}
+                        onClick={() => handleSort(key)}
+                        title={`${label} 기준 ${isSorted && sortOrder === 'desc' ? '오름차순' : '내림차순'} 정렬`}
+                        role="columnheader"
+                        aria-sort={isSorted ? (sortOrder === 'desc' ? 'descending' : 'ascending') : 'none'}
+                      >
+                        <span className="th-sort-inner">
+                          <span>{label}</span>
+                          <SortIcon active={isSorted} order={sortOrder} />
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {displayGroups.map((g) => {
+                {sortedDisplayGroups.map((g) => {
                   const groupKey = `${g.media}-${g.campaign}-${g.adgroup}`;
                   const isOpen = openGroups.has(groupKey);
                   const isKwExpanded = expandedKwGroups.has(groupKey);
-                  const allSortedKws = [...g.list].sort(
-                    (a, b) => b.cost - a.cost || b.clk - a.clk
-                  );
+                  const allSortedKws = [...g.list].sort((a, b) => {
+                    const valA = getKwMetric(a, sortKey);
+                    const valB = getKwMetric(b, sortKey);
+                    const diff = sortOrder === 'desc' ? valB - valA : valA - valB;
+                    if (diff !== 0) return diff;
+                    return b.cost - a.cost || b.clk - a.clk;
+                  });
                   const sortedKws = isKwExpanded ? allSortedKws : allSortedKws.slice(0, 10);
                   const remainCount = allSortedKws.length - 10;
                   const grpImp = g.list.reduce((a, k) => a + k.imp, 0);
@@ -291,7 +378,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                   return (
                     <React.Fragment key={groupKey}>
                       <tr
-                        className="grp grp-accordion"
+                        className={`grp grp-accordion grp-${g.media.toLowerCase()}`}
                         onClick={() => toggleGroup(groupKey)}
                         title={isOpen ? '클릭하여 키워드 목록 접기' : '클릭하여 키워드 목록 펼치기'}
                       >
@@ -346,28 +433,12 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                       {isOpen && remainCount > 0 && (
                         <tr className="kw-more-row">
                           <td colSpan={6}>
-                            <button
-                              type="button"
-                              className="kw-more-btn"
+                            <MoreButton
+                              label={isKwExpanded ? '상위 10개만 보기' : `키워드 더보기 (+${remainCount}개)`}
+                              open={isKwExpanded}
+                              dataBtn="expand"
                               onClick={() => toggleExpandKwGroup(groupKey)}
-                            >
-                              <span>
-                                {isKwExpanded
-                                  ? '상위 10개만 보기'
-                                  : `키워드 더보기 (+${remainCount}개)`}
-                              </span>
-                              <svg
-                                className={isKwExpanded ? 'open' : ''}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.25"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="9 18 15 12 9 6" />
-                              </svg>
-                            </button>
+                            />
                           </td>
                         </tr>
                       )}
@@ -378,6 +449,16 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             </>
           )}
         </table>
+
+        {safeKwIdx === 0 && visibleCount < topGroups.length && (
+          <div className="kw-more-wrap">
+            <MoreButton
+              label={`그룹 더보기 (+${Math.min(topGroups.length - visibleCount, 10)}개 · 전체 ${topGroups.length}개)`}
+              onClick={() => setVisibleCount((v) => Math.min(v + 10, topGroups.length))}
+            />
+          </div>
+        )}
+
         <TableFootnote
           unit="원·회"
           basis={`산출 근거: ${periodLabel} 월간 실적(당월은 1일~수집 시점) 광고비 상위 캠페인/그룹 · CTR = (클릭수 ÷ 노출수) × 100`}

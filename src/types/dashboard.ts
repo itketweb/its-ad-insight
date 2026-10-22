@@ -1,4 +1,4 @@
-export type ViewId = 'overview' | 'ads' | 'cat-efficiency' | 'keywords' | 'quotes' | 'data';
+export type ViewId = 'overview' | 'ads' | 'cat-efficiency' | 'keywords' | 'quotes' | 'data' | 'admin';
 
 export type ChartType = 'line' | 'grouped' | 'donut';
 
@@ -38,10 +38,15 @@ export interface QuoteRow {
 }
 
 export interface QuoteRawRow {
+  id?: string;
+  sno?: string | number;
+  subject?: string;
+  name?: string;
+  company?: string;
+  email?: string;
   date: string;
   category: string;
   source: string;
-  status: string;
 }
 
 export interface KeywordRow {
@@ -189,10 +194,15 @@ export interface RawQuoteMonthlyApiRow {
 }
 
 export interface RawQuoteRawApiRow {
+  id?: unknown;
+  sno?: unknown;
+  subject?: unknown;
+  name?: unknown;
+  company?: unknown;
+  email?: unknown;
   date?: unknown;
   category?: unknown;
   source?: unknown;
-  status?: unknown;
 }
 
 export interface RawApiPayload {

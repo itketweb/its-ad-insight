@@ -44,7 +44,7 @@ const CreativeThumb: React.FC<{ ad: AdRow; title: string }> = ({ ad, title }) =>
 
 export const AdCreativesGrid: React.FC<AdCreativesGridProps> = ({ ads, media, type }) => {
   return (
-    <div className="card" id="ad-creatives">
+    <div className="card card-ad-creatives" id="ad-creatives" data-card="ad-creatives">
       <h3>주요 · 확장 소재</h3>
       {ads.length > 0 ? (
         <div className="creatives" id="creatives">

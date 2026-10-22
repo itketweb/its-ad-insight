@@ -14,6 +14,7 @@ interface DropdownProps<T extends string | number> {
   ariaLabel: string;
   className?: string;
   id?: string;
+  disabled?: boolean;
 }
 
 /** 대시보드 톤에 맞춘 드롭다운 (기본 select 의 OS 목록 대신). 바깥 클릭·Esc 로 닫고 ↑↓·Home·End·Enter 로 고른다 */
@@ -24,6 +25,7 @@ export function Dropdown<T extends string | number>({
   ariaLabel,
   className,
   id,
+  disabled,
 }: DropdownProps<T>): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -89,15 +91,17 @@ export function Dropdown<T extends string | number>({
   };
 
   return (
-    <div className={`dd${open ? ' open' : ''}${className ? ` ${className}` : ''}`} ref={rootRef} id={id}>
+    <div className={`dd${open ? ' open' : ''}${disabled ? ' disabled' : ''}${className ? ` ${className}` : ''}`} ref={rootRef} id={id}>
       <button
         type="button"
-        className="dd-trigger"
+        className="dd-trigger btn-dd-trigger"
+        data-btn="dd-trigger"
         ref={triggerRef}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-label={ariaLabel}
+        disabled={disabled}
         onClick={() => (open ? close() : openList())}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

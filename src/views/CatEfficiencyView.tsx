@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
@@ -6,6 +6,8 @@ import {
   fmt,
   mLabel,
   prevM,
+  QUOTE_CATS,
+  quoteCountFor,
   sumBy,
   THIS_M,
 } from '../utils/format';
@@ -13,8 +15,16 @@ import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
+import {
+  CategoryFilter,
+  buildCategoryFilter,
+  filterByCategory,
+  matchesCategory,
+  useCategoryFilterState,
+} from '../components/common/CategoryFilter';
 import { CpaRankList } from '../components/cat-efficiency/CpaRankList';
 import { CatEfficiencyTable } from '../components/cat-efficiency/CatEfficiencyTable';
+import { MoreButton } from '../components/common/MoreButton';
 
 interface CatEfficiencyViewProps {
   data: DashboardData;
@@ -36,6 +46,10 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   status,
   selectedMonth,
 }) => {
+  const catState = useCategoryFilterState();
+  const [visibleCount, setVisibleCount] = useState(10);
+  const prevFilterKey = useRef('');
+
   if (!data.spend.length) {
     return (
       <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
@@ -51,7 +65,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             <div className="d flat">데이터 연결 필요</div>
           </div>
         </div>
-        <div className="card">
+        <div className="card card-empty" id="cat-empty" data-card="empty">
           <div className="empty">취합된 데이터가 없습니다.</div>
         </div>
       </div>
@@ -74,24 +88,37 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   const catConv = catSum(categoryMap, rowsCur, (r) => r.conv);
 
   const qOf = (mo: string, c: string) =>
-    data.quotes
-      .filter((r) => r.month === mo && r.category === c)
-      .reduce((a, r) => a + r.count, 0);
+    quoteCountFor(
+      data.quotes.filter((r) => r.month === mo),
+      c,
+      mo === curM ? catSpendCur : catSum(categoryMap, data.spend.filter((r) => r.month === mo), (r) => r.cost)
+    );
 
   const curQuotes = data.quotes.filter((r) => r.month === curM);
-  const totQuotes = sumBy(curQuotes, (r) => r.count);
+  // 견적 시트의 옛 분류는 역매핑(quoteCountFor)으로 처리하므로 allCatKeys에서 제외
+  const legacyCatSet = new Set([...QUOTE_CATS, 'PC·노트북']);
 
   const allCatKeys = [
     ...new Set([
       ...Object.keys(catSpendCur),
       ...Object.keys(catSpendPrev),
-      ...curQuotes.map((r) => r.category).filter(Boolean),
+      ...curQuotes.map((r) => r.category).filter((c): c is string => !!c && !legacyCatSet.has(c)),
     ]),
   ].sort((a, b) => (catSpendCur[b] || 0) - (catSpendCur[a] || 0) || qOf(curM, b) - qOf(curM, a));
 
-  const totSpend = sumBy(rowsCur, (r) => r.cost);
+  // 1차/2차 카테고리 필터 — 선택하면 표·차트·KPI·합계가 해당 카테고리만으로 다시 계산된다
+  const catFilter = buildCategoryFilter(allCatKeys, catState);
+  const isFiltered = !!(catFilter.cat1 || catFilter.cat2);
+  const catKeys = allCatKeys.filter((k) => matchesCategory(k, catFilter.cat1, catFilter.cat2));
 
-  const catData = allCatKeys.map((k) => {
+  const totSpend = isFiltered
+    ? sumBy(catKeys, (k) => catSpendCur[k] || 0)
+    : sumBy(rowsCur, (r) => r.cost);
+  const totQuotes = isFiltered
+    ? sumBy(catKeys, (k) => qOf(curM, k))
+    : sumBy(curQuotes, (r) => r.count);
+
+  const catData = catKeys.map((k) => {
     const cost = catSpendCur[k] || 0;
     const prevCost = catSpendPrev[k] || 0;
     const quotes = qOf(curM, k);
@@ -118,16 +145,24 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   const bestCpaCat = validCpaCats[0];
   const avgCpa = totQuotes > 0 ? totSpend / totQuotes : 0;
 
-  const list = buildCategoryBarItems(
-    catSpendCur,
-    catSpendPrev,
+  const fullList = buildCategoryBarItems(
+    filterByCategory(catSpendCur, catFilter.cat1, catFilter.cat2),
+    filterByCategory(catSpendPrev, catFilter.cat1, catFilter.cat2),
     (c) => qOf(curM, c),
     true,
-    7
+    Infinity
   );
 
-  const totClk = sumBy(rowsCur, (r) => r.clk);
-  const totConv = sumBy(rowsCur, (r) => r.conv);
+  // 필터·월 변경 시 visibleCount 리셋
+  const filterKey = `${curM}|${catFilter.cat1}|${catFilter.cat2}`;
+  if (prevFilterKey.current !== filterKey) {
+    prevFilterKey.current = filterKey;
+    setVisibleCount(10);
+  }
+  const list = fullList.slice(0, visibleCount);
+
+  const totClk = isFiltered ? sumBy(catKeys, (k) => catClk[k] || 0) : sumBy(rowsCur, (r) => r.clk);
+  const totConv = isFiltered ? sumBy(catKeys, (k) => catConv[k] || 0) : sumBy(rowsCur, (r) => r.conv);
 
   return (
     <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
@@ -136,6 +171,11 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교"
         status={status}
       />
+
+      <div className="mock-bar">
+        <span className="sp" />
+        <CategoryFilter filter={catFilter} />
+      </div>
 
       <div className="kpis" id="kpiCatEff">
         <KpiCard
@@ -161,7 +201,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       </div>
 
       <div className="grid">
-        <div className="card" id="cat-spend">
+        <div className="card card-cat-spend" id="cat-spend" data-card="cat-spend">
           <h3 id="ttCatEff">
             카테고리별 광고비 소진 비교
             <span className="muted">
@@ -180,6 +220,14 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             </span>
             <span className="leg-note">단위: 만원</span>
           </div>
+          {visibleCount < fullList.length && (
+            <div className="kw-more-wrap">
+              <MoreButton
+                label={`카테고리 더보기 (+${Math.min(fullList.length - visibleCount, 10)}개 · 전체 ${fullList.length}개)`}
+                onClick={() => setVisibleCount((v) => Math.min(v + 10, fullList.length))}
+              />
+            </div>
+          )}
         </div>
         <CpaRankList validCpaCats={validCpaCats} curM={curM} />
       </div>

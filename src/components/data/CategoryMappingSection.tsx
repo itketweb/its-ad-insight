@@ -14,9 +14,9 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
       <h2 className="sec">카테고리 매칭 ({audit.curMonth} 기준 실시간 매핑 현황)</h2>
       <p className="lead-t">
         매체마다 다른 캠페인명과 자주 바뀌는 견적 카테고리를 직접 잇지 않고,{' '}
-        <b>5대 표준 카테고리</b>를 가운데 두고 양쪽을 100% 연결한다.
+        <b>표준 카테고리</b>를 가운데 두고 양쪽을 100% 연결한다.
       </p>
-      <div className="card">
+      <div className="card card-flow" id="cat-flow" data-card="flow">
         <div className="flow">
           <div className="col">
             <div className="col-h">매체 광고그룹</div>
@@ -31,7 +31,9 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
             <div className="chip s">서버</div>
             <div className="chip s">워크스테이션</div>
             <div className="chip s">스토리지</div>
-            <div className="chip s">PC·노트북</div>
+            <div className="chip s">노트북</div>
+            <div className="chip s">PC</div>
+            <div className="chip s">모니터</div>
             <div className="chip s">기타</div>
           </div>
           <div className="mid">N : M</div>
@@ -45,7 +47,7 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
         </div>
       </div>
 
-      <div className="card tw">
+      <div className="card card-mapping tw" id="cat-mapping" data-card="mapping">
         <table className="stk" id="tbCatMappingStatus">
           <thead>
             <tr>

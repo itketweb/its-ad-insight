@@ -14,6 +14,7 @@ import { CatEfficiencyView } from './views/CatEfficiencyView';
 import { KeywordsView } from './views/KeywordsView';
 import { QuotesView } from './views/QuotesView';
 import { DataView } from './views/DataView';
+import { AdminView } from './views/AdminView';
 
 function getInitialView(): ViewId {
   const hash = window.location.hash.slice(1) as ViewId;
@@ -37,7 +38,7 @@ function getInitialDark(): boolean {
 }
 
 export const App: React.FC = () => {
-  const { data, categoryMap, status, isSyncing, load } = useDashboardData();
+  const { data, categoryMap, status, isSyncing, load, updateQuotesRaw } = useDashboardData();
   const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [isDark, setIsDark] = useState<boolean>(getInitialDark);
@@ -45,7 +46,7 @@ export const App: React.FC = () => {
   // 캐시가 없어 보여 줄 데이터가 하나도 없는 첫 동기화 동안만 스켈레톤 (캐시가 있으면 이전 데이터를 그대로 보여 준다)
   const hasData = data.spend.length > 0 || data.quotes.length > 0;
   // 데이터 연결 화면은 연결 설정을 봐야 하므로 스켈레톤 없이 바로 보여 준다
-  const isLoading = !hasData && (status === 'init' || isSyncing) && currentView !== 'data';
+  const isLoading = !hasData && (status === 'init' || isSyncing) && currentView !== 'data' && currentView !== 'admin';
 
   const allMonths = useMemo(() => {
     return [
@@ -182,6 +183,7 @@ export const App: React.FC = () => {
             onOpenDrawer={handleOpenDrawer}
             onToggleTheme={handleToggleTheme}
             onReload={load}
+            onNavigate={handleNavigate}
           />
           {currentView !== 'data' && (
             <PeriodNav
@@ -242,6 +244,9 @@ export const App: React.FC = () => {
               )}
               {currentView === 'data' && (
                 <DataView data={data} categoryMap={categoryMap} status={status} />
+              )}
+              {currentView === 'admin' && (
+                <AdminView data={data} onUpdateQuotesRaw={updateQuotesRaw} />
               )}
             </main>
           </div>

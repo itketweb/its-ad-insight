@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { fmt, mLabel } from '../../utils/format';
 import { EmptyState } from '../common/EmptyState';
 
@@ -14,13 +14,33 @@ interface CpaRankListProps {
 }
 
 export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) => {
-  // 단가 낮은 순(고효율 먼저) 고정
-  const sortedCats = [...validCpaCats].sort((a, b) => a.cpa - b.cpa || b.quotes - a.quotes);
+  // "1차 > 2차" 키를 1차 단위로 합산 후 CPA 재산출
+  const sortedCats = useMemo(() => {
+    const map: Record<string, { totalCost: number; totalQuotes: number }> = {};
+    const order: string[] = [];
 
-  const maxCpa = Math.max(...validCpaCats.map((c) => c.cpa), 1);
+    validCpaCats.forEach((item) => {
+      const sep = item.k.indexOf(' > ');
+      const pk = sep >= 0 ? item.k.slice(0, sep) : item.k;
+      if (!map[pk]) { map[pk] = { totalCost: 0, totalQuotes: 0 }; order.push(pk); }
+      map[pk].totalCost   += item.cpa * item.quotes;
+      map[pk].totalQuotes += item.quotes;
+    });
+
+    return order
+      .map((k) => ({
+        k,
+        cpa:    map[k].totalQuotes > 0 ? map[k].totalCost / map[k].totalQuotes : 0,
+        quotes: map[k].totalQuotes,
+      }))
+      .filter((c) => c.cpa > 0 && c.quotes > 0)
+      .sort((a, b) => a.cpa - b.cpa || b.quotes - a.quotes);
+  }, [validCpaCats]);
+
+  const maxCpa = Math.max(...sortedCats.map((c) => c.cpa), 1);
 
   return (
-    <div className="card" id="cat-cpa">
+    <div className="card card-cat-cpa" id="cat-cpa" data-card="cat-cpa">
       <h3 id="ttCatCpa">
         카테고리별 견적 획득 단가 (CPA)
         <span className="muted">({mLabel(curM)} 실적 기준)</span>
@@ -30,17 +50,13 @@ export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) 
           <div className="cpa-list">
             {sortedCats.map((c) => {
               const widthPct = Math.max(5, Math.round((c.cpa / maxCpa) * 100));
-
               return (
                 <div key={c.k} className="cpa-row">
                   <div className="cpa-name" title={c.k}>
                     {c.k}
                   </div>
                   <div className="cpa-track">
-                    <div
-                      className="cpa-bar"
-                      style={{ width: `${widthPct}%` }}
-                    />
+                    <div className="cpa-bar" style={{ width: `${widthPct}%` }} />
                   </div>
                   <div className="cpa-info">
                     <span className="cpa-val">{fmt(c.cpa)}원</span>

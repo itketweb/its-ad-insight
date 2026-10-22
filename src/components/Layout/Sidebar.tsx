@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ViewId } from '../../types/dashboard';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   currentView: ViewId;
@@ -70,11 +71,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onCloseDrawer,
 }) => {
+  const { isLoggedIn } = useAuth();
   return (
     <>
       <div className={`scrim${drawerOpen ? ' on' : ''}`} id="scrim" onClick={onCloseDrawer} />
       <aside className={`side${drawerOpen ? ' open' : ''}`} id="side">
-        <button className="btn ic sclose" id="sclose" aria-label="메뉴 닫기" onClick={onCloseDrawer}>
+        <button className="btn ic sclose" id="sclose" data-btn="close" aria-label="메뉴 닫기" onClick={onCloseDrawer}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
@@ -105,8 +107,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               return (
                 <button
                   key={item.id}
-                  className={`nv${isActive ? ' on' : ''}`}
+                  className={`nv nv-${item.id}${isActive ? ' on' : ''}`}
+                  id={`nav-${item.id}`}
                   data-v={item.id}
+                  data-btn={item.id}
                   aria-current={isActive ? 'page' : undefined}
                   onClick={() => onNavigate(item.id)}
                 >
@@ -121,8 +125,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="lbl">설정 · 연동</div>
           <nav className="toc">
             <button
-              className={`nv${currentView === 'data' ? ' on' : ''}`}
+              className={`nv nv-data${currentView === 'data' ? ' on' : ''}`}
+              id="nav-data"
               data-v="data"
+              data-btn="data"
               aria-current={currentView === 'data' ? 'page' : undefined}
               onClick={() => onNavigate('data')}
             >
@@ -133,6 +139,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </svg>
               <span>데이터 연결</span>
             </button>
+            {isLoggedIn && (
+            <button
+              className={`nv nv-admin${currentView === 'admin' ? ' on' : ''}`}
+              id="nav-admin"
+              data-v="admin"
+              data-btn="admin"
+              aria-current={currentView === 'admin' ? 'page' : undefined}
+              onClick={() => onNavigate('admin')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>어드민 관리</span>
+            </button>
+          )}
           </nav>
         </div>
         {/* 마케팅팀 · 배포 날짜 기준 릴리즈 (같은 날 여러 번이면 -2, -3 …) */}

@@ -408,7 +408,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
   };
 
   return (
-    <div className="card">
+    <div className={`card card-chart ${id ? `card-chart-${id}` : ''}`} id={id ? `card-chart-${id}` : undefined} data-card={id || 'chart'}>
       <h3>
         {title}
         <SegmentedControl<ChartType>

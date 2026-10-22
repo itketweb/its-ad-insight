@@ -4,12 +4,14 @@ import type {
   DashboardData,
   KeywordRow,
   ManualRow,
+  QuoteRow,
   RawAdApiRow,
   RawApiPayload,
   RawKeywordApiRow,
   RawMetaApiRow,
   RawSpendApiRow,
   SpendRow,
+  QuoteRawRow,
   SyncStatus,
 } from '../types/dashboard';
 import { buildCategoryMap, THIS_M } from '../utils/format';
@@ -198,17 +200,22 @@ export function fromApi(j: RawApiPayload): DashboardData {
       };
     }),
     quotesRaw: (j.quotes_raw || [])
-      .map((r) => {
+      .map((r, idx) => {
         const src = String(r.source || '').trim();
         return {
+          id: r.id ? String(r.id) : ('q_' + (idx + 1)),
+          sno: r.sno != null ? String(r.sno).trim() : undefined,
+          subject: r.subject != null ? String(r.subject).trim() : undefined,
+          company: r.company != null ? String(r.company).trim() : undefined,
+          name: r.name != null ? String(r.name).trim() : undefined,
+          email: r.email != null ? String(r.email).trim() : undefined,
           date: String(r.date || '').trim(),
           category: String(r.category || '').trim(),
           source: src === '직접·기타' ? '기타' : src,
-          status: String(r.status || '').trim(),
         };
       })
       .filter((r) => r.date)
-      .sort((a, b) => b.date.localeCompare(a.date)),
+      .sort((a, b) => a.date.localeCompare(b.date)),
     keywords: [
       ...(j.g_keywords || []).map((r) => toKeywordRow('Google', r)),
       ...naverRawKws.map((r) => toKeywordRow('Naver', r)),
@@ -310,5 +317,24 @@ export function useDashboardData() {
     document.body.classList.toggle('live', status === 'live');
   }, [status]);
 
-  return { data, categoryMap, status, isSyncing, load };
+  const updateQuotesRaw = useCallback((newQuotes: QuoteRawRow[]) => {
+    const agg: Record<string, number> = {};
+    newQuotes.forEach((r) => {
+      const mo = (r.date || '').slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(mo)) return;
+      const key = `${mo}\u0001${r.category || '기타'}\u0001${r.source || '미수집'}`;
+      agg[key] = (agg[key] || 0) + 1;
+    });
+    const recalculated: QuoteRow[] = Object.entries(agg).map(([k, count]) => {
+      const [month, category, source] = k.split('\u0001');
+      return { month, category, source, count };
+    });
+    setData((prev) => ({
+      ...prev,
+      quotesRaw: newQuotes,
+      quotes: recalculated.length > 0 ? recalculated : prev.quotes,
+    }));
+  }, []);
+
+  return { data, categoryMap, status, isSyncing, load, updateQuotesRaw };
 }

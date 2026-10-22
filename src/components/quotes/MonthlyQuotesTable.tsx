@@ -138,7 +138,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
       : quotesRaw.filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집').length;
 
   return (
-    <div className="card tw" id="quotes-table">
+    <div className="card card-quotes-monthly tw" id="quotes-table" data-card="quotes-monthly">
       <h3>
         <span>월별 견적 접수 현황</span>
         <div className="h3-tools">
@@ -169,7 +169,9 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
           <div className="kw-tabs seg-src-platform">
             <button
               type="button"
-              className={timeScope === 'cur' ? 'on' : ''}
+              className={`btn-scope${timeScope === 'cur' ? ' on' : ''}`}
+              id="scope-cur"
+              data-btn="cur"
               onClick={() => setTimeScope('cur')}
             >
               <span>당월 실적</span>
@@ -177,7 +179,9 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
             </button>
             <button
               type="button"
-              className={timeScope === 'ytd' ? 'on' : ''}
+              className={`btn-scope${timeScope === 'ytd' ? ' on' : ''}`}
+              id="scope-ytd"
+              data-btn="ytd"
               onClick={() => setTimeScope('ytd')}
             >
               <span>{yr}년 누적</span>
@@ -304,7 +308,8 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                 <button
                   key={p}
                   type="button"
-                  className={srcPlatform === p ? 'on' : ''}
+                  className={`btn-src${srcPlatform === p ? ' on' : ''}`}
+                  data-btn={p}
                   onClick={() => setSrcPlatform(p)}
                 >
                   <span>{p}</span>
