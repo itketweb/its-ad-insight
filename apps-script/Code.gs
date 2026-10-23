@@ -5,7 +5,7 @@
  *  - setup        : 처음 한 번. 관리용 시트(mapping·manual)와 웹앱 비밀키를 만들고, 15분마다 syncAll 을 예약한다.
  *  - syncAll      : 15분마다. 네이버는 구조+키워드 성과(collectNaver) 하루 1번 + 광고그룹 광고비(collectNaverStats) 15분마다로 나눠 UrlFetch 한도를 지킨다.
  *  - collectNaver : 네이버 캠페인·광고그룹·키워드·소재 목록 → n_idx_groups · n_idx_keywords · n_ads, 이어서 성과까지
- *  - collectNaverStats : 색인의 ID 로 /stats 만 → n_adgroup_monthly (당월·전월은 매번, 과거 월은 비어 있는 달만). n_keywords 는 비어 있는 과거 달만 채운다
+ *  - collectNaverStats : 색인의 ID 로 /stats 만 → n_adgroup_monthly (당월·전월은 매번, 과거 월은 비어 있는 달만). n_keywords 는 비어 있는 과거 달만 채운다. 소재 × 월 성과(n_ad_stats)는 하루 1번
  *  - doGet        : ?key=비밀키 로 부르면 시트 전체를 JSON 으로 내려준다 (대시보드가 읽음). 키가 틀리면 아무것도 주지 않는다.
  * 네이버 키는 코드에 쓰지 않는다 — 프로젝트 설정 → 스크립트 속성에 NAVER_API_KEY · NAVER_SECRET · NAVER_CUSTOMER_ID 로 넣는다.
  * Google Ads 데이터(g_*)는 Google Ads 스크립트(GoogleAdsScript.js)가 같은 시트에 쓴다.
@@ -15,6 +15,7 @@ const CFG = {
   FROM_YEAR: new Date().getFullYear() - 1,   // 전년 1월부터
   BASE: 'https://api.searchad.naver.com',
   CHUNK: 50,                                 // /stats 한 번에 묻는 ID 수
+  AD_CHUNK: 30,                              // 소재 /stats 는 ID 가 길어 주소 길이 한도(약 2KB) 안에 들게 줄인다
   BUDGET_MS: 4.5 * 60 * 1000,                // 한 번 실행에 쓸 최대 시간(6분 제한 대비)
   KW_STATS_RESERVE_MS: 70 * 1000,            // 광고그룹 순회를 일찍 끝내 키워드 성과(/stats) 조회 시간을 남긴다
   BACKFILL_MONTHS: 5,                        // 성과 수집 한 번에 채우는 지난 달 수 (한 번에 몰려 한도를 넘지 않게)
@@ -22,8 +23,8 @@ const CFG = {
   // 네이버 API 는 하루 이 횟수까지만 부르고 멈춰, 고장으로 폭주해도 나머지 스크립트 몫을 남긴다. 스크립트 속성 NAVER_DAILY_CAP 로 바꿀 수 있다.
   NAVER_DAILY_CAP: 6000,
   RUN_LIMIT_MS: 5 * 60 * 1000,               // syncAll 전체가 이 시간을 넘기면 남은 수집은 다음 실행으로 (6분 강제 종료 방지)
-  SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_meta',
-    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_meta', 'quotes_monthly', 'quotes_raw', 'q_meta', 'mapping', 'manual', 'manual_categories'],
+  SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_ad_stats', 'g_meta',
+    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_ad_stats', 'n_meta', 'quotes_monthly', 'quotes_raw', 'q_meta', 'mapping', 'manual', 'manual_categories'],
 };
 const PROPS = PropertiesService.getScriptProperties();
 const STAT_FIELDS = '["impCnt","clkCnt","salesAmt","ccnt"]';
@@ -93,15 +94,15 @@ function collectNaver() {
   const t0 = Date.now(), ss = SpreadsheetApp.openById(CFG.SHEET_ID);
   const camps = api_('GET', '/ncc/campaigns');
   // 확장소재 이미지는 이미지 없는 소재가 나올 때만 조회한다 (광고그룹 단위 우선, 없으면 캠페인 단위 상속).
+  // 이미지형 서브링크처럼 한 확장소재에 이미지가 여러 장이면 모두 모은다.
   const extImgCache = {};
-  const extImg_ = (ownerId) => {
+  const extImgs_ = (ownerId) => {
     if (!(ownerId in extImgCache)) {
-      extImgCache[ownerId] = '';
+      extImgCache[ownerId] = [];
       try {
         for (const ex of (api_('GET', '/ncc/ad-extensions', { ownerId }) || [])) {
           if (ex.userLock) continue;
-          const u = extractExtImage_(ex);
-          if (u) { extImgCache[ownerId] = u; break; }
+          extImgCache[ownerId].push(...extractExtImages_(ex));
         }
       } catch (_) {}
     }
@@ -121,9 +122,12 @@ function collectNaver() {
   const rank = (g) => (recent[g.id] ? 2e9 + recent[g.id] : g.on ? 1 : 0);
   const ordered = groups.slice().sort((a, b) => rank(b) - rank(a));
   const kHead = ['id', 'ad_group_id', 'campaign', 'ad_group', 'keyword', 'bid', 'quality', 'ad_relevance', 'expected_click'];
-  const kIdx = [], ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image']];
+  // image: 대표 이미지 1장 (이전 화면 호환) · images: 모든 이미지를 줄바꿈으로 이은 목록
+  // title: 대표 제목 (이전 화면 호환) · titles·descs: 반응형 소재의 제목·설명 전체를 줄바꿈으로 이은 목록
+  const kIdx = [], ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image', 'images', 'titles', 'descs']];
   const adsOld = read_(ss, 'n_ads');
-  const oldImg = Object.fromEntries(adsOld.filter((r) => r.image).map((r) => [String(r.ad_id), String(r.image)])); // 지난 실행에서 찾은 확장소재 이미지 재사용
+  // 지난 실행에서 찾은 확장소재 이미지 재사용 — images 열이 생기기 전 값(1장)은 다시 찾도록 쓰지 않는다
+  const oldImgs = Object.fromEntries(adsOld.filter((r) => r.images).map((r) => [String(r.ad_id), String(r.images).split('\n').filter(Boolean)]));
   const visited = new Set();
   for (const g of ordered) {
     if (Date.now() - t0 > CFG.BUDGET_MS - CFG.KW_STATS_RESERVE_MS) break; // 못 읽은 그룹은 아래에서 지난 값을 남긴다
@@ -138,17 +142,23 @@ function collectNaver() {
         kIdx.push([k.nccKeywordId, g.id, g.campaign, g.name, String(k.keyword || '').trim(), (k.useGroupBidAmt ? g.bid : k.bidAmt) || 0, qi, rel || '', exp || '']);
       });
     api_('GET', '/ncc/ads', { nccAdgroupId: g.id }).filter((a) => !a.userLock).forEach((a) => {
-      const ad = a.ad || {};
-      const imgUrl = extractAdImage_(ad) || oldImg[a.nccAdId] || extImg_(g.id) || extImg_(g.campaignId) || '';
-      const title = ad.headline || (a.assets && a.assets[0] && a.assets[0].assetData && a.assets[0].assetData.text) || a.name || '';
-      ads.push(['SA', g.campaign, g.name, a.nccAdId, a.type, title, (ad.pc && ad.pc.final) || (ad.mobile && ad.mobile.final) || '', imgUrl]);
+      const ad = parseJson_(a.ad) || {};
+      const own = extractAdImages_(ad);
+      const imgs = [own, oldImgs[a.nccAdId], extImgs_(g.id), extImgs_(g.campaignId)].find((l) => l && l.length) || [];
+      const list = [...new Set(imgs)].slice(0, MAX_AD_IMAGES);
+      const { titles, descs } = adTexts_(a, ad);
+      const title = titles[0] || a.name || '';
+      ads.push(['SA', g.campaign, g.name, a.nccAdId, a.type, title, (ad.pc && ad.pc.final) || (ad.mobile && ad.mobile.final) || '', list[0] || '', list.join('\n'),
+        titles.join('\n'), descs.join('\n')]);
     });
   }
   // 이번에 못 읽은 광고그룹은 지난 실행 값을 그대로 둔다 (통째로 지우면 대시보드에서 캠페인이 사라진다)
   const unseen = (r) => !visited.has(String(r.campaign) + '\u0001' + String(r.ad_group));
   const kKeep = read_(ss, 'n_idx_keywords').filter(unseen).map((r) => kHead.map((h) => r[h]));
   put_(ss, 'n_idx_keywords', [kHead].concat(kIdx, kKeep));
-  put_(ss, 'n_ads', ads.concat(adsOld.filter(unseen).map((r) => ads[0].map((h) => r[h]))));
+  // 캠페인·그룹 이름이 바뀌면 옛 이름 행이 unseen 으로 남으므로, 이번에 읽은 소재 ID 는 남기지 않는다
+  const adIds = new Set(ads.slice(1).map((r) => String(r[3])));
+  put_(ss, 'n_ads', ads.concat(adsOld.filter((r) => unseen(r) && !adIds.has(String(r.ad_id))).map((r) => ads[0].map((h) => (r[h] == null ? '' : r[h])))));
   const skipped = groups.length - visited.size;
   if (skipped) console.warn('collectNaver: 시간 예산 초과로 광고그룹 ' + skipped + '개는 지난 값을 유지');
   PROPS.setProperty('NAVER_STRUCT_DAY', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd'));
@@ -222,10 +232,55 @@ function collectNaverStats_(ss, t0, withKeywords) {
   PROPS.setProperty('NAVER_KW_EMPTY', JSON.stringify([...kEmpty].sort()));
   const kKeep = kOld.filter((r) => !kDone.includes(r.month)).map((r) => kHead.map((h) => r[h]));
   if (kDone.length) put_(ss, 'n_keywords', [kHead].concat(kKeep.concat(kRows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
+  // 소재 성과는 하루 1번만 — 매번 돌리면 소재 수/50 회씩 늘어난다. 구조 수집(collectNaver)은 시간을 거의 다 쓰므로
+  // 그날 처음으로 시간이 1분 넘게 남은 실행(보통 15분 주기의 collectNaverStats)이 맡는다.
+  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+  if (PROPS.getProperty('NAVER_AD_STATS_DAY') !== today && Date.now() - t0 < CFG.BUDGET_MS - 60 * 1000) {
+    if (collectNaverAdStats_(ss, t0, fresh, back)) PROPS.setProperty('NAVER_AD_STATS_DAY', today);
+  }
   put_(ss, 'n_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['customer_id', PROPS.getProperty('NAVER_CUSTOMER_ID')],
     ['structure', PROPS.getProperty('NAVER_STRUCT_AT') || ''], ['api_calls', apiCalls_]]);
   syncMapping_(ss);
 }
+/** 편집기에서 직접 실행: 소재 성과(n_ad_stats)를 지금 바로 채운다 (하루 1번 제한과 무관) */
+function collectNaverAdStats() {
+  checkNaverKeys_();
+  const thisM = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM');
+  const ok = collectNaverAdStats_(SpreadsheetApp.openById(CFG.SHEET_ID), Date.now(), [thisM, addMonth_(thisM, -1)], (ms) => ms.sort().reverse().slice(0, CFG.BACKFILL_MONTHS));
+  if (ok) PROPS.setProperty('NAVER_AD_STATS_DAY', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd'));
+  saveApiCount_();
+  console.log('소재 성과 수집 ' + (ok ? '완료' : '일부만 (시간 부족)') + ' — API ' + apiCalls_ + '회');
+}
+
+/* 소재 × 월 성과 → n_ad_stats (소재 ID 는 n_ads 에서). 당월·전월은 매번, 지난 달은 비어 있는 달만 BACKFILL_MONTHS 개씩.
+ * 조회했는데 실적이 하나도 없던 지난 달은 NAVER_AD_EMPTY 에 기억해 다시 묻지 않는다. API: 소재 수/50 회 × 달 수.
+ * 당월·전월을 모두 받았으면 true. */
+function collectNaverAdStats_(ss, t0, fresh, back) {
+  const ids = [...new Set(read_(ss, 'n_ads').map((r) => String(r.ad_id)).filter((id) => /^nad-/.test(id)))];
+  if (!ids.length) return true;
+  const head = ['month', 'ad_id', 'cost', 'impressions', 'clicks', 'conversions'];
+  const old = read_(ss, 'n_ad_stats');
+  const have = new Set(old.map((r) => r.month));
+  const empty = new Set(JSON.parse(PROPS.getProperty('NAVER_AD_EMPTY') || '[]'));
+  const missing = [];
+  for (let m = CFG.FROM_YEAR + '-01'; m < fresh[1]; m = addMonth_(m, 1)) if (!have.has(m) && !empty.has(m)) missing.push(m);
+  const rows = [], done = [];
+  for (const m of fresh.concat(back(missing))) {
+    if (Date.now() - t0 > CFG.BUDGET_MS) break; // 남은 달은 다음 날 실행에서
+    const before = rows.length;
+    stats_(ids, m + '-01', lastDay_(m), CFG.AD_CHUNK).forEach((s) => {
+      if (s.salesAmt || s.impCnt) rows.push([m, s.id, s.salesAmt || 0, s.impCnt || 0, s.clkCnt || 0, s.ccnt || 0]);
+    });
+    if (m < fresh[1] && rows.length === before) empty.add(m);
+    done.push(m);
+  }
+  PROPS.setProperty('NAVER_AD_EMPTY', JSON.stringify([...empty].sort()));
+  if (!done.length) return false;
+  const keep = old.filter((r) => !done.includes(r.month)).map((r) => head.map((h) => r[h]));
+  put_(ss, 'n_ad_stats', [head].concat(keep.concat(rows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
+  return fresh.every((m) => done.includes(m));
+}
+
 /** 진단용 (편집기에서 직접 실행): 월마다 광고그룹 성과와 키워드 성과를 비교하고, 현재 키워드의 등록 시점을 로그로 남긴다.
  * 과거 달 키워드 성과가 비는 원인(키워드 재등록 / 조회 기간 제한)을 가린다. API 약 50회. */
 function debugKeywordHistory() {
@@ -328,10 +383,79 @@ const CAT_LOOKUP_ = [
   ['GDN_데스크탑 워크스테이션', '', '데스크탑 워크스테이션'],
 ];
 
+/* 이름·문구 → 분류표 카테고리. 견적 제목과, CAT_LOOKUP_ 에 없는 캠페인·광고그룹 이름에 쓴다.
+ * 웹앱 src/utils/categoryText.ts 의 CATEGORY_TEXT_RULES 와 같은 표 — 한쪽을 고치면 다른 쪽도 고친다.
+ * 위에서부터 먼저 맞는 규칙을 쓴다 (제품 종류·솔루션을 브랜드 서버보다 먼저). */
+const CATEGORY_TEXT_RULES_ = [
+  // 단일 브랜드·제품군
+  [/3\s?d\s?connexion|spacemouse|cadmouse/, '3Dconnexion'],
+  [/ai\s?station|zgx|dgx\s?spark/, 'AI Station'],
+  [/gstar|g\s?캐드|지스타/, 'GstarCAD'],
+  // 네트워크/방화벽 — 화웨이는 스토리지에도 있어 함께 쓰인 말로 가른다
+  [/fortigate|포티게이트|\bfg-?\d/, '네트워크/방화벽 > FortiGate'],
+  [/palo\s?alto|팔로\s?알토/, '네트워크/방화벽 > PaloAlto'],
+  [/(방화벽|네트워크|스위치|\bap\d*\b).*(화웨이|huawei)|(화웨이|huawei).*(방화벽|네트워크|스위치|\bap\d*\b)/, '네트워크/방화벽 > 화웨이'],
+  [/방화벽|firewall|\butm\b|스위치|switch|네트워크|network|라우터|router|\bsfp\b|\bap\d*\b/, '네트워크/방화벽'],
+  // 스토리지
+  [/시놀로지|synology/, 'NAS 스토리지 > 시놀로지'],
+  [/\bnas\b|나스|qnap|큐냅/, 'NAS 스토리지'],
+  [/netapp|넷앱/, 'SAN 스토리지 > NetAPP'],
+  [/\bmsa\b/, 'SAN 스토리지 > MSA'],
+  [/oceanstor|dorado|(화웨이|huawei).*(스토리지|storage|san)|(스토리지|storage|san).*(화웨이|huawei)/, 'SAN 스토리지 > 화웨이'],
+  [/스토리지|storage|\bsan\b|\bdas\b|unity|powervault|powerstore/, 'SAN 스토리지'],
+  // 솔루션
+  [/백업|backup|veeam|arcserve|acronis/, '백업 솔루션'],
+  [/rose\s?ha|mccs|이중화|클러스터/, '이중화 솔루션'],
+  [/vmware|가상화|hyper-?v|proxmox|nutanix|\bvdi\b/, '가상화 솔루션'],
+  [/\bpoly\b|폴리/, '화상회의솔루션 > Poly'],
+  [/화상\s?회의|화상\s?장비|웹캠|스피커폰/, '화상회의솔루션'],
+  [/\bv3\b|안랩|보안\s?소프트웨어|백신/, '소프트웨어 > 보안 소프트웨어'],
+  [/소프트웨어|software|라이선스|license|windows|오피스|office|autocad|오토캐드|한컴/, '소프트웨어 > 기타 소프트웨어'],
+  [/\bups|무정전|\bapc\b/, 'UPS'],
+  // 디스플레이 — 사이니지·전자칠판을 모니터보다 먼저
+  [/사이니지|signage/, 'LG전자 > 사이니지'],
+  [/전자\s?칠판|createboard|원퀵|터치\s?디스플레이/, 'LG전자 > 전자칠판'],
+  [/모니터|monitor|디스플레이|display/, '모니터'],
+  // 워크스테이션 — 모바일을 먼저
+  [/zbook|\bmws\b|모바일\s?워크스테이션|mobile\s?workstation/, '모바일 워크스테이션'],
+  [/워크스테이션|workstation|z\s?by\s?hp|zbyhp|\bz[1-9]\b|\bz[1-9]\s?g\d|z\s?central|precision|thinkstation/, '데스크탑 워크스테이션'],
+  // GPU/AI 서버 (옛 캠페인명 "Data Science" 포함)
+  [/gpu|딥러닝|머신러닝|data\s?science|데이터\s?사이언스|\brtx|h100|h200|a100|l40s?|b200|instinct|\bmi\d{3}|\besc\d{4}|epyc|tyan|mitac|supermicro|슈퍼마이크로/, 'GPU/AI 서버'],
+  // 노트북·서피스
+  [/서피스|surface/, 'MS서피스'],
+  [/thinkpad|씽크패드|ideapad|아이디어패드|레노버\s?노트북|lenovo\s?노트북/, '노트북 > Lenovo 노트북'],
+  [/elitebook|엘리트북|probook|프로북|파빌리온|pavilion|omen|오멘|omnibook|victus|hp\s?노트북|hp노트북|hp\s?\d{3}r?\s?g\d/, '노트북 > HP 노트북'],
+  [/노트북|laptop|expertbook|vivobook|zenbook|그램|macbook|맥북/, '노트북'],
+  // 브랜드 서버 → 브랜드 없는 서버(서버공통)
+  [/hpe|proliant|\bdl\d{2,3}|\bml\d{2,3}/, 'HPE 서버'],
+  [/poweredge|dell|델\s?서버|델서버/, 'Dell 서버'],
+  [/thinksystem|lenovo|레노버/, 'Lenovo 서버'],
+  [/서버|server|랙|rack/, '서버공통(주변장비)'],
+  // 데스크탑
+  [/엘리트\s?보드|eliteboard|elite\s?desk|엘리트\s?데스크|pro\s?desk|프로\s?데스크|프로\s?미니|pro\s?mini|엘리트\s?타워|elite\s?tower|프로\s?슬림|pro\s?slim|\bnuc\b|mac\s?studio|데스크탑|데스크톱|desktop|\bpc\b|올인원|본체|컴퓨터/, '데스크탑'],
+  // 서비스
+  [/유지\s?보수|기술\s?문의|a\/s|수리/, '유지보수/기술문의'],
+  [/리스|렌탈|대여|데모|demo/, '리스/렌탈/데모'],
+];
+
+/** 이름·문구 → 카테고리. 맞는 규칙이 없으면 '기타'. 밑줄(GDN_MWS)은 띄어쓰기로 본다 */
+function categoryFromText_(text) {
+  const t = String(text || '').toLowerCase().replace(/_/g, ' ');
+  if (!t.trim()) return '기타';
+  for (let i = 0; i < CATEGORY_TEXT_RULES_.length; i++) if (CATEGORY_TEXT_RULES_[i][0].test(t)) return CATEGORY_TEXT_RULES_[i][1];
+  return '기타';
+}
+
+/** 캠페인·광고그룹 이름 → 카테고리. 광고그룹 이름만으로 먼저 보고, 모자라면 캠페인 이름과 함께 본다 */
+function categoryFromAdNames_(campaign, adgroup) {
+  const byGroup = categoryFromText_(adgroup);
+  return byGroup !== '기타' ? byGroup : categoryFromText_(campaign + ' ' + adgroup);
+}
+
 /** 카테고리 개편 전 옛 7분류. mapping 시트에 이 값이 있으면 새 체계로 다시 계산한다 */
 const LEGACY_CATS_ = ['서버', '워크스테이션', '스토리지', '노트북', 'PC', 'PC·노트북', '모니터', '기타'];
 
-/** 캠페인·광고그룹명 → 카테고리(1차 또는 "1차 > 2차"). 표에 없으면 '기타' */
+/** 캠페인·광고그룹명 → 카테고리(1차 또는 "1차 > 2차"). 표에 없으면 이름으로 찾는다 (옛 캠페인명, 쇼핑검색·자사몰 캠페인) */
 function standardCategoryOf_(campaign, adgroup) {
   const c = String(campaign || '').trim();
   const g = String(adgroup || '').trim();
@@ -340,7 +464,7 @@ function standardCategoryOf_(campaign, adgroup) {
     const row = CAT_LOOKUP_[i];
     if (c === row[0] && (row[1] === '' || g === row[1])) return row[2];
   }
-  return '기타';
+  return categoryFromAdNames_(c, g);
 }
 
 /** 새로 생긴 캠페인·광고그룹을 mapping 시트에 표준 카테고리로 추가하고, 기존 빈 카테고리도 자동으로 채운다. */
@@ -626,7 +750,7 @@ function collectQuotes() {
     const m = quoteMonth_(r[iDate]);
     if (!m) return;
     const snoVal = iSno >= 0 ? String(r[iSno] || r[0] || '') : String(r[0] || '');
-    const cat = overrideMap[snoVal] || quoteCategory_(r[iSub]);
+    const cat = currentCategory_(overrideMap[snoVal]) || quoteCategory_(r[iSub], iSrc < 0 ? '' : r[iSrc]);
     const k = [m, cat, iSrc < 0 ? '미수집' : quoteSource_(r[iSrc])].join('\u0001');
     agg[k] = (agg[k] || 0) + 1;
   });
@@ -640,7 +764,8 @@ function collectQuotes() {
   const iCompany = findCol_('회사명', '업체명', '회사', '기업명', '기관명');
   const iEmail   = findCol_('이메일', 'email', 'Email', 'EMAIL');
 
-  const rawHead = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category'];
+  // source 는 집계용으로 정리한 값, source_raw 는 시트 원문 (예: "네이버(광고) - ROSEHA" — 어느 광고로 들어왔는지)
+  const rawHead = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category', 'source_raw'];
   const rawRows = [rawHead];
   v.forEach((r) => {
     const d = r[iDate];
@@ -655,7 +780,8 @@ function collectQuotes() {
       iEmail < 0 ? '' : String(r[iEmail] || ''),
       dateStr,
       iSrc < 0 ? '미수집' : quoteSource_(r[iSrc]),
-      overrideMap[snoVal] || quoteCategory_(r[iSub]),
+      currentCategory_(overrideMap[snoVal]) || quoteCategory_(r[iSub], iSrc < 0 ? '' : r[iSrc]),
+      iSrc < 0 ? '' : String(r[iSrc] || '').trim(),
     ]);
   });
   put_(ss, 'quotes_raw', rawRows);
@@ -666,8 +792,25 @@ function quoteMonth_(d) {
   const m = String(d || '').match(/^(\d{4})[-./](\d{1,2})/);
   return m ? m[1] + '-' + ('0' + m[2]).slice(-2) : '';
 }
-/** 견적 제목 → 표준 카테고리. 위에서부터 먼저 맞는 규칙을 쓰고, 어디에도 없으면 '기타'. 규칙은 필요하면 여기서 고친다. */
-function quoteCategory_(subject) {
+/**
+ * 견적 제목 → 분류표 카테고리. 제목이 "견적 요청"처럼 제품 정보가 없으면
+ * 유입경로 원문의 광고 이름(예: "네이버(광고) - ROSEHA")으로 한 번 더 찾는다. 그래도 없으면 '기타'.
+ */
+function quoteCategory_(subject, sourceRaw) {
+  const bySubject = categoryFromText_(subject);
+  if (bySubject !== '기타') return bySubject;
+  const m = String(sourceRaw || '').match(/\s-\s(.+)$/);
+  return m ? categoryFromText_(m[1]) : '기타';
+}
+
+/** 수동 지정·쇼핑몰이 보낸 카테고리가 옛 7분류면 쓰지 않고 다시 분류한다 */
+function currentCategory_(cat) {
+  const c = String(cat || '').trim();
+  return c && LEGACY_CATS_.indexOf(c) < 0 ? c : '';
+}
+
+/** (개편 전 규칙 — 참고용으로만 남김, 쓰지 않음) */
+function legacyQuoteCategory_(subject) {
   const t = String(subject || '').toLowerCase();
   const has = (re) => re.test(t);
   if (has(/스토리지|storage|\bnas\b|\bsan\b|백업|netapp|synology|qnap/)) return '스토리지';
@@ -817,7 +960,7 @@ function doPost(e) {
     const mo = quoteMonth_(dateStr);
     const site = String(data.site || '기타');
     const subj = String(data.subject || data.title || '');
-    const cat = data.category || quoteCategory_(subj);
+    const cat = currentCategory_(data.category) || quoteCategory_(subj, data.source || data.referrer || '');
     const src = quoteSource_(data.source || data.referrer || '');
 
     // 1. quotes_raw (원장) 시트에 1행 누적
@@ -984,10 +1127,11 @@ function api_(method, path, query) {
   Utilities.sleep(80);
   return JSON.parse(res.getContentText());
 }
-function stats_(ids, since, until) {
-  const out = [];
-  for (let i = 0; i < ids.length; i += CFG.CHUNK) {
-    const r = api_('GET', '/stats', { ids: ids.slice(i, i + CFG.CHUNK), fields: STAT_FIELDS, timeRange: JSON.stringify({ since, until }) });
+/** chunk: 한 번에 묻는 ID 수 — ID 가 긴 소재(nad-…)는 50개면 요청 주소가 UrlFetch 길이 한도를 넘어 줄여 묻는다 */
+function stats_(ids, since, until, chunk) {
+  const out = [], n = chunk || CFG.CHUNK;
+  for (let i = 0; i < ids.length; i += n) {
+    const r = api_('GET', '/stats', { ids: ids.slice(i, i + n), fields: STAT_FIELDS, timeRange: JSON.stringify({ since, until }) });
     (r.data || []).forEach((d) => out.push(d));
   }
   return out;
@@ -1029,17 +1173,80 @@ function parseJson_(v) {
   try { return JSON.parse(v); } catch (_) { return v; }
 }
 
-/** 네이버 확장소재(ad-extension) 중 이미지형에서만 이미지 URL 추출 */
-function extractExtImage_(ext) {
-  if (!ext || !EXT_IMAGE_TYPES.includes(ext.type) || ext.status === 'DELETED' || ext.inspectStatus === 'DENIED') return '';
-  return findUrlInObj_(parseJson_(ext.adExtension));
+// 소재 하나에 저장할 이미지 최대 장수 (시트 칸 길이·화면 펼침 크기 제한)
+const MAX_AD_IMAGES = 10;
+
+/**
+ * 소재의 제목·설명을 모두 모은다.
+ * 일반 텍스트 소재는 ad.headline·ad.description 한 쌍, 반응형(RSA_AD)은 assets 에 제목(최대 15)·설명(최대 4)이 여러 개 들어 있다.
+ * 자산 종류는 linkType(HEADLINE·DESCRIPTION 등)으로 가르고, 종류가 없으면 길이로 가른다 (제목 15자 이하).
+ */
+function adTexts_(a, ad) {
+  const titles = [], descs = [];
+  const add = (list, t) => {
+    t = String(t || '').trim();
+    if (t && !list.includes(t)) list.push(t);
+  };
+  add(titles, ad.headline);
+  add(descs, ad.description);
+  (a.assets || []).forEach((as) => {
+    const d = parseJson_(as.assetData) || {};
+    const text = d.text || as.text;
+    const kind = String(as.linkType || as.assetType || as.type || '').toUpperCase();
+    if (/DESC/.test(kind)) add(descs, text);
+    else if (/HEAD|TITLE/.test(kind)) add(titles, text);
+    else if (text) add(String(text).trim().length > 15 ? descs : titles, text);
+  });
+  return { titles: titles.slice(0, 15), descs: descs.slice(0, 4) };
 }
 
-/** 소재 객체 내 이미지 URL 추출 */
-function extractAdImage_(ad) {
+/** 네이버 확장소재(ad-extension) 중 이미지형에서만 이미지 URL 추출 (첫 장) */
+function extractExtImage_(ext) {
+  return extractExtImages_(ext)[0] || '';
+}
+
+/** 네이버 확장소재(ad-extension) 중 이미지형에서 이미지 URL 모두 추출 — 이미지형 서브링크는 여러 장이다 */
+function extractExtImages_(ext) {
+  if (!ext || !EXT_IMAGE_TYPES.includes(ext.type) || ext.status === 'DELETED' || ext.inspectStatus === 'DENIED') return [];
+  return findAllUrlsInObj_(parseJson_(ext.adExtension));
+}
+
+/** 소재 객체 내 이미지 URL 모두 추출 */
+function extractAdImages_(ad) {
   ad = parseJson_(ad);
-  if (!ad || typeof ad !== 'object') return '';
-  return findUrlInObj_(ad.image) || findUrlInObj_(ad.images) || imageUrlOf_(ad.imagePath);
+  if (!ad || typeof ad !== 'object') return [];
+  const one = imageUrlOf_(ad.imagePath);
+  return [...new Set(findAllUrlsInObj_(ad.image).concat(findAllUrlsInObj_(ad.images), one ? [one] : []))];
+}
+
+/**
+ * findUrlInObj_ 와 같은 규칙으로 이미지 URL 을 모두 모은다.
+ * 이미지 주소 문자열 키를 가진 객체는 이미지 1장으로 본다 (같은 이미지의 원본·썸네일 주소가 둘 다 잡히지 않게).
+ */
+function findAllUrlsInObj_(o, out) {
+  out = out || [];
+  const add = (u) => { if (u && !out.includes(u)) out.push(u); };
+  if (!o) return out;
+  if (typeof o === 'string') {
+    add(imageUrlOf_(o, false));
+    return out;
+  }
+  if (Array.isArray(o)) {
+    o.forEach((item) => findAllUrlsInObj_(item, out));
+    return out;
+  }
+  if (typeof o === 'object') {
+    const one = ['imagePath', 'imgPath', 'thumbnailPath'].map((k) => imageUrlOf_(o[k])).find(Boolean)
+      || ['imageUrl', 'imgUrl', 'image', 'fullSizeUrl', 'thumbnailUrl', 'mediaUrl', 'url'].map((k) => imageUrlOf_(o[k], false)).find(Boolean);
+    if (one) {
+      add(one);
+      return out;
+    }
+    Object.keys(o).forEach((k) => {
+      if (typeof o[k] === 'object') findAllUrlsInObj_(o[k], out);
+    });
+  }
+  return out;
 }
 
 /** 이미지 주소 문자열만 인정한다: http(s) 이미지 주소, 또는 네이버 이미지 경로(/...)는 NAVER_IMG_HOST 를 붙인다 */

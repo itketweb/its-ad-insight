@@ -6,7 +6,8 @@
  *  - g_campaign_monthly : 캠페인 × 월 비용·노출·클릭·전환 (전년 1월부터, 실적 최대 MAX 버전)
  *  - g_adgroup_monthly  : 광고그룹 × 월 (카테고리 매칭용, P-Max 처럼 그룹이 없는 캠페인은 제외됨)
  *  - g_keywords         : 사용 중 키워드의 현재 입찰가·품질점수 + 월별 성과 (전년 1월부터)
- *  - g_ads              : 사용 중 광고 소재 (제목·연결 URL·이미지)
+ *  - g_ads              : 사용 중 광고 소재 (제목·설명·연결 URL·이미지)
+ *  - g_ad_stats         : 소재 × 월 비용·노출·클릭·전환 (전년 1월부터)
  *  - g_meta             : 마지막 수집 시각
  */
 const CFG = {
@@ -55,31 +56,51 @@ function main() {
   });
 
   // 검색광고(SA) 이미지 확장소재 매핑: 광고그룹·캠페인 단위 AD_IMAGE 에셋
+  // 한 광고그룹·캠페인에 이미지가 여러 장 걸릴 수 있어 목록으로 모은다
   const grpImg = {}, campImg = {};
+  const addImg = (map, id, res) => {
+    if (img[res]) (map[id] = map[id] || []).push(img[res]);
+  };
   try {
     each_(`SELECT ad_group.id, asset.resource_name FROM ad_group_asset WHERE asset_field_type = 'AD_IMAGE' AND status = 'ENABLED'`, (r) => {
-      if (img[r.asset.resourceName]) grpImg[String(r.adGroup.id)] = img[r.asset.resourceName];
+      addImg(grpImg, String(r.adGroup.id), r.asset.resourceName);
     });
   } catch (_) {}
   try {
     each_(`SELECT campaign.id, asset.resource_name FROM campaign_asset WHERE asset_field_type = 'AD_IMAGE' AND status = 'ENABLED'`, (r) => {
-      if (img[r.asset.resourceName]) campImg[String(r.campaign.id)] = img[r.asset.resourceName];
+      addImg(campImg, String(r.campaign.id), r.asset.resourceName);
     });
   } catch (_) {}
 
-  const ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image']];
+  // image: 대표 이미지 1장 (이전 화면 호환) · images: 모든 이미지를 줄바꿈으로 이은 목록 (최대 10장)
+  // title: 대표 제목 (이전 화면 호환) · titles·descs: 반응형 광고의 제목·설명 전체를 줄바꿈으로 이은 목록
+  const ads = [['type', 'campaign', 'ad_group', 'ad_id', 'ad_type', 'title', 'url', 'image', 'images', 'titles', 'descs']];
+  const texts = (list) => [...new Set((list || []).map((t) => String((t && t.text) || '').trim()).filter(Boolean))];
   each_(`SELECT campaign.id, campaign.name, campaign.advertising_channel_type, ad_group.id, ad_group.name, ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.ad.name,
-                ad_group_ad.ad.final_urls, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_display_ad.headlines,
+                ad_group_ad.ad.final_urls, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions,
+                ad_group_ad.ad.responsive_display_ad.headlines, ad_group_ad.ad.responsive_display_ad.long_headline, ad_group_ad.ad.responsive_display_ad.descriptions,
                 ad_group_ad.ad.responsive_display_ad.marketing_images, ad_group_ad.ad.image_ad.image_url
          FROM ad_group_ad WHERE ad_group_ad.status = 'ENABLED' AND campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED'`, (r) => {
-    const a = r.adGroupAd.ad;
-    const heads = (a.responsiveSearchAd && a.responsiveSearchAd.headlines) || (a.responsiveDisplayAd && a.responsiveDisplayAd.headlines) || [];
-    const mi = (a.responsiveDisplayAd && a.responsiveDisplayAd.marketingImages) || [];
-    const image = (a.imageAd && a.imageAd.imageUrl) || (mi.length && img[mi[0].asset]) || grpImg[String(r.adGroup.id)] || campImg[String(r.campaign.id)] || '';
+    const a = r.adGroupAd.ad, rsa = a.responsiveSearchAd || {}, rda = a.responsiveDisplayAd || {};
+    const titles = texts([].concat(rsa.headlines || [], rda.headlines || [], rda.longHeadline ? [rda.longHeadline] : [])).slice(0, 15);
+    const descs = texts([].concat(rsa.descriptions || [], rda.descriptions || [])).slice(0, 5);
+    const mi = rda.marketingImages || [];
+    const own = (a.imageAd && a.imageAd.imageUrl ? [a.imageAd.imageUrl] : []).concat(mi.map((m) => img[m.asset]).filter(Boolean));
+    const list = [...new Set([own, grpImg[String(r.adGroup.id)], campImg[String(r.campaign.id)]].find((l) => l && l.length) || [])].slice(0, 10);
     ads.push([type_(r.campaign.advertisingChannelType), String(r.campaign.name || '').trim(), String(r.adGroup.name || '').trim(), String(a.id), a.type,
-      String((heads[0] && heads[0].text) || a.name || '').trim(), (a.finalUrls || [])[0] || '', image]);
+      String(titles[0] || a.name || '').trim(), (a.finalUrls || [])[0] || '', list[0] || '', list.join('\n'), titles.join('\n'), descs.join('\n')]);
   });
   put_(ss, 'g_ads', ads);
+
+  // 소재 × 월 성과 (전년 1월부터, 노출이 있던 달만)
+  const adStat = {};
+  each_(`SELECT segments.month, ad_group_ad.ad.id, ${M} FROM ad_group_ad WHERE ${range} AND metrics.impressions > 0`, (r) => {
+    const k = r.segments.month.slice(0, 7) + '\u0001' + String(r.adGroupAd.ad.id);
+    const cur = adStat[k] || (adStat[k] = [r.segments.month.slice(0, 7), String(r.adGroupAd.ad.id), 0, 0, 0, 0]);
+    met_(r).forEach((v, i) => (cur[i + 2] += v));
+  });
+  put_(ss, 'g_ad_stats', [['month', 'ad_id', 'cost', 'impressions', 'clicks', 'conversions']]
+    .concat(Object.values(adStat).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
 
   put_(ss, 'g_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')],
     ['account', AdsApp.currentAccount().getName()], ['customer_id', AdsApp.currentAccount().getCustomerId()]]);
