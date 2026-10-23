@@ -18,6 +18,8 @@ interface QuotesRawAdminTableProps {
   quotes: QuoteRawRow[];
   /** 실데이터를 받는 중 — 아직 없는 광고 꼬리표는 스켈레톤으로 보여 준다 */
   loading?: boolean;
+  /** 저장 전 변경의 원래 값 (sno → 바꾸기 전 카테고리) */
+  originals?: Map<string, string>;
   onUpdateQuoteCategory?: (quoteIdOrIndex: string | number, newCategory: string) => void;
   isDirty?: boolean;
   onSave?: () => void;
@@ -27,9 +29,36 @@ interface QuotesRawAdminTableProps {
 
 type SortKey = 'idx' | 'sno' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'category' | 'source';
 
+/** '2026-10-23 14:51:00' → '10.23 14:51' */
+const shortAt = (at: string) => {
+  const m = at.match(/^\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/);
+  return m ? `${m[1]}.${m[2]} ${m[3]}` : at;
+};
+
+/**
+ * 카테고리 칸 아래 흔적 한 줄 — 저장 전 변경이면 원래 값, 저장된 수동 지정이면 저장 시각.
+ * 마우스를 올리면 자동 분류 결과와 저장한 관리자를 보여 준다.
+ */
+const CategoryTrace: React.FC<{ quote: QuoteRawRow; original?: string }> = ({ quote, original }) => {
+  if (original !== undefined) {
+    return <span className="qr-cat-trace pending">저장 전 · 이전: {original || '없음'}</span>;
+  }
+  const m = quote.manual;
+  if (!m) return null;
+  const tip = [`자동 분류: ${quote.autoCategory || '–'}`, `수동 지정: ${m.category}`, m.by && `저장: ${m.by}`, m.at && `시각: ${m.at}`]
+    .filter(Boolean)
+    .join('\n');
+  return (
+    <span className="qr-cat-trace" title={tip}>
+      수동 지정{m.at ? ` · ${shortAt(m.at)}` : ''}
+    </span>
+  );
+};
+
 export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   quotes,
   loading = false,
+  originals,
   onUpdateQuoteCategory,
   isDirty,
   onSave,
@@ -341,9 +370,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                       </Tooltip>
                     </td>
                     <td className="qr-email">{q.email || '–'}</td>
-                    <td>
+                    <td className="qr-cat">
                       <Dropdown
-                        className="dd-cat"
+                        className={`dd-cat${originals?.has(String(q.sno ?? '')) ? ' is-changed' : ''}`}
                         ariaLabel="카테고리 선택"
                         value={q.category || '기타'}
                         options={[
@@ -354,6 +383,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                         ]}
                         onChange={(v) => onUpdateQuoteCategory?.(rowKey, v)}
                       />
+                      <CategoryTrace quote={q} original={originals?.get(String(q.sno ?? ''))} />
                     </td>
                     <td className="qr-source" title={q.sourceDetail ? `${q.source} - ${q.sourceDetail}` : undefined}>
                       {/* 색은 유입경로마다 달라 인라인으로 둔다 */}

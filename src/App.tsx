@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ViewId } from './types/dashboard';
 import { VALID_VIEWS, VIEW_TITLES } from './utils/constants';
 import { THIS_M, THIS_Y } from './utils/format';
@@ -15,6 +15,8 @@ import { KeywordsView } from './views/KeywordsView';
 import { QuotesView } from './views/QuotesView';
 import { DataView } from './views/DataView';
 import { AdminView } from './views/AdminView';
+import { LoginModal } from './components/Layout/LoginModal';
+import { useAuth } from './context/AuthContext';
 
 function getInitialView(): ViewId {
   const hash = window.location.hash.slice(1) as ViewId;
@@ -40,6 +42,9 @@ function getInitialDark(): boolean {
 export const App: React.FC = () => {
   const { data, categoryMap, status, isSyncing, load, updateQuotesRaw } = useDashboardData();
   const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
+  const { isLoggedIn, loading: authLoading } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
+  const wasLoggedIn = useRef(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [isDark, setIsDark] = useState<boolean>(getInitialDark);
 
@@ -115,6 +120,16 @@ export const App: React.FC = () => {
     document.title = `${VIEW_TITLES[currentView]} · 아이티캣 광고 인사이트`;
   }, [currentView]);
 
+  // 어드민 관리는 로그인한 관리자만. 로그아웃하면 종합 요약으로, 로그인 없이 주소(#admin)로 들어오면 종합 요약 + 로그인 모달
+  useEffect(() => {
+    if (authLoading) return;
+    if (currentView === 'admin' && !isLoggedIn) {
+      handleNavigate('overview');
+      if (!wasLoggedIn.current) setLoginOpen(true);
+    }
+    wasLoggedIn.current = isLoggedIn;
+  }, [authLoading, isLoggedIn, currentView]);
+
   useEffect(() => {
     const onHashChange = () => {
       const h = window.location.hash.slice(1) as ViewId;
@@ -184,6 +199,7 @@ export const App: React.FC = () => {
             onToggleTheme={handleToggleTheme}
             onReload={load}
             onNavigate={handleNavigate}
+            onLogin={() => setLoginOpen(true)}
           />
           {currentView !== 'data' && (
             <PeriodNav
@@ -247,7 +263,9 @@ export const App: React.FC = () => {
               {currentView === 'data' && (
                 <DataView loading={!hasData && (status === 'init' || isSyncing)} data={data} categoryMap={categoryMap} status={status} />
               )}
-              {currentView === 'admin' && (
+              {/* 로그인 세션을 확인하는 동안은 표 자리표시, 로그인한 경우에만 어드민 화면 */}
+              {currentView === 'admin' && authLoading && <SkeletonView title={VIEW_TITLES.admin} variant="table" />}
+              {currentView === 'admin' && isLoggedIn && (
                 <AdminView data={data} isSyncing={isSyncing || status === 'init'} onUpdateQuotesRaw={updateQuotesRaw} />
               )}
             </main>
@@ -255,6 +273,7 @@ export const App: React.FC = () => {
         </div>
       </div>
       <Tooltip />
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </>
   );
 };

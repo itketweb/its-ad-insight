@@ -14,6 +14,7 @@ import type {
   RawSpendApiRow,
   SpendRow,
   QuoteRawRow,
+  QuoteManualMark,
   SyncStatus,
 } from '../types/dashboard';
 import { buildCategoryMap, LEGACY_ONLY_CATS, THIS_M } from '../utils/format';
@@ -80,11 +81,15 @@ function fmtUpdatedTimestamp(s: string): string {
  * 원장(quotes_raw)의 제목·광고 꼬리표로 새 분류표에 맞춰 다시 분류하고 월별 건수도 원장에서 다시 센다.
  * 수집 스크립트(quoteCategory_)가 새 분류로 바뀐 뒤에는 그대로 통과한다.
  */
-function withCurrentQuoteCategories(data: DashboardData): DashboardData {
+function withCurrentQuoteCategories(data: DashboardData, manual: Map<string, string>): DashboardData {
   const legacy = data.quotes.some((r) => LEGACY_ONLY_CATS.has(r.category));
   // 제목이 없는 원장(배포에 묶인 data/latest.json 스냅숏 등)은 다시 분류할 근거가 없어 그대로 둔다
   if (!legacy || !data.quotesRaw.some((r) => r.subject)) return data;
-  const quotesRaw = data.quotesRaw.map((r) => ({ ...r, category: quoteCategoryOf(r.subject || '', r.sourceDetail) }));
+  // 어드민에서 수동 지정한 견적은 자동 분류로 덮지 않는다
+  const quotesRaw = data.quotesRaw.map((r) => ({
+    ...r,
+    category: manual.get(String(r.sno ?? '')) || quoteCategoryOf(r.subject || '', r.sourceDetail),
+  }));
   const agg = new Map<string, QuoteRow>();
   quotesRaw.forEach((r) => {
     const month = r.date.slice(0, 7);
@@ -296,7 +301,25 @@ export function fromApi(j: RawApiPayload): DashboardData {
       ...(j.n_ad_stats || []).map((r) => toAdStatRow('Naver', r)),
     ],
   };
-  return withCurrentQuoteCategories(data);
+  const marks = new Map<string, QuoteManualMark>();
+  (j.manual_categories || []).forEach((r) => {
+    const sno = String(r.sno ?? '').trim();
+    const category = String(r.category ?? '').trim();
+    if (!sno || !category) return;
+    const by = String(r.updated_by ?? '').trim();
+    marks.set(sno, { category, at: String(r.updated_at ?? '').trim(), ...(by ? { by } : {}) });
+  });
+  const manualCats = new Map([...marks].map(([sno, m]) => [sno, m.category] as const));
+  const out = withCurrentQuoteCategories(data, manualCats);
+  // 수동 지정 흔적: 저장 기록과, 비교용 자동 분류 결과 (제목이 있을 때만)
+  return {
+    ...out,
+    quotesRaw: out.quotesRaw.map((r) => {
+      const mark = marks.get(String(r.sno ?? ''));
+      const autoCategory = r.subject ? quoteCategoryOf(r.subject, r.sourceDetail) : undefined;
+      return mark || autoCategory ? { ...r, autoCategory, manual: mark } : r;
+    }),
+  };
 }
 
 const isUsableCache = (j: RawApiPayload | null): j is RawApiPayload =>

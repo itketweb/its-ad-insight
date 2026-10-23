@@ -15,6 +15,8 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onReload: () => void;
   onNavigate?: (view: ViewId) => void;
+  /** 헤더 로그인 버튼 → 로그인 모달 */
+  onLogin: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onReload,
   onNavigate,
+  onLogin,
 }) => {
   const live = status === 'live';
 
@@ -73,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
       </span>
       <div className="acts">
         {/* 헤더 프로필 & 로그인 유도 버튼 */}
-        <HeaderProfileMenu onNavigate={onNavigate} />
+        <HeaderProfileMenu onLogin={onLogin} />
 
         {/* 테마 전환 버튼 */}
         <button

@@ -586,43 +586,9 @@ main {
     font-size: 0.875rem;
     color: var(--sub);
   }
-
-  .pm-intro {
-    margin-bottom: 1rem;
-
-    h4 {
-      margin: 0 0 0.25rem;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    p {
-      margin: 0;
-      font-size: 0.75rem;
-      color: var(--sub);
-      line-height: 1.5;
-    }
-  }
-
-  .pm-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .btn-go-login {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    height: 2.5rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    border: none;
-  }
 }
 
-// 개발 서버 전용 즉시 로그인 버튼 (헤더 메뉴 · 어드민 로그인 창 공용)
+// 개발 서버 전용 즉시 로그인 버튼 (로그인 모달)
 .btn.btn-dev-login {
   display: flex;
   width: 100%;

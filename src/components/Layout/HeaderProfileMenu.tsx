@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import type { ViewId } from '../../types/dashboard';
-import { Lock, User, Zap } from 'lucide-react';
+import { User } from 'lucide-react';
 import { SkelBar } from '../common/SkeletonView';
 
 interface HeaderProfileMenuProps {
-  onNavigate?: (view: ViewId) => void;
+  /** 미로그인 상태에서 누르면 로그인 모달을 연다 */
+  onLogin: () => void;
 }
 
-export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onNavigate }) => {
-  const { user, isLoggedIn, loading, loginAsDevAdmin, logout } = useAuth();
+export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onLogin }) => {
+  const { user, isLoggedIn, loading, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -32,15 +32,6 @@ export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onNavigate
     };
   }, [open]);
 
-  const handleGoAdmin = () => {
-    setOpen(false);
-    if (onNavigate) {
-      onNavigate('admin');
-    } else {
-      window.location.hash = '#admin';
-    }
-  };
-
   const avatar = user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : (user?.name || user?.email || 'A')[0].toUpperCase();
 
   // 저장된 로그인 세션을 확인하는 동안은 버튼 자리만 잡아 둔다
@@ -60,7 +51,7 @@ export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onNavigate
         className={`btn ic header-profile-btn${isLoggedIn ? ' on' : ''}`}
         id="btn-profile"
         data-btn="profile"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (isLoggedIn ? setOpen((v) => !v) : onLogin())}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={isLoggedIn ? '사용자 프로필' : '관리자 로그인'}
@@ -80,9 +71,9 @@ export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onNavigate
       </button>
 
       {/* 팝오버 메뉴 */}
-      {open && (
+      {open && isLoggedIn && (
         <div role="dialog" className="pm-pop">
-          {isLoggedIn ? (
+          {(
             /* 로그인된 상태 */
             <>
               <div className="pm-user">
@@ -106,45 +97,6 @@ export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onNavigate
                 >
                   로그아웃
                 </button>
-              </div>
-            </>
-          ) : (
-            /* 미로그인 상태: 로그인 유도 */
-            <>
-              <div className="pm-intro">
-                <h4>관리자 로그인</h4>
-                <p>견적 원본 데이터 관리 및 저장을 사용하려면 로그인하세요.</p>
-              </div>
-
-              <div className="pm-actions">
-                {/* 로그인 화면(어드민 관리)으로 이동 */}
-                <button
-                  type="button"
-                  className="btn acc btn-go-login"
-                  id="btn-go-login"
-                  data-btn="go-login"
-                  onClick={handleGoAdmin}
-                >
-                  <Lock size={14} aria-hidden="true" />
-                  <span>아이디로 로그인</span>
-                </button>
-
-                {/* 개발 환경 전용 즉시 로그인 */}
-                {import.meta.env.DEV && (
-                  <button
-                    type="button"
-                    className="btn btn-dev-login"
-                    id="btn-dev-login"
-                    data-btn="dev-login"
-                    onClick={() => {
-                      setOpen(false);
-                      loginAsDevAdmin();
-                    }}
-                  >
-                    <Zap size={12} aria-hidden="true" />
-                    <span>테스트용 관리자 계정으로 로그인</span>
-                  </button>
-                )}
               </div>
             </>
           )}

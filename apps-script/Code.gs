@@ -928,18 +928,23 @@ function doPost(e) {
     }
 
     // [F] 어드민 카테고리 수동 지정 저장 (sno 기준 upsert)
-    // body: { key, action: 'saveManualCategories', overrides: [{sno, category}, ...] }
+    // body: { key, action: 'saveManualCategories', overrides: [{sno, category}, ...], by: '저장한 관리자' }
     if (data.action === 'saveManualCategories' && Array.isArray(data.overrides)) {
       const ss2 = SpreadsheetApp.openById(CFG.SHEET_ID);
       let shOv = ss2.getSheetByName('manual_categories');
       if (!shOv) {
         shOv = ss2.insertSheet('manual_categories');
-        shOv.appendRow(['sno', 'category', 'updated_at']);
+        shOv.appendRow(['sno', 'category', 'updated_at', 'updated_by']);
       }
+      // 예전 시트에는 저장한 사람 열이 없다 — 맨 뒤에 붙인다 (어드민 화면의 '수동 지정' 흔적에 쓴다)
+      if (shOv.getRange(1, 1, 1, shOv.getLastColumn()).getValues()[0].indexOf('updated_by') < 0) {
+        shOv.getRange(1, shOv.getLastColumn() + 1).setValue('updated_by');
+      }
+      const by = String(data.by || '').slice(0, 100);
       const now = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss');
       const ov = shOv.getDataRange().getValues();
       const oh = ov[0];
-      const oiSno = oh.indexOf('sno'), oiCat = oh.indexOf('category'), oiAt = oh.indexOf('updated_at');
+      const oiSno = oh.indexOf('sno'), oiCat = oh.indexOf('category'), oiAt = oh.indexOf('updated_at'), oiBy = oh.indexOf('updated_by');
       // sno → 1-indexed sheet row
       const rowIndex = {};
       for (let i = 1; i < ov.length; i++) rowIndex[String(ov[i][oiSno])] = i + 1;
@@ -948,8 +953,11 @@ function doPost(e) {
         if (rowIndex[s]) {
           shOv.getRange(rowIndex[s], oiCat + 1).setValue(category);
           shOv.getRange(rowIndex[s], oiAt + 1).setValue(now);
+          shOv.getRange(rowIndex[s], oiBy + 1).setValue(by);
         } else {
-          shOv.appendRow([s, category, now]);
+          const row = [];
+          row[oiSno] = s; row[oiCat] = category; row[oiAt] = now; row[oiBy] = by;
+          shOv.appendRow(Array.from(row, (v) => (v == null ? '' : v)));
         }
       });
       return json_({ success: true, saved: data.overrides.length });

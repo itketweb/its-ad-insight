@@ -875,6 +875,30 @@ th.n.sortable {
       text-overflow: ellipsis;
     }
 
+    // 카테고리 수동 지정 흔적 (선택칸 아래 한 줄)
+    .qr-cat-trace {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      color: var(--sub);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: help;
+
+      &.pending {
+        color: var(--accink);
+        font-weight: 600;
+        cursor: default;
+      }
+    }
+
+    // 저장 전 바뀐 칸: 강조 테두리
+    .dd-cat.is-changed .dd-trigger {
+      border-color: var(--acc);
+      background: var(--accbg);
+    }
+
     .qr-src-detail {
       margin-left: 0.375rem;
       font-size: 0.75rem;

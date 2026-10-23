@@ -49,6 +49,19 @@ export interface QuoteRawRow {
   source: string;
   /** 시트 원문 유입경로의 꼬리표 (예: "네이버(광고) - ROSEHA" → "ROSEHA"). 없으면 빈 값 */
   sourceDetail: string;
+  /** 자동 분류 결과 (제목 → 유입 광고 꼬리표) — 수동 지정과 비교해 흔적을 보여 준다 */
+  autoCategory?: string;
+  /** 어드민에서 수동 지정해 저장된 기록 (manual_categories 시트) */
+  manual?: QuoteManualMark;
+}
+
+/** 견적 카테고리 수동 지정 기록 */
+export interface QuoteManualMark {
+  category: string;
+  /** 저장 시각 (yyyy-MM-dd HH:mm:ss) */
+  at: string;
+  /** 저장한 관리자 (시트에 기록이 있을 때만) */
+  by?: string;
 }
 
 export interface KeywordRow {
@@ -259,6 +272,14 @@ export interface RawQuoteRawApiRow {
   source_raw?: unknown;
 }
 
+/** 어드민에서 수동 지정한 견적 카테고리 (manual_categories 시트) */
+export interface RawManualCategoryApiRow {
+  sno?: unknown;
+  category?: unknown;
+  updated_at?: unknown;
+  updated_by?: unknown;
+}
+
 export interface RawApiPayload {
   error?: string;
   served?: string;
@@ -272,6 +293,7 @@ export interface RawApiPayload {
   mapping?: MappingRow[];
   quotes_monthly?: RawQuoteMonthlyApiRow[];
   quotes_raw?: RawQuoteRawApiRow[];
+  manual_categories?: RawManualCategoryApiRow[];
   g_keywords?: RawKeywordApiRow[];
   n_keywords?: RawKeywordApiRow[];
   g_ads?: RawAdApiRow[];
