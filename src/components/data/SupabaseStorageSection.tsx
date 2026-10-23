@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import type { DashboardData } from '../../types/dashboard';
 import { StatusBadge } from '../common/StatusBadge';
 import { saveDashboardSnapshot, testSupabaseConnection } from '../../lib/supabase';
+import { Button } from '../common/Button';
+import { Notice } from '../common/Notice';
+import { Card } from '../common/Card';
 
 interface SupabaseStorageSectionProps {
   data: DashboardData;
@@ -57,50 +60,23 @@ create policy "Allow public update dashboard_snapshots"
   };
 
   return (
-    <div className="card card-supabase-storage" id="card-supabase-storage" data-card="supabase-storage" style={{ marginTop: '1.25rem' }}>
+    <Card name="supabase-storage" id="card-supabase-storage" style={{ marginTop: '1.25rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span>Supabase 클라우드 저장소</span>
           <StatusBadge level="ok">연동됨</StatusBadge>
         </h3>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn"
-            style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
-            onClick={handleTest}
-            disabled={testing || saving}
-          >
+          <Button size="sm" onClick={handleTest} disabled={testing || saving}>
             {testing ? '연결 확인 중...' : '연결 상태 확인'}
-          </button>
-          <button
-            type="button"
-            className="btn acc"
-            style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem', fontWeight: 600 }}
-            onClick={handleSave}
-            disabled={saving || testing}
-          >
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleSave} disabled={saving || testing}>
             {saving ? 'Supabase에 저장 중...' : '지금 Supabase에 저장'}
-          </button>
+          </Button>
         </div>
       </div>
 
-      {msg && (
-        <div
-          style={{
-            padding: '0.625rem 0.875rem',
-            marginBottom: '0.875rem',
-            fontSize: '0.8125rem',
-            borderRadius: '0',
-            background: msg.ok ? 'var(--grp-naver-bg, #f2faf5)' : 'var(--warnbg, #fbeccb)',
-            color: msg.ok ? 'var(--grp-naver-ink, #166534)' : 'var(--warn, #7a4a00)',
-            border: `1px solid ${msg.ok ? 'color-mix(in srgb, var(--ok) 30%, transparent)' : 'color-mix(in srgb, var(--warn) 30%, transparent)'}`,
-          }}
-        >
-          {msg.ok ? '✅ ' : '⚠️ '}
-          {msg.text}
-        </div>
-      )}
+      {msg && <Notice tone={msg.ok ? 'ok' : 'warn'}>{msg.text}</Notice>}
 
       <table className="kv">
         <tbody>
@@ -120,14 +96,9 @@ create policy "Allow public update dashboard_snapshots"
             <th>테이블 설정</th>
             <td>
               <span>테이블명: <code>dashboard_snapshots</code> (PostgreSQL JSONB) · </span>
-              <button
-                type="button"
-                className="link-btn"
-                style={{ fontSize: '0.8125rem', color: 'var(--acc)', cursor: 'pointer', background: 'none', border: 'none', textDecoration: 'underline' }}
-                onClick={() => setShowSql((v) => !v)}
-              >
+              <Button variant="link" style={{ fontSize: '0.875rem' }} onClick={() => setShowSql((v) => !v)}>
                 {showSql ? 'SQL 스키마 닫기' : '테이블 생성 SQL 쿼리 보기'}
-              </button>
+              </Button>
             </td>
           </tr>
         </tbody>
@@ -137,20 +108,15 @@ create policy "Allow public update dashboard_snapshots"
         <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'var(--bg)', border: '1px solid var(--line)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <small className="muted">Supabase 대시보드 › SQL Editor에 붙여넣고 실행하세요:</small>
-            <button
-              type="button"
-              className="btn"
-              style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}
-              onClick={handleCopySql}
-            >
+            <Button size="xs" onClick={handleCopySql}>
               {copied ? '복사됨!' : 'SQL 복사'}
-            </button>
+            </Button>
           </div>
-          <pre style={{ margin: 0, fontSize: '0.75rem', fontFamily: 'monospace', overflowX: 'auto', background: 'var(--card)', padding: '0.625rem', border: '1px solid var(--line)' }}>
+          <pre style={{ margin: 0, fontSize: '0.75rem', fontFamily: 'monospace', overflowX: 'auto', background: 'var(--card)', padding: '0.75rem', border: '1px solid var(--line)' }}>
             {sqlCode}
           </pre>
         </div>
       )}
-    </div>
+    </Card>
   );
 };

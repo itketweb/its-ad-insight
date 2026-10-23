@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowUpRight } from 'lucide-react';
 
 export interface FootnoteSourceItem {
   label?: string;
@@ -61,7 +62,8 @@ export const TableFootnote: React.FC<TableFootnoteProps> = ({
           rel="noopener"
           className="tbl-src-action"
         >
-          {action.text} ↗
+          {action.text}
+          <ArrowUpRight size={12} aria-hidden="true" />
         </a>
       )}
       {/* 단위는 차트 범례와 같이 우측 하단에 둔다 */}

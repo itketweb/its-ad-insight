@@ -1,9 +1,9 @@
 import type { CategoryMap, DashboardData } from '../types/dashboard';
 import {
+  cat1Of,
   catsOf,
   catSum,
   fmt,
-  QUOTE_CATS,
   SERIES_DEFS,
   sumBy,
   THIS_M,
@@ -186,11 +186,10 @@ export function runDataAudit(
     sumBy(ytdSpendRows.filter(s.f), (r) => r.cost)
   );
 
-  const ytdQuotesByCat = sumBy(QUOTE_CATS, (c) =>
-    sumBy(
-      data.quotes.filter((r) => r.month >= `${yr}-01` && r.month <= curM && r.category === c),
-      (r) => r.count
-    )
+  // 카테고리별로 나눠 센 견적의 합 (어느 카테고리에도 빠지는 견적이 없어야 원장 건수와 같다)
+  const ytdQuotesByCat = sumBy(
+    data.quotes.filter((r) => r.month >= `${yr}-01` && r.month <= curM),
+    (r) => r.count
   );
   const ytdQuotesRaw = data.quotesRaw.filter(
     (r) => r.date.slice(0, 7) >= `${yr}-01` && r.date.slice(0, 7) <= curM
@@ -244,13 +243,30 @@ export function runDataAudit(
       ? 'warn'
       : 'ok';
 
-  const categoryBreakdown = QUOTE_CATS.map((cat) => ({
+  // 분류표 1차 카테고리별 (2차는 1차에 합산) — 분류표 순서, 분류표 밖 값은 뒤에
+  const byCat1 = (rec: Record<string, number>) => {
+    const o: Record<string, number> = {};
+    Object.entries(rec).forEach(([c, v]) => (o[cat1Of(c)] = (o[cat1Of(c)] || 0) + v));
+    return o;
+  };
+  const groups1 = byCat1(groupCountByCat);
+  const spend1 = byCat1(catSpendMap);
+  const quotes1: Record<string, number> = {};
+  curQuotesRows.forEach((r) => (quotes1[cat1Of(r.category)] = (quotes1[cat1Of(r.category)] || 0) + r.count));
+  const cat1List = [
+    ...new Set([
+      ...CATEGORY_HIERARCHY.map((n) => n.cat1).filter((c) => c !== '기타'),
+      ...Object.keys(groups1),
+      ...Object.keys(quotes1),
+    ]),
+  ]
+    .filter((c) => c !== '기타')
+    .concat('기타');
+  const categoryBreakdown = cat1List.map((cat) => ({
     category: cat,
-    adgroupCount: groupCountByCat[cat] || 0,
-    curMonthSpend: Math.round(catSpendMap[cat] || 0),
-    curMonthQuotes: curQuotesRows
-      .filter((r) => r.category === cat)
-      .reduce((a, r) => a + r.count, 0),
+    adgroupCount: groups1[cat] || 0,
+    curMonthSpend: Math.round(spend1[cat] || 0),
+    curMonthQuotes: quotes1[cat] || 0,
   }));
 
   return {

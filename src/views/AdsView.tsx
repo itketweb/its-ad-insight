@@ -17,6 +17,8 @@ import { SegmentedControl } from '../components/common/SegmentedControl';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SpendDetailTable } from '../components/ads/SpendDetailTable';
+import { Card } from '../components/common/Card';
+import { EmptyState } from '../components/common/EmptyState';
 
 interface AdsViewProps {
   data: DashboardData;
@@ -58,11 +60,9 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth })
             <div className="d flat">데이터 연결 필요</div>
           </div>
         </div>
-        <div className="card card-empty" id="ads-empty" data-card="empty">
-          <div className="empty">
-            취합된 실제 광고비 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요.
-          </div>
-        </div>
+        <Card name="empty" id="ads-empty">
+          <EmptyState message="취합된 실제 광고비 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요." />
+        </Card>
       </div>
     );
   }

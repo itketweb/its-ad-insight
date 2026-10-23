@@ -232,6 +232,7 @@ export const App: React.FC = () => {
                   data={data}
                   categoryMap={categoryMap}
                   status={status}
+                  isSyncing={isSyncing}
                   selectedMonth={selectedMonth}
                 />
               )}
@@ -239,14 +240,15 @@ export const App: React.FC = () => {
                 <QuotesView
                   data={data}
                   status={status}
+                  isSyncing={isSyncing}
                   selectedMonth={selectedMonth}
                 />
               )}
               {currentView === 'data' && (
-                <DataView data={data} categoryMap={categoryMap} status={status} />
+                <DataView loading={!hasData && (status === 'init' || isSyncing)} data={data} categoryMap={categoryMap} status={status} />
               )}
               {currentView === 'admin' && (
-                <AdminView data={data} onUpdateQuotesRaw={updateQuotesRaw} />
+                <AdminView data={data} isSyncing={isSyncing || status === 'init'} onUpdateQuotesRaw={updateQuotesRaw} />
               )}
             </main>
           </div>

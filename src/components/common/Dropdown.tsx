@@ -1,8 +1,11 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 
 export interface DropdownOption<T extends string | number> {
   value: T;
   label: React.ReactNode;
+  /** 목록에서만 라벨 뒤에 흐리게 붙는 보조 표시 (예: 하위 항목 개수) — 선택된 값 표시에는 나오지 않는다 */
+  hint?: React.ReactNode;
   title?: string;
   disabled?: boolean;
 }
@@ -111,18 +114,7 @@ export function Dropdown<T extends string | number>({
         }}
       >
         <span className="dd-value">{selected?.label}</span>
-        <svg
-          className="dd-chev"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.25"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <ChevronDown className="dd-chev" strokeWidth={2.25} aria-hidden="true" />
       </button>
 
       {open && (
@@ -149,20 +141,12 @@ export function Dropdown<T extends string | number>({
               onMouseEnter={() => !o.disabled && setActive(i)}
               onClick={() => pick(i)}
             >
-              <span>{o.label}</span>
+              <span>
+                {o.label}
+                {o.hint != null && <span className="dd-opt-hint">{o.hint}</span>}
+              </span>
               {o.value === value && (
-                <svg
-                  className="dd-check"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check className="dd-check" strokeWidth={2.5} aria-hidden="true" />
               )}
             </div>
           ))}

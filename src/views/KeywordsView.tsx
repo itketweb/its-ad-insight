@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type {
+  AdRow,
   CampaignKeywordBucket,
   CategoryMap,
   DashboardData,
@@ -7,8 +8,8 @@ import type {
   KeywordRow,
   SyncStatus,
 } from '../types/dashboard';
-import { catSum, catsOf, THIS_M } from '../utils/format';
-import { selectRoundRobinAds } from '../utils/creativeImage';
+import { catSum, catsOf, mLabel, THIS_M } from '../utils/format';
+import { adStatKey, groupAdsByAdgroup, selectRoundRobinAds, type AdStat } from '../utils/creativeImage';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { SegmentedControl } from '../components/common/SegmentedControl';
@@ -18,14 +19,19 @@ import {
   matchesCategory,
   useCategoryFilterState,
 } from '../components/common/CategoryFilter';
+import { PeriodNavSlot } from '../components/common/PeriodNav';
 import { KeywordCategoryTable } from '../components/keywords/KeywordCategoryTable';
 import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTable';
-import { AdCreativesGrid } from '../components/keywords/AdCreativesGrid';
+import { AdCreativesList } from '../components/keywords/AdCreativesList';
+import { Card } from '../components/common/Card';
+import { EmptyState } from '../components/common/EmptyState';
 
 interface KeywordsViewProps {
   data: DashboardData;
   categoryMap: CategoryMap;
   status: SyncStatus;
+  /** 실데이터를 받는 중 (화면은 저장해 둔 이전 데이터로 먼저 그린다) */
+  isSyncing?: boolean;
   selectedMonth?: string;
 }
 
@@ -40,6 +46,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   data,
   categoryMap,
   status,
+  isSyncing = false,
   selectedMonth,
 }) => {
   const [media, setMedia] = useState<'all' | 'Google' | 'Naver'>('all');
@@ -55,11 +62,9 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           description="광고그룹별 검색 키워드 입찰/품질/전환 지표 및 배너·확장 소재 현황"
           status={status}
         />
-        <div className="card card-empty" id="kw-empty" data-card="empty">
-          <div className="empty">
-            취합된 키워드 및 소재 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요.
-          </div>
-        </div>
+        <Card name="empty" id="kw-empty">
+          <EmptyState message="취합된 키워드 및 소재 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요." />
+        </Card>
         <SecSrc sources={KEYWORDS_SOURCES} />
       </div>
     );
@@ -113,17 +118,15 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
     (a, b) => b.cost - a.cost || sumClk(b.list) - sumClk(a.list)
   );
 
-  // 카테고리 필터 적용 시 keyword group도 함께 필터링
-  const activeGroups = catFilter.cat1
-    ? allGroups.filter((g) => {
-        const cats = catsOf(categoryMap, {
-          month: mo, media: g.media, type,
-          campaign: g.campaign, adgroup: g.adgroup,
-          cost: 0, imp: 0, clk: 0, conv: 0,
-        });
-        return cats.some(({ c }) => matchesCategory(c, catFilter.cat1, catFilter.cat2));
-      })
-    : allGroups;
+  // 카테고리 필터 — 광고그룹의 매핑 카테고리로 판단해 키워드 그룹과 주요 · 확장 소재에 똑같이 적용
+  const inCategory = (g: { media: string; campaign: string; adgroup: string }) =>
+    !catFilter.cat1 ||
+    catsOf(categoryMap, {
+      month: mo, media: g.media, type,
+      campaign: g.campaign, adgroup: g.adgroup,
+      cost: 0, imp: 0, clk: 0, conv: 0,
+    }).some(({ c }) => matchesCategory(c, catFilter.cat1, catFilter.cat2));
+  const activeGroups = allGroups.filter(inCategory);
   const topGroups = activeGroups;
 
   // 캠페인 탭: 캠페인명 단위로 묶고(같은 이름은 Google·Naver 합산) 광고비 상위 10개 캠페인
@@ -149,10 +152,27 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
     const k = `${r.media}\u0001${r.campaign}`;
     campCost[k] = (campCost[k] || 0) + r.cost;
   });
-  const ads = selectRoundRobinAds(
-    data.ads.filter(pass),
-    12,
-    (a) => campCost[`${a.media}\u0001${a.campaign}`] || 0
+  // 소재별 기준월 실적 — 캠페인 안에서는 비용(없으면 노출)이 큰 소재부터 고른다
+  const adStats: Record<string, AdStat> = {};
+  (data.adStats || [])
+    .filter((s) => s.month === mo)
+    .forEach((s) => {
+      const k = adStatKey(s.media, s.adId);
+      const cur = adStats[k] || (adStats[k] = { cost: 0, imp: 0, clk: 0, conv: 0 });
+      cur.cost += s.cost;
+      cur.imp += s.imp;
+      cur.clk += s.clk;
+      cur.conv += s.conv;
+    });
+  const adWeight = (a: AdRow) => {
+    const s = adStats[adStatKey(a.media, a.adId)];
+    return s ? s.cost * 1e3 + s.imp : 0;
+  };
+  // 광고그룹 단위로 묶어(그룹 안 소재마다 제목·설명·링크가 다를 수 있다) 캠페인마다 돌아가며 모두 넘긴다 — 개수 제한은 목록의 더보기가 맡는다
+  const adGroups = selectRoundRobinAds(
+    groupAdsByAdgroup(data.ads.filter((a) => pass(a) && inCategory(a)).sort((a, b) => adWeight(b) - adWeight(a))),
+    Infinity,
+    (g) => campCost[`${g.media}\u0001${g.campaign}`] || 0
   );
 
   return (
@@ -189,8 +209,9 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
             setKwTabIdx(0);
           }}
         />
-        <span className="sp" />
-        <CategoryFilter filter={catFilter} />
+        <PeriodNavSlot>
+          <CategoryFilter filter={catFilter} />
+        </PeriodNavSlot>
       </div>
 
       <KeywordCategoryTable
@@ -216,8 +237,8 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
         />
       )}
 
-      {(type === 'SA' || ads.length > 0) && (
-        <AdCreativesGrid ads={ads} media={media} type={type} />
+      {(type === 'SA' || adGroups.length > 0) && (
+        <AdCreativesList groups={adGroups} stats={adStats} loading={isSyncing} periodLabel={`${mo.slice(0, 4)}년 ${mLabel(mo)}`} media={media} type={type} />
       )}
       <SecSrc sources={KEYWORDS_SOURCES} />
     </div>

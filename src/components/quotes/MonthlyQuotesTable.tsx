@@ -3,8 +3,9 @@ import type { QuoteRawRow, QuoteRow } from '../../types/dashboard';
 import {
   fmt,
   mLabel,
-  QUOTE_CATS,
+  cat1Of,
   QUOTE_COLORS,
+  quoteCat1Order,
   sourceColorVar,
   sumBy,
   ym,
@@ -13,6 +14,9 @@ import { EXTERNAL_LINKS } from '../../utils/constants';
 import { DeltaSpan } from '../charts/KpiCard';
 import { SegmentedControl } from '../common/SegmentedControl';
 import { TableFootnote } from '../common/TableFootnote';
+import { TabButton } from '../common/TabButton';
+import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
+import { Card } from '../common/Card';
 
 interface MonthlyQuotesTableProps {
   quotes: QuoteRow[];
@@ -44,11 +48,17 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
   const [timeScope, setTimeScope] = useState<'cur' | 'ytd'>('cur');
   const [summaryTab, setSummaryTab] = useState<SummaryTab>('cat');
   const [srcPlatform, setSrcPlatform] = useState<SourcePlatform>('네이버');
+  // 카테고리는 10개까지만 보이고 나머지는 '더보기'로 (막대 목록·표 함께)
+  const [showAllCats, setShowAllCats] = useState(false);
+  const catLimit = showAllCats ? undefined : LIST_LIMIT;
 
   const isFuture = (mo: string) => mo > curM;
 
-  const cntCat = (mo: string, category: string) =>
-    quotes.filter((r) => r.month === mo && r.category === category).reduce((a, r) => a + r.count, 0);
+  // 카테고리는 분류표 1차 기준 — "SAN 스토리지 > 화웨이" 같은 2차 견적은 1차 행에 합산한다
+  const cntCat = (mo: string, cat1: string) =>
+    quotes.filter((r) => r.month === mo && cat1Of(r.category) === cat1).reduce((a, r) => a + r.count, 0);
+  // 올해 견적이 있는 1차 카테고리 전부, 건수 큰 순 ('기타'는 맨 뒤)
+  const yearCats = useMemo(() => quoteCat1Order(quotes.filter((r) => months.includes(r.month))), [quotes, months]);
 
   const totMonth = (mo: string) =>
     quotes.filter((r) => r.month === mo).reduce((a, r) => a + r.count, 0);
@@ -82,7 +92,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
   // 차트 모드 데이터 산출
   const chartData = useMemo(() => {
     if (summaryTab === 'cat') {
-      const items = QUOTE_CATS.map((c, ci) => {
+      const items = yearCats.map((c, ci) => {
         const count =
           timeScope === 'cur'
             ? cntCat(curM, c)
@@ -90,13 +100,15 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
         return {
           k: c,
           count,
-          color: QUOTE_COLORS[ci],
+          // 상위 6개만 색을 나누고 나머지는 같은 회색 계열
+          color: c === '기타' || ci >= 6 ? '--c-etc' : QUOTE_COLORS[ci],
         };
       });
       const total = items.reduce((a, b) => a + b.count, 0);
       const sorted = items
         .filter((it) => it.count > 0)
-        .sort((a, b) => b.count - a.count)
+        // 건수 큰 순, '기타'는 표와 같이 맨 뒤
+        .sort((a, b) => (a.k === '기타' ? 1 : b.k === '기타' ? -1 : b.count - a.count))
         .map((it) => ({
           ...it,
           pct: total > 0 ? (it.count / total) * 100 : 0,
@@ -125,7 +137,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
         }));
       return { items: sorted, total, max: Math.max(...sorted.map((s) => s.count), 1) };
     }
-  }, [summaryTab, timeScope, curM, yr, months, quotes, quotesRaw]);
+  }, [summaryTab, timeScope, curM, yr, months, quotes, quotesRaw, yearCats]);
 
   const curCount =
     summaryTab === 'cat'
@@ -138,7 +150,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
       : quotesRaw.filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집').length;
 
   return (
-    <div className="card card-quotes-monthly tw" id="quotes-table" data-card="quotes-monthly">
+    <Card name="quotes-monthly" tableWrap id="quotes-table">
       <h3>
         <span>월별 견적 접수 현황</span>
         <div className="h3-tools">
@@ -167,26 +179,24 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
       {viewMode === 'chart' ? (
         <div className="quote-chart-view">
           <div className="kw-tabs seg-src-platform">
-            <button
-              type="button"
-              className={`btn-scope${timeScope === 'cur' ? ' on' : ''}`}
+            <TabButton
+              className="btn-scope"
               id="scope-cur"
               data-btn="cur"
+              active={timeScope === 'cur'}
+              label="당월 실적"
+              count={curCount}
               onClick={() => setTimeScope('cur')}
-            >
-              <span>당월 실적</span>
-              {curCount > 0 && <span className="tab-cnt">{fmt(curCount)}</span>}
-            </button>
-            <button
-              type="button"
-              className={`btn-scope${timeScope === 'ytd' ? ' on' : ''}`}
+            />
+            <TabButton
+              className="btn-scope"
               id="scope-ytd"
               data-btn="ytd"
+              active={timeScope === 'ytd'}
+              label={`${yr}년 누적`}
+              count={ytdCount}
               onClick={() => setTimeScope('ytd')}
-            >
-              <span>{yr}년 누적</span>
-              {ytdCount > 0 && <span className="tab-cnt">{fmt(ytdCount)}</span>}
-            </button>
+            />
           </div>
 
           {summaryTab === 'src' && (
@@ -197,7 +207,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
 
           {chartData.items.length ? (
             <div className="cpa-list quote-rank-list">
-              {chartData.items.map((it, idx) => {
+              {chartData.items.slice(0, summaryTab === 'cat' ? catLimit : undefined).map((it, idx) => {
                 const widthPct = Math.max(5, Math.round((it.count / chartData.max) * 100));
                 return (
                   <div key={it.k} className="cpa-row">
@@ -221,6 +231,9 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                   </div>
                 );
               })}
+              {summaryTab === 'cat' && (
+                <ShowMoreButton total={chartData.items.length} expanded={showAllCats} onToggle={() => setShowAllCats((v) => !v)} />
+              )}
             </div>
           ) : (
             <div className="empty" style={{ margin: '1.5rem 0' }}>
@@ -250,7 +263,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
               </tr>
             </thead>
             <tbody>
-              {QUOTE_CATS.map((c) => (
+              {yearCats.slice(0, catLimit).map((c) => (
                 <tr key={c}>
                   <td>{c}</td>
                   {allMonths.map((mo) => (
@@ -296,6 +309,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
               </tr>
             </tbody>
           </table>
+          <ShowMoreButton total={yearCats.length} expanded={showAllCats} onToggle={() => setShowAllCats((v) => !v)} />
         </div>
       ) : (
         <div id="tbQuotesSrc">
@@ -305,24 +319,23 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                 srcGroups[p].reduce((a, s) => a + cntSource(mo, s), 0)
               );
               return (
-                <button
+                <TabButton
                   key={p}
-                  type="button"
-                  className={`btn-src${srcPlatform === p ? ' on' : ''}`}
+                  className="btn-src"
                   data-btn={p}
+                  active={srcPlatform === p}
+                  label={p}
+                  count={tot}
                   onClick={() => setSrcPlatform(p)}
-                >
-                  <span>{p}</span>
-                  {tot > 0 && <span className="tab-cnt">{fmt(tot)}</span>}
-                </button>
+                />
               );
             })}
           </div>
           <p
             className="leg-note"
             style={{
-              margin: '-0.375rem 0 0.75rem',
-              fontSize: '0.6875rem',
+              margin: '-0.5rem 0 0.75rem',
+              fontSize: '0.75rem',
               color: 'var(--sub)',
             }}
           >
@@ -408,7 +421,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
 
       <TableFootnote
         unit="건"
-        basis="산출 근거: 접수 시점 UTM/Referrer 경로 기반 매체 자동 판별 · 5대 표준 카테고리 매핑 기준"
+        basis="산출 근거: 접수 시점 UTM/Referrer 경로 기반 매체 자동 판별 · 카테고리 = 분류표 1차 (견적 제목·유입 광고로 자동 분류, 2차는 1차에 합산)"
         sources={[
           '견적 접수 원본 시트 · collectQuotes 자동 동기화',
         ]}
@@ -417,6 +430,6 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
           href: EXTERNAL_LINKS.quotesRawSheet,
         }}
       />
-    </div>
+    </Card>
   );
 };

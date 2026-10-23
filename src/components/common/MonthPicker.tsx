@@ -1,6 +1,7 @@
 import React from 'react';
 import { prevM, ym } from '../../utils/format';
 import { Dropdown } from './Dropdown';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface MonthPickerProps {
   /** 선택된 달 (YYYY-MM) */
@@ -10,20 +11,6 @@ interface MonthPickerProps {
   max: string;
   onChange: (month: string) => void;
 }
-
-const Chevron: React.FC<{ points: string }> = ({ points }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.25"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <polyline points={points} />
-  </svg>
-);
 
 /**
  * [‹] [2026년 ⌄ │ 10월 ⌄] [›]  [당월] — 화살표로 한 달씩 옮기고, 가운데 드롭다운으로 연·월을 바로 고르며, 당월 로 최신월에 돌아간다.
@@ -67,7 +54,7 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({ value, min, max, onCha
         disabled={prev < min}
         onClick={() => onChange(prev)}
       >
-        <Chevron points="15 18 9 12 15 6" />
+        <ChevronLeft strokeWidth={2.25} aria-hidden="true" />
       </button>
       <div className="mp-box">
         <Dropdown
@@ -95,7 +82,7 @@ export const MonthPicker: React.FC<MonthPickerProps> = ({ value, min, max, onCha
         disabled={next > max}
         onClick={() => onChange(next)}
       >
-        <Chevron points="9 18 15 12 9 6" />
+        <ChevronRight strokeWidth={2.25} aria-hidden="true" />
       </button>
       {/* 당월(데이터가 있는 최신월)로 바로 가기 — 당월에서도 자리를 지켜 폭이 바뀌지 않게 비활성으로만 표시 */}
       <button

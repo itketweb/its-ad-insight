@@ -1,7 +1,9 @@
 import React from 'react';
 import { MediaPill } from '../common/MediaPill';
 import { TableFootnote } from '../common/TableFootnote';
+import { SkelBar } from '../common/SkeletonView';
 import { StatusBadge, type StatusLevel } from '../common/StatusBadge';
+import { Card } from '../common/Card';
 
 export interface DataSourceRowItem {
   media: string;
@@ -16,9 +18,11 @@ export interface DataSourceRowItem {
 
 interface DataSourceTableProps {
   sourceRows: DataSourceRowItem[];
+  /** 첫 데이터를 받는 중 — 적재량·상태 칸은 자리표시 */
+  loading?: boolean;
 }
 
-export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows }) => {
+export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows, loading = false }) => {
   return (
     <section>
       <h2 className="sec">데이터 소스별 실시간 수집 현황</h2>
@@ -32,7 +36,7 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows }) 
           키워드 <small>SA</small> / 배너 <small>DA</small>
         </span>
       </div>
-      <div className="card card-sources tw" id="data-sources" data-card="sources">
+      <Card name="sources" tableWrap id="data-sources">
         <table className="stk">
           <thead>
             <tr>
@@ -50,12 +54,14 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows }) 
                 </td>
                 <td>
                   <div>{row.method}</div>
-                  <div className="sub-t">{row.liveSummary}</div>
+                  <div className="sub-t">{loading ? <SkelBar w="14rem" h="0.75rem" /> : row.liveSummary}</div>
                 </td>
                 <td className="c">
-                  <StatusBadge level={row.statusCls as StatusLevel}>
-                    {row.statusLabel}
-                  </StatusBadge>
+                  {loading ? (
+                    <SkelBar w="4.5rem" h="1.25rem" />
+                  ) : (
+                    <StatusBadge level={row.statusCls as StatusLevel}>{row.statusLabel}</StatusBadge>
+                  )}
                 </td>
               </tr>
             ))}
@@ -67,7 +73,7 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows }) 
             '과거 수치는 사내 공유 폴더 월간보고서·키워드TFT 엑셀에서 1회 정규화 이관해 전년·전분기 비교에 사용',
           ]}
         />
-      </div>
+      </Card>
     </section>
   );
 };

@@ -8,6 +8,7 @@ import {
   mLabel,
   prevM,
   QUOTE_COLORS,
+  quoteChartCats,
   quoteCountFor,
   SERIES_DEFS,
   sumBy,
@@ -20,7 +21,8 @@ import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
-import { MoreButton } from '../components/common/MoreButton';
+import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
+import { Card } from '../components/common/Card';
 
 interface OverviewViewProps {
   data: DashboardData;
@@ -44,7 +46,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 }) => {
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
-  const [visibleCount, setVisibleCount] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(LIST_LIMIT);
   const prevMonthRef = useRef('');
 
   if (!hasSpend && !hasQuotes) {
@@ -112,29 +114,18 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     .filter((s) => s.raw.some((v) => v))
     .map((s) => ({ ...s, v: s.raw.map((v) => v / 1e4) }));
 
-  const cnt = (mo: string, k: string) =>
-    data.quotes
-      .filter((r) => r.month === mo && r.category === k)
-      .reduce((a, r) => a + r.count, 0);
-
-  // 견적 추이: 실제 데이터 카테고리 동적 추출 (견적 시트 분류 변경 시 자동 반영)
-  const allQuoteCats = [
-    ...new Set(
-      data.quotes
-        .filter((r) => r.month >= ym(+yr, 1) && r.month <= curM)
-        .map((r) => r.category)
-        .filter(Boolean)
-    ),
-  ].sort((a, b) => {
-    const va = data.quotes.filter((r) => r.category === a).reduce((s, r) => s + r.count, 0);
-    const vb = data.quotes.filter((r) => r.category === b).reduce((s, r) => s + r.count, 0);
-    return vb - va;
-  });
-  const quoteSeries = allQuoteCats.map((k, ci) => ({
-    k,
-    c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
-    v: months.map((mo) => cnt(mo, k)),
-  })).filter((s) => s.v.some((x) => x));
+  // 견적 추이: 올해 건수 상위 6개 1차 카테고리 + 그 외 (2차는 1차에 합산)
+  const yrQuoteRows = data.quotes.filter((r) => r.month >= ym(+yr, 1) && r.month <= curM);
+  const quoteCats = quoteChartCats(yrQuoteRows);
+  const quoteSeries = quoteCats.keys
+    .map((k, ci) => ({
+      k,
+      c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
+      v: months.map((mo) =>
+        yrQuoteRows.filter((r) => r.month === mo && quoteCats.keyOf(r.category) === k).reduce((a, r) => a + r.count, 0)
+      ),
+    }))
+    .filter((s) => s.v.some((x) => x));
 
   // 카테고리별 소진 vs 견적 (새 카테고리 기준, 견적 비례 배분 적용)
   const catsMap = (mo: string) => catSum(categoryMap, atSpend(mo), (r) => r.cost);
@@ -151,7 +142,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   // 월 변경 시 visibleCount 리셋
   if (prevMonthRef.current !== curM) {
     prevMonthRef.current = curM;
-    setVisibleCount(10);
+    setVisibleCount(LIST_LIMIT);
   }
   const list = fullList.slice(0, visibleCount);
 
@@ -227,7 +218,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       </div>
 
       <div className="grid">
-        <div className="card card-overview-cat" id="overview-cat" data-card="overview-cat">
+        <Card name="overview-cat" id="overview-cat">
           <h3 id="ttOverviewCat">
             카테고리별 소진 ({mLabel(curM)} vs {mLabel(pv)}){hasQuotes ? ' · 견적 수' : ''}
           </h3>
@@ -247,23 +238,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </span>
             <span className="leg-note">단위: 만원{hasQuotes ? ' · 우측: 견적 건수' : ''}</span>
           </div>
-          {visibleCount < fullList.length && (
-            <div className="kw-more-wrap">
-              <MoreButton
-                label={`카테고리 더보기 (+${Math.min(fullList.length - visibleCount, 10)}개 · 전체 ${fullList.length}개)`}
-                onClick={() => setVisibleCount((v) => Math.min(v + 10, fullList.length))}
-              />
-            </div>
-          )}
-        </div>
-        <div className="card card-overview-src" id="overview-src" data-card="overview-src">
-          <h3>유입 매체 비중</h3>
+          <ShowMoreButton
+            total={fullList.length}
+            expanded={visibleCount >= fullList.length}
+            onToggle={() => setVisibleCount((v) => (v >= fullList.length ? LIST_LIMIT : fullList.length))}
+          />
+        </Card>
+        <Card name="overview-src" id="overview-src" title="유입 매체 비중">
           <SourceBarChart
             id="chOverviewSrc"
             items={srcItems}
             emptyMessage="취합된 유입 매체 데이터가 없습니다."
           />
-        </div>
+        </Card>
       </div>
       <SecSrc sources={OVERVIEW_SOURCES} />
     </div>

@@ -1,6 +1,8 @@
 import React from 'react';
 import type { SyncStatus, ViewId } from '../../types/dashboard';
 import { HeaderProfileMenu } from './HeaderProfileMenu';
+import { Menu, Moon, Sun } from 'lucide-react';
+import { Button } from '../common/Button';
 
 interface HeaderProps {
   title: string;
@@ -31,19 +33,17 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="top">
-      <button
-        className="btn ic burger"
+      <Button
+        iconOnly
+        icon={Menu}
+        className="burger"
         id="burger"
         data-btn="burger"
         aria-label="메뉴 열기"
         aria-expanded={drawerOpen}
         aria-controls="side"
         onClick={onOpenDrawer}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+      />
       <h1>
         <span className="ttx">광고 &amp; 견적 대시보드 </span>
         <span className="crumb" id="crumb">
@@ -65,9 +65,9 @@ export const Header: React.FC<HeaderProps> = ({
         ) : (
           <>
             {status === 'error' ? '연동 지연 (자동 재시도 중)' : '실데이터 자동 연결 중...'}{' '}
-            <button className="link-btn btn-reload" id="btn-reload" data-btn="reload" onClick={onReload}>
+            <Button variant="link" className="btn-reload" id="btn-reload" data-btn="reload" onClick={onReload}>
               지금 새로고침
-            </button>
+            </Button>
           </>
         )}
       </span>
@@ -87,15 +87,10 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onToggleTheme}
         >
           <span className="k sun" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-            </svg>
+            <Sun />
           </span>
           <span className="k moon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-            </svg>
+            <Moon />
           </span>
           <i />
         </button>

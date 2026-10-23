@@ -3,7 +3,11 @@ import type { CatEfficiencyItem } from './types';
 import { fmt, mLabel, sumBy } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { TableFootnote } from '../common/TableFootnote';
-import { SortIcon } from '../common/SortIcon';
+import { ChevronRight } from 'lucide-react';
+import { useSort } from '../../hooks/useSort';
+import { SortableTh } from '../common/SortableTh';
+import { Card } from '../common/Card';
+import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
 
 interface CatEfficiencyTableProps {
   catData: CatEfficiencyItem[];
@@ -16,7 +20,6 @@ interface CatEfficiencyTableProps {
 }
 
 type SortKey = 'k' | 'cost' | 'share' | 'clk' | 'conv' | 'quotes' | 'convRate' | 'cpa';
-type SortOrder = 'asc' | 'desc';
 
 interface ParentGroup {
   parentKey: string;
@@ -38,14 +41,10 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
   totQuotes,
   avgCpa,
 }) => {
-  const [sortKey, setSortKey] = useState<SortKey>('cost');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('cost');
+  const [showAll, setShowAll] = useState(false);
   const [openParents, setOpenParents] = useState<Set<string>>(new Set());
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'));
-    else { setSortKey(key); setSortOrder('desc'); }
-  };
 
   const toggleParent = (key: string) =>
     setOpenParents((prev) => {
@@ -100,16 +99,9 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
   }, [parentGroups, sortKey, sortOrder]);
 
   const th = (label: string, key: SortKey, align = 'n') => (
-    <th
-      className={`${align} sortable${sortKey === key ? ' sorted' : ''}`}
-      style={{ cursor: 'pointer', userSelect: 'none' }}
-      onClick={() => handleSort(key)}
-    >
-      <span className="th-sort-inner">
-        <span>{label}</span>
-        <SortIcon active={sortKey === key} order={sortOrder} />
-      </span>
-    </th>
+    <SortableTh sortKey={key} activeKey={sortKey} order={sortOrder} onSort={toggleSort} className={align || undefined}>
+      {label}
+    </SortableTh>
   );
 
   const convRateStr = (quotes: number, clk: number) =>
@@ -119,7 +111,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
     cpa != null ? `${fmt(cpa)}원` : '–';
 
   return (
-    <div className="card card-cat-table tw" id="cat-table" data-card="cat-table">
+    <Card name="cat-table" tableWrap id="cat-table">
       <h3 id="ttCatTable">
         카테고리별 집행 성과 및 전환 효율 상세
         <span className="muted">({mLabel(curM)} 기준)</span>
@@ -148,7 +140,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {sortedGroups.map(({ parentKey, items, cost, clk, conv, quotes, share, cpa }) => {
+          {sortedGroups.slice(0, showAll ? undefined : LIST_LIMIT).map(({ parentKey, items, cost, clk, conv, quotes, share, cpa }) => {
             const hasChildren = items.length > 1 || items[0].k !== parentKey;
             const isOpen = openParents.has(parentKey);
 
@@ -161,18 +153,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
                 >
                   <td>
                     {hasChildren && (
-                      <svg
-                        className={`kw-cat-chev${isOpen ? ' open' : ''}`}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.25"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
+                      <ChevronRight className={`kw-cat-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} aria-hidden="true" />
                     )}
                     <b>{parentKey}</b>
                     {hasChildren && (
@@ -218,6 +199,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
           </tr>
         </tbody>
       </table>
+      <ShowMoreButton total={sortedGroups.length} expanded={showAll} onToggle={() => setShowAll((v) => !v)} />
       <TableFootnote
         id="srcCatEfficiency"
         unit="원·건"
@@ -233,6 +215,6 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
           '접수 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)',
         ]}
       />
-    </div>
+    </Card>
   );
 };

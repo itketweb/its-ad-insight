@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import type { SpendRow } from '../../types/dashboard';
 import { fmt, mLabel, sumBy } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { DeltaSpan } from '../charts/KpiCard';
 import { TableFootnote } from '../common/TableFootnote';
-import { SortIcon } from '../common/SortIcon';
+import { useSort } from '../../hooks/useSort';
+import { SortableTh } from '../common/SortableTh';
+import { Card } from '../common/Card';
 
 export interface SpendSeriesRow {
   k: string;
@@ -26,7 +28,6 @@ interface SpendDetailTableProps {
 }
 
 type SortKey = 'name' | 'total';
-type SortOrder = 'asc' | 'desc';
 
 export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
   series,
@@ -39,13 +40,7 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
   storeCost,
   lastY,
 }) => {
-  const [sortKey, setSortKey] = useState<SortKey>('total');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'));
-    else { setSortKey(key); setSortOrder('desc'); }
-  };
+  const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('total');
 
   const getTotal = (s: SpendSeriesRow) => sumBy(s.raw || [], (v) => v);
 
@@ -59,8 +54,7 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
   }, [series, sortKey, sortOrder]);
 
   return (
-    <div className="card card-spend-monthly tw" id="spend-monthly" data-card="spend-monthly">
-      <h3>월별 집행 상세 내역</h3>
+    <Card name="spend-monthly" tableWrap id="spend-monthly" title="월별 집행 상세 내역">
       <div>
         <table className="stk" id="tbSpendDetail">
           <colgroup>
@@ -72,31 +66,13 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
           </colgroup>
           <thead>
             <tr>
-              <th
-                className={`sortable${sortKey === 'name' ? ' sorted' : ''}`}
-                style={{ cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('name')}
-              >
-                <span className="th-sort-inner">
-                  <span>구분</span>
-                  <SortIcon active={sortKey === 'name'} order={sortOrder} />
-                </span>
-              </th>
+              <SortableTh sortKey="name" activeKey={sortKey} order={sortOrder} onSort={toggleSort}>구분</SortableTh>
               {allMonths12.map((mo) => (
                 <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
                   {mLabel(mo)}
                 </th>
               ))}
-              <th
-                className={`n sortable${sortKey === 'total' ? ' sorted' : ''}`}
-                style={{ cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('total')}
-              >
-                <span className="th-sort-inner">
-                  <span>합계</span>
-                  <SortIcon active={sortKey === 'total'} order={sortOrder} />
-                </span>
-              </th>
+              <SortableTh sortKey="total" activeKey={sortKey} order={sortOrder} onSort={toggleSort} className="n">합계</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -184,6 +160,6 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
           ]}
         />
       </div>
-    </div>
+    </Card>
   );
 };

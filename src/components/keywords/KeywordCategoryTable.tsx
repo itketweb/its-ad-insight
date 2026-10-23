@@ -2,6 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { fmt, mLabel, sumBy, THIS_M } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { TableFootnote } from '../common/TableFootnote';
+import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
+import { ChevronRight } from 'lucide-react';
+import { Card } from '../common/Card';
 
 interface KeywordCategoryTableProps {
   month?: string;
@@ -27,6 +30,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
   type,
 }) => {
   const [openParents, setOpenParents] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
 
   // 1차 카테고리별로 그룹화
   const { topKeys, childrenOf } = useMemo(() => {
@@ -68,7 +72,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
   const totConv = sumBy(categoryKeys, (k) => convByCat[k]  || 0);
 
   return (
-    <div className="card card-kw-cat" id="kw-cat" data-card="kw-cat">
+    <Card name="kw-cat" id="kw-cat">
       <h3 id="ttCatConv">
         카테고리별 전환 · 소진
         <span className="muted">({mLabel(month || THIS_M)} 기준)</span>
@@ -94,7 +98,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {topKeys.map((parentKey) => {
+                {topKeys.slice(0, showAll ? undefined : LIST_LIMIT).map((parentKey) => {
                   const children = childrenOf[parentKey] || [];
                   const hasChildren = children.length > 0;
                   const isOpen = openParents.has(parentKey);
@@ -111,18 +115,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
                       >
                         <td>
                           {hasChildren && (
-                            <svg
-                              className={`kw-cat-chev${isOpen ? ' open' : ''}`}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.25"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
+                            <ChevronRight className={`kw-cat-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} aria-hidden="true" />
                           )}
                           <b>{parentKey}</b>
                           {hasChildren && (
@@ -188,23 +181,21 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
             </tbody>
           )}
         </table>
+        <ShowMoreButton total={topKeys.length} expanded={showAll} onToggle={() => setShowAll((v) => !v)} />
         <TableFootnote
           unit="원"
-          basis="산출 근거: 전환당 비용 = 광고비 ÷ 광고전환수 · 검색광고(SA) 전환 추적 태그 기준"
+          basis="산출 근거: 전환당 비용 = 광고비 ÷ 광고전환수 (SA 전환 추적 태그 기준)"
           sources={[
-            <span key="g">
-              Google SA —{' '}
+            <span key="src">
+              출처:{' '}
               <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">Google Ads</a>{' '}
-              API 자동 수집
-            </span>,
-            <span key="n">
-              Naver SA —{' '}
+              ·{' '}
               <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">네이버 검색광고</a>{' '}
               API 자동 수집
             </span>,
           ]}
         />
       </div>
-    </div>
+    </Card>
   );
 };

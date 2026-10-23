@@ -6,7 +6,7 @@ import {
   fmt,
   mLabel,
   prevM,
-  QUOTE_CATS,
+  LEGACY_ONLY_CATS,
   quoteCountFor,
   sumBy,
   THIS_M,
@@ -22,9 +22,12 @@ import {
   matchesCategory,
   useCategoryFilterState,
 } from '../components/common/CategoryFilter';
+import { PeriodNavSlot } from '../components/common/PeriodNav';
 import { CpaRankList } from '../components/cat-efficiency/CpaRankList';
 import { CatEfficiencyTable } from '../components/cat-efficiency/CatEfficiencyTable';
-import { MoreButton } from '../components/common/MoreButton';
+import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
+import { Card } from '../components/common/Card';
+import { EmptyState } from '../components/common/EmptyState';
 
 interface CatEfficiencyViewProps {
   data: DashboardData;
@@ -47,7 +50,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   selectedMonth,
 }) => {
   const catState = useCategoryFilterState();
-  const [visibleCount, setVisibleCount] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(LIST_LIMIT);
   const prevFilterKey = useRef('');
 
   if (!data.spend.length) {
@@ -65,9 +68,9 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             <div className="d flat">데이터 연결 필요</div>
           </div>
         </div>
-        <div className="card card-empty" id="cat-empty" data-card="empty">
-          <div className="empty">취합된 데이터가 없습니다.</div>
-        </div>
+        <Card name="empty" id="cat-empty">
+          <EmptyState message="취합된 데이터가 없습니다." />
+        </Card>
       </div>
     );
   }
@@ -95,8 +98,8 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     );
 
   const curQuotes = data.quotes.filter((r) => r.month === curM);
-  // 견적 시트의 옛 분류는 역매핑(quoteCountFor)으로 처리하므로 allCatKeys에서 제외
-  const legacyCatSet = new Set([...QUOTE_CATS, 'PC·노트북']);
+  // 견적 시트의 옛 분류(서버·워크스테이션…)는 역매핑(quoteCountFor)으로 처리하므로 allCatKeys에서 제외
+  const legacyCatSet = LEGACY_ONLY_CATS;
 
   const allCatKeys = [
     ...new Set([
@@ -157,7 +160,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   const filterKey = `${curM}|${catFilter.cat1}|${catFilter.cat2}`;
   if (prevFilterKey.current !== filterKey) {
     prevFilterKey.current = filterKey;
-    setVisibleCount(10);
+    setVisibleCount(LIST_LIMIT);
   }
   const list = fullList.slice(0, visibleCount);
 
@@ -172,10 +175,9 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         status={status}
       />
 
-      <div className="mock-bar">
-        <span className="sp" />
+      <PeriodNavSlot>
         <CategoryFilter filter={catFilter} />
-      </div>
+      </PeriodNavSlot>
 
       <div className="kpis" id="kpiCatEff">
         <KpiCard
@@ -201,7 +203,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       </div>
 
       <div className="grid">
-        <div className="card card-cat-spend" id="cat-spend" data-card="cat-spend">
+        <Card name="cat-spend" id="cat-spend">
           <h3 id="ttCatEff">
             카테고리별 광고비 소진 비교
             <span className="muted">
@@ -220,15 +222,12 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             </span>
             <span className="leg-note">단위: 만원</span>
           </div>
-          {visibleCount < fullList.length && (
-            <div className="kw-more-wrap">
-              <MoreButton
-                label={`카테고리 더보기 (+${Math.min(fullList.length - visibleCount, 10)}개 · 전체 ${fullList.length}개)`}
-                onClick={() => setVisibleCount((v) => Math.min(v + 10, fullList.length))}
-              />
-            </div>
-          )}
-        </div>
+          <ShowMoreButton
+            total={fullList.length}
+            expanded={visibleCount >= fullList.length}
+            onToggle={() => setVisibleCount((v) => (v >= fullList.length ? LIST_LIMIT : fullList.length))}
+          />
+        </Card>
         <CpaRankList validCpaCats={validCpaCats} curM={curM} />
       </div>
 

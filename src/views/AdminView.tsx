@@ -1,23 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { DashboardData, QuoteRawRow } from '../types/dashboard';
 import { useAuth } from '../context/AuthContext';
 import { ViewHeader } from '../components/common/ViewHeader';
 import { QuotesRawAdminTable } from '../components/admin/QuotesRawAdminTable';
+import { Notice } from '../components/common/Notice';
+import { SkelBar } from '../components/common/SkeletonView';
+import { TextInput } from '../components/common/TextInput';
 import { getCfg } from '../hooks/useDashboardData';
+import { Lock, TriangleAlert, Zap } from 'lucide-react';
 
 interface AdminViewProps {
   data: DashboardData;
+  /** 실데이터를 받는 중 (화면은 저장해 둔 이전 데이터로 먼저 그린다) */
+  isSyncing?: boolean;
   onUpdateQuotesRaw?: (newQuotes: QuoteRawRow[]) => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ data, onUpdateQuotesRaw }) => {
-  const { isLoggedIn, loginWithPassword, loginWithGoogle, loginAsDevAdmin } = useAuth();
+export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw }) => {
+  const { isLoggedIn, loading: sessionLoading, loginWithPassword, loginAsDevAdmin } = useAuth();
   const [localQuotes, setLocalQuotes] = useState<QuoteRawRow[]>(() =>
     (data.quotesRaw || []).filter((r) => r.date >= '2026-10')
   );
   const [isDirty, setIsDirty] = useState<boolean>(false);
+  // 실데이터가 도착하면 표도 새 값으로 바꾼다 (수정 중인 내용이 있으면 덮지 않는다)
+  useEffect(() => {
+    if (!isDirty) setLocalQuotes((data.quotesRaw || []).filter((r) => r.date >= '2026-10'));
+  }, [data.quotesRaw]);
   // 수동 변경된 sno → 새 카테고리 추적 (저장 시 Apps Script로 전송)
   const [pendingOverrides, setPendingOverrides] = useState<Map<string, string>>(new Map());
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
@@ -26,7 +37,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, onUpdateQuotesRaw })
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
-    const res = await loginWithPassword(password);
+    const res = await loginWithPassword(loginId, password);
     setAuthLoading(false);
     if (res.error) {
       setAuthError(res.error);
@@ -35,11 +46,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, onUpdateQuotesRaw })
     }
   };
 
+  // 저장해 둔 이전 데이터로 먼저 그린 뒤 실데이터가 오면 바꿔 끼운다 (수정 중이면 그대로 둔다)
   React.useEffect(() => {
-    if (!isDirty && data.quotesRaw?.length && localQuotes.length === 0) {
+    if (!isDirty && data.quotesRaw?.length) {
       setLocalQuotes(data.quotesRaw.filter((r) => r.date >= '2026-10'));
     }
-  }, [data.quotesRaw, isDirty, localQuotes.length]);
+  }, [data.quotesRaw, isDirty]);
 
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -109,115 +121,63 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, onUpdateQuotesRaw })
 
   // 로그인된 경우: 어드민 대시보드 화면
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="admin-view">
       <ViewHeader
         title="어드민 관리"
         description="견적 접수 원본 리스트(Google 시트) 및 표준 카테고리 수동 지정 · 데이터 저장 관리"
         status="live"
       />
 
-      {saveMsg && (
-        <div
-          style={{
-            padding: '0.75rem 1.25rem',
-            marginBottom: '1rem',
-            fontSize: '0.8125rem',
-            fontWeight: 600,
-            borderRadius: '0',
-            background: saveMsg.ok ? 'var(--grp-naver-bg, #f2faf5)' : 'var(--warnbg, #fbeccb)',
-            color: saveMsg.ok ? 'var(--grp-naver-ink, #166534)' : 'var(--warn, #7a4a00)',
-            border: `1px solid ${saveMsg.ok ? 'color-mix(in srgb, var(--ok) 40%, transparent)' : 'color-mix(in srgb, var(--warn) 40%, transparent)'}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}
-        >
-          <span>{saveMsg.ok ? '✅' : '⚠️'}</span>
-          <span>{saveMsg.text}</span>
-        </div>
-      )}
+      {saveMsg && <Notice tone={saveMsg.ok ? 'ok' : 'warn'}>{saveMsg.text}</Notice>}
 
       {/* 미로그인 시 현재 화면 위로 띄워지는 absolute 로그인 게이트 폼 */}
-      {!isLoggedIn && (
-        <div
-          id="admin-gate-overlay"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 50,
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            background: 'color-mix(in srgb, var(--bg) 65%, transparent)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingTop: '3.5rem',
-          }}
-        >
-          <div
-            className="card card-admin-gate"
-            id="admin-gate"
-            data-card="admin-gate"
-            style={{
-              width: '100%',
-              maxWidth: '26rem',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1)',
-              border: '1px solid var(--line2)',
-              padding: '2rem 1.75rem',
-              textAlign: 'center',
-              background: 'var(--card)',
-            }}
-          >
-            <div
-              style={{
-                width: '3.25rem',
-                height: '3.25rem',
-                borderRadius: '50%',
-                background: 'var(--accbg)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '1rem',
-                border: '1px solid var(--acc)',
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--acc)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
+      {/* 저장된 로그인 세션을 확인하는 동안은 로그인 창 대신 같은 크기의 자리표시 */}
+      {!isLoggedIn && sessionLoading && (
+        <div className="admin-gate-overlay" aria-busy="true">
+          <div className="card card-admin-gate skel-card" aria-hidden="true">
+            <SkelBar w="2.75rem" h="2.75rem" />
+            <SkelBar w="40%" h="1.25rem" />
+            <SkelBar w="70%" h="0.75rem" />
+            <SkelBar h="2.5rem" />
+            <SkelBar h="2.5rem" />
+            <SkelBar h="2.5rem" />
+          </div>
+        </div>
+      )}
+      {!isLoggedIn && !sessionLoading && (
+        <div className="admin-gate-overlay" id="admin-gate-overlay">
+          <div className="card card-admin-gate" id="admin-gate" data-card="admin-gate">
+            <div className="gate-icon">
+              <Lock size={22} />
             </div>
 
-            <h2 style={{ fontSize: '1.1875rem', fontWeight: 700, margin: '0 0 0.375rem', color: 'var(--ink)' }}>
-              관리자 로그인
-            </h2>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--sub)', margin: '0 0 1.25rem', lineHeight: 1.5 }}>
-              지정된 관리자 계정으로 접속하여 원본 데이터를 편집·저장할 수 있습니다.
-            </p>
+            <h2>관리자 로그인</h2>
+            <p>지정된 관리자 계정으로 접속하여 원본 데이터를 편집·저장할 수 있습니다.</p>
 
-            {/* 관리자 비밀번호 직접 로그인 폼 */}
-            <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <input
+            {/* 관리자 아이디·비밀번호 로그인 폼 (Supabase Auth, 회원가입 없음) */}
+            <form className="gate-form" onSubmit={handlePasswordSubmit}>
+              <TextInput
+                className={`gate-input${authError ? ' err' : ''}`}
+                name="username"
+                autoComplete="username"
+                placeholder="아이디"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                autoFocus
+              />
+              <TextInput
+                className={`gate-input${authError ? ' err' : ''}`}
                 type="password"
-                placeholder="관리자 비밀번호를 입력하세요"
+                name="password"
+                autoComplete="current-password"
+                placeholder="비밀번호"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: '0.625rem 0.875rem',
-                  fontSize: '0.875rem',
-                  border: authError ? '1px solid var(--warn)' : '1px solid var(--line2)',
-                  borderRadius: '0',
-                  background: 'var(--bg)',
-                  color: 'var(--ink)',
-                }}
               />
               {authError && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--warn, #dc2626)', textAlign: 'left', fontWeight: 600 }}>
-                  ⚠️ {authError}
+                <div className="gate-error" role="alert">
+                  <TriangleAlert size={12} aria-hidden="true" />
+                  <span>{authError}</span>
                 </div>
               )}
               <button
@@ -226,98 +186,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, onUpdateQuotesRaw })
                 id="btn-login-submit"
                 data-btn="login-submit"
                 disabled={authLoading}
-                style={{
-                  width: '100%',
-                  padding: '0.625rem 1rem',
-                  fontSize: '0.875rem',
-                  fontWeight: 700,
-                  color: '#fff',
-                  border: 'none',
-                }}
               >
                 {authLoading ? '확인 중...' : '로그인'}
               </button>
             </form>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '0 0 1rem' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--line)' }} />
-              <span style={{ fontSize: '0.6875rem', color: 'var(--sub)' }}>또는</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--line)' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {/* Google OAuth 로그인 버튼 (지정 계정) */}
+            {/* 개발 환경 전용 즉시 로그인 버튼 */}
+            {import.meta.env.DEV && (
               <button
                 type="button"
-                className="btn btn-google"
-                id="gate-google"
-                data-btn="google"
-                onClick={loginWithGoogle}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.625rem',
-                  padding: '0.5625rem 0.875rem',
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  background: '#fff',
-                  color: '#3c4043',
-                  border: '1px solid #dadce0',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                }}
+                className="btn btn-dev-login"
+                id="gate-dev"
+                data-btn="dev"
+                onClick={loginAsDevAdmin}
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" style={{ width: 16, height: 16, minWidth: 16, flexShrink: 0, display: 'inline-block' }} aria-hidden="true">
-                  <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.27v3.15C3.25 21.37 7.33 24 12 24z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.27C.46 8.2 0 10.04 0 12s.46 3.8 1.27 5.42l4.01-3.15z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.25 2.63 1.27 6.58l4.01 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                  />
-                </svg>
-                <span>Google 관리자 계정으로 로그인</span>
+                <Zap size={12} aria-hidden="true" />
+                <span>테스트용 관리자로 바로 시작</span>
               </button>
-
-              {/* 개발 환경 전용 즉시 로그인 버튼 */}
-              {import.meta.env.DEV && (
-                <button
-                  type="button"
-                  className="btn btn-dev"
-                  id="gate-dev"
-                  data-btn="dev"
-                  onClick={loginAsDevAdmin}
-                  style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--sub)',
-                    background: 'transparent',
-                    border: '1px dashed var(--line2)',
-                    padding: '0.4375rem',
-                  }}
-                >
-                  ⚡ 테스트용 관리자로 바로 시작
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}
 
       {/* 견적 원본 스프레드시트 관리 테이블 (미로그인 시 흐리게 배경 처리 및 읽기 전용) */}
-      <div style={{ filter: !isLoggedIn ? 'blur(1px)' : 'none', pointerEvents: !isLoggedIn ? 'none' : 'auto', userSelect: !isLoggedIn ? 'none' : 'auto' }}>
+      <div className={`admin-body${isLoggedIn ? '' : ' locked'}`}>
         <QuotesRawAdminTable
           quotes={localQuotes}
+          loading={isSyncing}
           onUpdateQuoteCategory={handleUpdateQuoteCategory}
-                    isDirty={isDirty}
+          isDirty={isDirty}
           onSave={handleSaveOverrides}
           onReset={handleResetChanges}
           saving={saving}

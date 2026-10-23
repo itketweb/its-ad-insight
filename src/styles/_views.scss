@@ -94,7 +94,7 @@ p.small {
   color: var(--warn);
   background: var(--warnbg);
   border-radius: 0;
-  padding: 0 0.625rem;
+  padding: 0 0.75rem;
 
   &.live {
     color: var(--ok);
@@ -114,11 +114,11 @@ p.small {
 
   &::before {
     content: '출처';
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--ink2);
     background: var(--line);
-    padding: 0.125rem 0.375rem;
+    padding: 0.25rem 0.5rem;
     border-radius: 0;
     margin-right: 0.25rem;
     line-height: 1.2;
@@ -177,7 +177,7 @@ p.small {
   button {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.5rem;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
@@ -236,9 +236,9 @@ p.small {
       display: flex;
       width: 100%;
       margin: 0;
-      padding: 0.5rem 0.625rem;
+      padding: 0.5rem 0.75rem;
       border: none;
-      border-radius: 0.375rem;
+      border-radius: 0.5rem;
       text-align: left;
 
       &:hover:not(.on) {
@@ -325,7 +325,7 @@ p.small {
     width: 6rem;
   }
   .col-mo-val {
-    width: 5.375rem;
+    width: 5.5rem;
   }
   .col-mo-total {
     width: 6.5rem;
@@ -334,13 +334,13 @@ p.small {
   th.n,
   td.n {
     padding-left: 0.25rem;
-    padding-right: 0.375rem;
+    padding-right: 0.5rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
 
   td.n:not(.sub-t) {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
   }
 }
 
@@ -358,14 +358,14 @@ tr.kw-cat-child {
 
   &::before {
     content: '└';
-    margin-right: 0.375rem;
+    margin-right: 0.5rem;
     color: var(--line2);
   }
 }
 
 .kw-cat-chev {
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 0.75rem;
+  height: 0.75rem;
   margin-right: 0.25rem;
   vertical-align: middle;
   color: var(--sub);
@@ -376,7 +376,7 @@ tr.kw-cat-child {
 }
 
 .kw-cat-child-count {
-  margin-left: 0.375rem;
+  margin-left: 0.5rem;
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--sub);
@@ -491,8 +491,8 @@ tr.grp-accordion {
 }
 
 .grp-acc-chev {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
   transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   transform: rotate(0deg);
@@ -521,14 +521,14 @@ tr.grp-accordion {
 
 tr.kw-more-row td {
   text-align: center;
-  padding: 0.375rem 0.75rem !important;
+  padding: 0.5rem 0.75rem !important;
 }
 
 // 표 아래 더보기 버튼 줄 — 가운데 정렬
 .kw-more-wrap {
   display: flex;
   justify-content: center;
-  padding: 0.5rem 0 0.125rem;
+  padding: 0.5rem 0 0.25rem;
 }
 
 // 공용 더보기 버튼 (MoreButton) — 탭 바 '더보기'와 같은 크기·색·화살표
@@ -536,7 +536,7 @@ tr.kw-more-row td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
+  gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: none;
   border: none;
@@ -571,7 +571,7 @@ tr.kw-more-row td {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.25rem 0.625rem;
+  gap: 0.25rem 0.75rem;
   line-height: 1.5;
 
   > span {
@@ -618,86 +618,510 @@ tr.kw-more-row td {
   }
 }
 
-.creatives {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
-  gap: 0.75rem;
+// 주요 · 확장 소재: 표 한 줄에 광고그룹 하나 + 기준월 성과 5개 열, 소재별 문구·이미지는 줄 아래 행으로 펼쳐 본다
+.cr-scroll {
+  // 숨김 머리글(.sr-only, absolute)이 스크롤 상자 밖으로 빠져 페이지가 가로로 늘어나지 않게 기준을 잡는다
+  position: relative;
+  overflow-x: auto;
 }
 
-.cr {
+.cr-table {
+  // 펼친 행 바탕: 머리 줄(회색)과 구분되게 강조 바탕색을 깐다 (펼쳤을 때만)
+  --cr-open-bg: var(--accbg);
+
+  min-width: 60rem;
+  table-layout: fixed;
+
+  .col-cr-img {
+    width: 4.5rem;
+  }
+
+  .col-cr-imp,
+  .col-cr-cost {
+    width: 7rem;
+  }
+
+  .col-cr-clk,
+  .col-cr-ctr {
+    width: 5rem;
+  }
+
+  .col-cr-cpc {
+    width: 6.5rem;
+  }
+
+  .col-cr-action {
+    width: 6.25rem;
+  }
+
+  td {
+    font-size: 0.875rem;
+  }
+
+  td.c,
+  th.c {
+    text-align: center;
+  }
+
+  .cr-m-cost {
+    font-weight: 600;
+  }
+
+  td.is-empty {
+    color: var(--sub);
+  }
+
+  // 받는 중인 값: 숫자 자리에 맞춘 스켈레톤 막대 (오른쪽 정렬)
+  td .cr-skel {
+    display: inline-block;
+    width: 3.5rem;
+    height: 0.75rem;
+    vertical-align: middle;
+  }
+
+  td.cr-m-ctr .cr-skel {
+    width: 2.25rem;
+  }
+}
+
+// 펼친 행은 바탕을 깔아 상세와 한 덩어리로 보이게, 둘 사이 선은 없앤다
+.cr-row.open > td {
+  background: var(--cr-open-bg);
+  border-bottom: 0;
+}
+
+.cr-detail-row {
+  &[hidden] {
+    display: none;
+  }
+
+  > td {
+    padding-top: 0;
+    background: var(--cr-open-bg);
+  }
+}
+
+.cr-action {
+  text-align: right;
+}
+
+// 이미지 수 (그룹 안 소재 이미지, 같은 이미지는 한 번) — 숫자 열과 같은 무게로 아이콘 + 숫자만
+.cr-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--ink2);
+  font-size: 0.875rem;
+  line-height: 1.4;
+
+  svg {
+    color: var(--sub);
+  }
+}
+
+.cr-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--sub);
+  line-height: 1.5;
+
+  .cr-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  b {
+    min-width: 0;
+    font-size: 0.875rem;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// 광고그룹 이름 앞 매체 로고
+.cr-media {
+  flex: none;
+  display: inline-flex;
+  cursor: help;
+}
+
+// 작은 이름표 (소재 개수·소재 종류)
+.cr-n {
+  flex: none;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--sub);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  white-space: nowrap;
+
+  // 설명 툴팁이 있는 이름표
+  &[data-tip] {
+    cursor: help;
+  }
+}
+
+// 상세 버튼: 행 바탕(펼치면 --accbg) 위에 얹히므로 배경 없이 글자색만 바꾼다
+.cr-toggle {
+  white-space: nowrap;
+  background: transparent;
+  color: var(--ink2);
+  transition: color 0.15s ease;
+
+  &:hover,
+  &[aria-expanded='true'] {
+    background: transparent;
+    color: var(--accink);
+  }
+
+  svg {
+    transition: transform 0.15s ease;
+  }
+
+  &[aria-expanded='true'] svg {
+    transform: rotate(180deg);
+  }
+}
+
+// 펼친 상세: 행 전체 너비의 흰 패널 안에 제목·설명·이미지를 "이름 위, 내용 아래"로 쌓는다
+.cr-detail {
+  // 패널 좌우 테두리는 칸 안쪽 여백 덕에 윗줄 글자 시작·버튼 끝에 맞는다 (아래 간격도 칸 여백으로)
+  padding: 0.25rem 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.cr-group {
+  // 전역 형제 여백(예: h4 + p)을 쓰지 않는다
+  > * {
+    margin-top: 0;
+  }
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+
+  // 전역 section 아래 여백을 쓰지 않는다
+  margin-bottom: 0;
+
+  & + & {
+    border-top: 1px solid var(--line);
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink2);
+    line-height: 1.25rem;
+
+    .muted {
+      font-weight: 400;
+    }
+  }
+}
+
+// 소재가 여럿인 광고그룹: 소재마다 카드 (머리에 종류·성과, 아래에 제목·설명·링크·이미지)
+.cr-ads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  > .cr-ad {
+    margin: 0;
+    padding: 0.25rem 0 0.5rem;
+  }
+
+  > .cr-ad + .cr-ad {
+    border-top: 2px solid var(--line);
+  }
+}
+
+// 소재 이름 아래에 성과를 둔다 (상세 묶음과 같은 세로 정렬)
+.cr-ad-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0.25rem;
+}
+
+.cr-ad-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+// 소재 카드 머리의 성과: 이름표 위·값 아래, 칸 너비를 고정해 소재끼리 같은 자리에 숫자가 온다
+.cr-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 7.5rem);
+  margin: 0;
+  padding: 0.5rem 0;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 0;
-  overflow: hidden;
-  box-shadow: none;
+  font-variant-numeric: tabular-nums;
 
-  .img {
-    aspect-ratio: 1.91 / 1;
+  .cr-m {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: #fff;
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-align: center;
-    padding: 0.5rem;
-    position: relative;
-    overflow: hidden;
-    background: var(--acc);
+    gap: 0.125rem;
+    padding: 0 0.875rem;
 
-    &:has(img) {
-      padding: 0;
-      background: transparent;
-    }
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      background: var(--bg);
-      transition: opacity 0.2s ease;
-    }
-
-    // 이미지 받는 중: 공용 스켈레톤(.skel)과 같은 플랫 회색 면 + 깜빡임
-    &.is-loading {
-      background: var(--line);
-      animation: skel-pulse 1.6s ease-in-out infinite;
-
-      img {
-        opacity: 0;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        animation: none;
-      }
-    }
-
-    small {
-      font-weight: 400;
-      font-size: 0.75rem;
-      opacity: 0.8;
+    & + .cr-m {
+      border-left: 1px solid var(--line);
     }
   }
 
-  .meta {
-    padding: 0.75rem;
+  dt {
+    font-size: 0.6875rem;
+    color: var(--sub);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .cr-m-cost dd {
+    font-weight: 700;
+  }
+
+  .cr-skel {
+    display: inline-block;
+    width: 3rem;
+    height: 0.875rem;
+    vertical-align: middle;
+  }
+
+  // 실적 없음: 칸·바탕 없이 안내 한 줄 (버튼처럼 보이지 않게)
+  &.is-empty {
+    display: block;
+    padding: 0;
+    background: none;
+    border: 0;
     font-size: 0.75rem;
     color: var(--sub);
+  }
+}
+
+// 하나뿐인 제목·설명·링크: 검색광고 미리보기처럼 세 줄
+.cr-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--ink2);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+
+  // 소재 제목 (상세 묶음 이름과 같은 h4, 글자는 본문보다 굵게)
+  .cr-preview-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--ink);
     line-height: 1.5;
+  }
 
-    b {
-      display: block;
-      font-size: 0.875rem;
-      color: var(--ink);
-      margin-bottom: 0.125rem;
+  // 링크는 글자 길이만큼만 (세로 flex 안에서 줄 전체로 늘어나 빈 곳까지 눌리지 않게)
+  .cr-url {
+    align-self: flex-start;
+    max-width: 100%;
+    font-size: 0.75rem;
+    color: var(--accink);
+  }
+}
+
+// 소재 카드 안에서는 묶음 사이 선 없이 간격만
+.cr-ad {
+  .cr-group {
+    padding: 0.5rem 0;
+    border-top: 0;
+  }
+}
+
+.cr-idx {
+  color: var(--sub);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+// 제목: 짧은 문구라 칩으로 줄바꿈
+.cr-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+
+  > li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    padding: 0.1875rem 0.625rem;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 0.875rem;
+    color: var(--ink2);
+    line-height: 1.25rem;
+  }
+}
+
+// 설명: 문장이라 한 줄에 하나
+.cr-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--ink2);
+  line-height: 1.75rem;
+
+  > li {
+    display: grid;
+    grid-template-columns: 1rem minmax(0, 1fr);
+    gap: 0.5rem;
+    margin: 0;
+  }
+
+  .cr-idx {
+    text-align: right;
+  }
+}
+
+// 이미지: 같은 높이로 원래 비율대로 늘어놓는다 (빈 여백 없이)
+.cr-gallery {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  > li {
+    margin: 0;
+  }
+
+  a {
+    display: block;
+    position: relative;
+    border: 1px solid var(--line);
+    color: inherit;
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--acc);
+    }
+  }
+
+  .cr-img {
+    aspect-ratio: auto;
+    height: 7rem;
+    min-width: 7rem;
+
+    // 이미지가 없거나 깨지면 대신 보이는 글자 면
+    &:not(:has(img)) {
+      width: 13.5rem;
     }
 
-    a {
-      color: var(--accink);
-      word-break: break-all;
+    img {
+      width: auto;
+      max-width: 20rem;
+      object-fit: contain;
     }
+  }
+}
+
+.cr-no {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  padding: 0 0.25rem;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-img {
+  aspect-ratio: 1.91 / 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0.5rem;
+  position: relative;
+  overflow: hidden;
+  background: var(--acc);
+
+  &:has(img) {
+    padding: 0;
+    background: transparent;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: var(--bg);
+    transition: opacity 0.2s ease;
+  }
+
+
+  // 이미지 받는 중: 공용 스켈레톤(.skel)과 같은 플랫 회색 면 + 깜빡임
+  &.is-loading {
+    background: var(--line);
+    animation: skel-pulse 1.6s ease-in-out infinite;
+
+    img {
+      opacity: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+
+  small {
+    font-weight: 400;
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+}
+
+@media (max-width: 480px) {
+  .cr-gallery .cr-img {
+    height: 5.5rem;
+    min-width: 5.5rem;
   }
 }
 
@@ -757,7 +1181,7 @@ tr.kw-more-row td {
   gap: 0.5rem;
   border: 1px solid var(--line);
   border-radius: 0;
-  padding: 0.375rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   background: var(--card);
   min-width: 0;
@@ -777,6 +1201,109 @@ tr.kw-more-row td {
     color: var(--accink);
     font-weight: 600;
   }
+}
+
+/* ── 어드민 관리 (views/AdminView) ── */
+.admin-view {
+  position: relative;
+}
+
+// 미로그인 시 표 위를 덮는 로그인 창. 헤더(.top z-index 5)의 프로필 메뉴보다 아래에 깔린다
+.admin-gate-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 3.5rem;
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.card.card-admin-gate {
+  width: 100%;
+  max-width: 26rem;
+  padding: 2rem 1.75rem;
+  text-align: center;
+  border: 1px solid var(--line2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.1);
+
+  .gate-icon {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    background: var(--accbg);
+    border: 1px solid var(--acc);
+    color: var(--acc);
+  }
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  p {
+    margin: 0 0 1.25rem;
+    font-size: 0.875rem;
+    color: var(--sub);
+    line-height: 1.5;
+  }
+
+  .gate-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+
+    // 아래에 개발용 버튼이 붙을 때만 간격
+    &:not(:last-child) {
+      margin-bottom: 1.25rem;
+    }
+  }
+
+  .gate-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    line-height: normal;
+    background: var(--bg);
+
+    &.err {
+      border-color: var(--warn);
+    }
+  }
+
+  .gate-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--warn);
+    text-align: left;
+  }
+
+  .btn-login {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border: none;
+  }
+}
+
+// 미로그인 상태의 표: 흐리게 + 조작 막기
+.admin-body.locked {
+  filter: blur(1px);
+  pointer-events: none;
+  user-select: none;
 }
 
 /* ── 반응형 미디어 쿼리 ── */
@@ -861,7 +1388,7 @@ tr.kw-more-row td {
 
     h1 {
       grid-area: t;
-      font-size: 1.0625rem;
+      font-size: 1.125rem;
       line-height: 1.25;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -876,7 +1403,7 @@ tr.kw-more-row td {
     .crumb {
       color: var(--ink);
       font-weight: 700;
-      font-size: 1.0625rem;
+      font-size: 1.125rem;
       line-height: 1.25;
 
       &::before {
@@ -888,7 +1415,7 @@ tr.kw-more-row td {
     grid-area: u;
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.5rem;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
@@ -897,11 +1424,11 @@ tr.kw-more-row td {
     line-height: 1.2;
     justify-self: start;
     align-self: start;
-    padding: 0.1875rem 0.5rem;
+    padding: 0.25rem 0.5rem;
 
     &::before {
-      width: 0.375rem;
-      height: 0.375rem;
+      width: 0.5rem;
+      height: 0.5rem;
       margin-right: 0;
     }
   }
@@ -921,8 +1448,8 @@ tr.kw-more-row td {
       display: none;
     }
     svg {
-      width: 1.125rem;
-      height: 1.125rem;
+      width: 1.25rem;
+      height: 1.25rem;
     }
   }
   .tgl {
@@ -1000,9 +1527,9 @@ tr.kw-more-row td {
       width: 100%;
     }
 
-    .period-nav-right {
-      width: 100%;
-      justify-content: flex-end;
+    // 좁은 화면에서는 필터가 다음 줄로 내려가므로 왼쪽부터 둔다
+    .period-nav-filters {
+      margin-left: 0;
     }
   }
   .cont {

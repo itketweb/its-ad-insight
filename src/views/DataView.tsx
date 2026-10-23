@@ -9,14 +9,19 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { DataAuditTable } from '../components/data/DataAuditTable';
 import { DataSourceTable } from '../components/data/DataSourceTable';
 import { CategoryMappingSection } from '../components/data/CategoryMappingSection';
+import { ArrowUpRight } from 'lucide-react';
+import { Card } from '../components/common/Card';
+import { SkelBar } from '../components/common/SkeletonView';
 
 interface DataViewProps {
   data: DashboardData;
   categoryMap: CategoryMap;
   status: SyncStatus;
+  /** 첫 데이터를 받는 중 — 0행·검증 실패 대신 자리표시를 보여 준다 */
+  loading?: boolean;
 }
 
-export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status }) => {
+export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status, loading = false }) => {
   const live = status === 'live';
   const cfg = getCfg();
   const audit = useMemo(() => runDataAudit(data, categoryMap), [data, categoryMap]);
@@ -135,7 +140,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
       />
 
       {/* 실시간 연동 현황 및 제어 카드 */}
-      <div className="card card-summary accent" id="data-summary" data-card="summary">
+      <Card name="summary" className="accent" id="data-summary">
         <div className="card-head">
           <div>
             <h3>현재 연동 상태</h3>
@@ -143,9 +148,13 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
               <StatusBadge level={live ? 'ok' : status === 'error' ? 'chk' : 'man'}>
                 {live ? '정상 연동' : status === 'error' ? '동기화 지연' : '연결 중'}
               </StatusBadge>{' '}
-              {data.updated
-                ? `마지막 수집: ${data.updated} (15분 주기 자동 동기화)`
-                : '데이터 동기화 대기 중...'}
+              {data.updated ? (
+                `마지막 수집: ${data.updated} (15분 주기 자동 동기화)`
+              ) : loading ? (
+                <SkelBar w="16rem" h="0.75rem" className="skel-inline" />
+              ) : (
+                '데이터 동기화 대기 중...'
+              )}
             </p>
           </div>
         </div>
@@ -161,7 +170,8 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
                   rel="noopener"
                   className="link-acc"
                 >
-                  광고비·전환·견적 취합 시트 (1mxrTeh7bo...) ↗
+                  광고비·전환·견적 취합 시트 (1mxrTeh7bo...)
+                  <ArrowUpRight size={12} aria-hidden="true" />
                 </a>
               </td>
             </tr>
@@ -176,30 +186,35 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
             <tr>
               <th>현재 취합 데이터</th>
               <td id="dataViewStats">
+                {loading ? (
+                  <SkelBar w="24rem" h="0.875rem" />
+                ) : (
+                  <>
                 광고 집행 <b>{fmt(data.spend.length)}</b>행 · 키워드{' '}
                 <b>{fmt(data.keywords.length)}</b>개 · 소재 <b>{fmt(data.ads.length)}</b>개 · 견적{' '}
                 <b>{fmt(totalQuotesCount)}</b>건 (월별 요약 <b>{fmt(data.quotes.length)}</b>행)
+                  </>
+                )}
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
+      </Card>
 
 
       {/* 실시간 데이터 매칭 · 통계 무결성 자동 검증 섹션 */}
-      <DataAuditTable audit={audit} />
+      <DataAuditTable audit={audit} loading={loading} />
 
       {/* 데이터 소스별 실시간 수집 현황 */}
-      <DataSourceTable sourceRows={sourceRows} />
+      <DataSourceTable sourceRows={sourceRows} loading={loading} />
 
       {/* 카테고리 매칭 실시간 현황 */}
-      <CategoryMappingSection audit={audit} />
+      <CategoryMappingSection audit={audit} loading={loading} />
 
       <section>
         <h2 className="sec">갱신 · 보안</h2>
         <div className="grid">
-          <div className="card card-refresh" id="refresh-policy" data-card="refresh">
-            <h3>갱신 주기</h3>
+          <Card name="refresh" id="refresh-policy" title="갱신 주기">
             <table className="kv">
               <tbody>
                 <tr>
@@ -222,15 +237,14 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status })
                 </tr>
               </tbody>
             </table>
-          </div>
-          <div className="card card-security warn" id="security-policy" data-card="security">
-            <h3>보안 정책</h3>
+          </Card>
+          <Card name="security" className="warn" id="security-policy" title="보안 정책">
             <ul>
               <li>광고비·입찰가·견적 수는 사내 영업 정보 (외부 비공개)</li>
               <li>API 키는 저장소에 커밋하지 않고 브라우저 로컬 저장소 및 환경변수로 분리</li>
               <li>사내망 또는 인증 사용자만 열람 가능하도록 보안 유지</li>
             </ul>
-          </div>
+          </Card>
         </div>
       </section>
     </div>

@@ -1,6 +1,8 @@
 import React from 'react';
 import type { ViewId } from '../../types/dashboard';
 import { useAuth } from '../../context/AuthContext';
+import { ChartColumnIncreasing, ChartLine, Database, DollarSign, FileText, LayoutGrid, Lock, Search, X } from 'lucide-react';
+import { Button } from '../common/Button';
 
 interface SidebarProps {
   currentView: ViewId;
@@ -14,53 +16,35 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
     id: 'overview',
     label: '종합 요약',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-      </svg>
+      <LayoutGrid />
     ),
   },
   {
     id: 'ads',
     label: '월별 광고비',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-      </svg>
+      <DollarSign />
     ),
   },
   {
     id: 'cat-efficiency',
     label: '카테고리 효율',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 3v18h18" />
-        <path d="m19 9-5 5-4-4-3 3" />
-      </svg>
+      <ChartLine />
     ),
   },
   {
     id: 'keywords',
     label: '키워드 · 소재',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.3-4.3" />
-      </svg>
+      <Search />
     ),
   },
   {
     id: 'quotes',
     label: '견적 상세',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-      </svg>
+      <FileText />
     ),
   },
 ];
@@ -76,11 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       <div className={`scrim${drawerOpen ? ' on' : ''}`} id="scrim" onClick={onCloseDrawer} />
       <aside className={`side${drawerOpen ? ' open' : ''}`} id="side">
-        <button className="btn ic sclose" id="sclose" data-btn="close" aria-label="메뉴 닫기" onClick={onCloseDrawer}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
+        <Button iconOnly icon={X} className="sclose" id="sclose" data-btn="close" aria-label="메뉴 닫기" onClick={onCloseDrawer} />
         <a
           className="brand"
           id="brand"
@@ -93,9 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           <i>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-            </svg>
+            <ChartColumnIncreasing />
           </i>
           <span>아이티캣 광고 인사이트</span>
         </a>
@@ -132,11 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               aria-current={currentView === 'data' ? 'page' : undefined}
               onClick={() => onNavigate('data')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <ellipse cx="12" cy="5" rx="9" ry="3" />
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-              </svg>
+              <Database />
               <span>데이터 연결</span>
             </button>
             {isLoggedIn && (
@@ -148,10 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               aria-current={currentView === 'admin' ? 'page' : undefined}
               onClick={() => onNavigate('admin')}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
+              <Lock />
               <span>어드민 관리</span>
             </button>
           )}

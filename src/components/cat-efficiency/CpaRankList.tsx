@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { fmt, mLabel } from '../../utils/format';
 import { EmptyState } from '../common/EmptyState';
+import { Card } from '../common/Card';
+import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
 
 interface CpaItem {
   k: string;
@@ -15,6 +17,7 @@ interface CpaRankListProps {
 
 export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) => {
   // "1차 > 2차" 키를 1차 단위로 합산 후 CPA 재산출
+  const [showAll, setShowAll] = useState(false);
   const sortedCats = useMemo(() => {
     const map: Record<string, { totalCost: number; totalQuotes: number }> = {};
     const order: string[] = [];
@@ -40,7 +43,7 @@ export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) 
   const maxCpa = Math.max(...sortedCats.map((c) => c.cpa), 1);
 
   return (
-    <div className="card card-cat-cpa" id="cat-cpa" data-card="cat-cpa">
+    <Card name="cat-cpa" id="cat-cpa">
       <h3 id="ttCatCpa">
         카테고리별 견적 획득 단가 (CPA)
         <span className="muted">({mLabel(curM)} 실적 기준)</span>
@@ -48,7 +51,7 @@ export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) 
       <div id="chCatCpa">
         {sortedCats.length ? (
           <div className="cpa-list">
-            {sortedCats.map((c) => {
+            {sortedCats.slice(0, showAll ? undefined : LIST_LIMIT).map((c) => {
               const widthPct = Math.max(5, Math.round((c.cpa / maxCpa) * 100));
               return (
                 <div key={c.k} className="cpa-row">
@@ -69,7 +72,8 @@ export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) 
         ) : (
           <EmptyState message="기준월의 견적 접수 데이터가 없어 CPA를 산출할 수 없습니다." />
         )}
+        <ShowMoreButton total={sortedCats.length} expanded={showAll} onToggle={() => setShowAll((v) => !v)} />
       </div>
-    </div>
+    </Card>
   );
 };

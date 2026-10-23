@@ -8,6 +8,7 @@ import type {
   QuoteRow,
   SpendRow,
 } from '../types/dashboard';
+import { categoryFromAdNames } from './categoryText';
 
 export const fmt = (n: number): string => Math.round(n).toLocaleString('ko-KR');
 
@@ -84,10 +85,47 @@ export const SERIES_DEFS = [
   { k: 'Meta', c: '--c-m', f: (r: SpendRow) => r.media === 'Meta' },
 ];
 
-export const QUOTE_CATS = ['서버', '워크스테이션', '스토리지', '노트북', 'PC', '모니터', '기타'];
-/** 카테고리 개편 전 7분류 — mapping 시트에 이 값이 있으면 옛 값으로 보고 새 체계로 대체한다 */
-const LEGACY_CATS = new Set([...QUOTE_CATS, 'PC·노트북']);
-export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-etc', '--c-n2', '--c-n'];
+/** 카테고리 개편 전 7분류 — mapping 시트·견적 데이터에 이 값이 있으면 옛 값으로 보고 새 체계로 다시 계산한다 */
+const LEGACY_CATS = new Set(['서버', '워크스테이션', '스토리지', '노트북', 'PC', 'PC·노트북', '모니터', '기타']);
+/** 새 분류표에는 없는 옛 이름 (노트북·모니터·기타는 새 분류표에도 있어 옛 데이터인지 가르는 데 쓰지 않는다) */
+export const LEGACY_ONLY_CATS = new Set(['서버', '워크스테이션', '스토리지', 'PC', 'PC·노트북']);
+/** 차트 색 — 상위 6개 카테고리 + 그 외 */
+export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-n2', '--c-n', '--c-etc'];
+/** 차트에서 상위 카테고리 밖을 묶는 이름 */
+export const QUOTE_OTHER = '그 외';
+
+/** 카테고리의 1차 ('SAN 스토리지 > 화웨이' → 'SAN 스토리지') */
+export const cat1Of = (cat: string): string => {
+  const i = cat.indexOf(' > ');
+  return i >= 0 ? cat.slice(0, i) : cat;
+};
+
+/** 견적 1차 카테고리를 건수 큰 순으로 ('기타'는 맨 뒤). 표의 행 순서에 쓴다 */
+export function quoteCat1Order(rows: QuoteRow[]): string[] {
+  const tot: Record<string, number> = {};
+  rows.forEach((r) => {
+    const c = cat1Of(r.category || '기타');
+    tot[c] = (tot[c] || 0) + r.count;
+  });
+  return Object.keys(tot).sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : tot[b] - tot[a]));
+}
+
+/**
+ * 차트용 카테고리 묶음 — 건수 상위 n개 1차 카테고리 + 나머지(기타 포함)는 '그 외'.
+ * keyOf 로 견적 행의 카테고리를 차트 계열 이름으로 바꾼다.
+ */
+export function quoteChartCats(rows: QuoteRow[], n = 6): { keys: string[]; keyOf: (cat: string) => string } {
+  const top = quoteCat1Order(rows)
+    .filter((c) => c !== '기타')
+    .slice(0, n);
+  const set = new Set(top);
+  const keyOf = (cat: string) => {
+    const c = cat1Of(cat || '기타');
+    return set.has(c) ? c : QUOTE_OTHER;
+  };
+  const hasOther = rows.some((r) => keyOf(r.category) === QUOTE_OTHER);
+  return { keys: hasOther ? [...top, QUOTE_OTHER] : top, keyOf };
+}
 
 // 캠페인명+광고그룹명 → 카테고리 정밀 매핑 테이블 (엑셀 "카테고리 분류_최종(ads)" 기준)
 // 순서 중요: 광고그룹 지정 항목이 캠페인 전체 항목보다 앞에 위치해야 한다.
@@ -164,7 +202,7 @@ const CAT_LOOKUP: ReadonlyArray<readonly [camp: string, grp: string, cat: string
  * mapping 시트에 수동 지정이 없을 때 폴백으로 사용된다.
  * - 캠페인명에 " > " 가 포함되면 GDN 캠페인명 자체가 카테고리 경로이므로 그대로 반환
  * - CAT_LOOKUP 에서 캠페인(+광고그룹) 정확 일치 우선 탐색
- * - 일치 없으면 '기타' 반환
+ * - 일치 없으면 광고그룹·캠페인 이름으로 찾는다 (옛 캠페인명, 쇼핑검색·자사몰처럼 여러 카테고리를 담는 캠페인)
  */
 export function standardCategoryOf(campaign = '', adgroup = ''): string {
   const c = String(campaign).trim();
@@ -177,7 +215,7 @@ export function standardCategoryOf(campaign = '', adgroup = ''): string {
     if (c === camp && (grp === '' || g === grp)) return cat;
   }
 
-  return '기타';
+  return categoryFromAdNames(c, g);
 }
 
 /** "1차 > 2차" 형태의 카테고리 문자열을 분리. ">" 없으면 cat2는 빈 문자열 */

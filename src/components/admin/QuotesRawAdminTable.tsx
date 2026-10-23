@@ -1,13 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import type { QuoteRawRow } from '../../types/dashboard';
 import { EXTERNAL_LINKS } from '../../utils/constants';
-import { fmt, QUOTE_CATS, sourceColorVar } from '../../utils/format';
+import { fmt, sourceColorVar } from '../../utils/format';
+import { ALL_CATEGORIES } from '../../utils/constants';
+import { SkelRows } from '../common/SkeletonView';
 import { Dropdown } from '../common/Dropdown';
-import { SortIcon } from '../common/SortIcon';
 import { Tooltip } from '../common/Tooltip';
+import { Download, ExternalLink, Save } from 'lucide-react';
+import { useSort } from '../../hooks/useSort';
+import { SortableTh } from '../common/SortableTh';
+import { Button, ButtonLink } from '../common/Button';
+import { TextInput } from '../common/TextInput';
+import { Pagination } from '../common/Pagination';
+import { Card } from '../common/Card';
 
 interface QuotesRawAdminTableProps {
   quotes: QuoteRawRow[];
+  /** 실데이터를 받는 중 — 아직 없는 광고 꼬리표는 스켈레톤으로 보여 준다 */
+  loading?: boolean;
   onUpdateQuoteCategory?: (quoteIdOrIndex: string | number, newCategory: string) => void;
   isDirty?: boolean;
   onSave?: () => void;
@@ -16,10 +26,10 @@ interface QuotesRawAdminTableProps {
 }
 
 type SortKey = 'idx' | 'sno' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'category' | 'source';
-type SortOrder = 'asc' | 'desc';
 
 export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   quotes,
+  loading = false,
   onUpdateQuoteCategory,
   isDirty,
   onSave,
@@ -34,11 +44,12 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   const [scopeMonth, setScopeMonth] = useState<string>('cur');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [sortKey, setSortKey] = useState<SortKey>('date');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('date', 'asc');
 
   const categories = useMemo(() => {
-    const list = Array.from(new Set([...QUOTE_CATS, ...quotes.map((q) => q.category).filter(Boolean)]));
+    // 필터 목록: 실제 견적에 붙은 카테고리만 (분류표 순서, 분류표 밖 값은 뒤에)
+    const used = new Set(quotes.map((q) => q.category).filter(Boolean));
+    const list = [...ALL_CATEGORIES.filter((c) => used.has(c)), ...[...used].filter((c) => !ALL_CATEGORIES.includes(c))];
     return ['ALL', ...list];
   }, [quotes]);
 
@@ -56,12 +67,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   };
 
   const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortOrder('desc');
-    }
+    toggleSort(key);
     setPage(1);
   };
 
@@ -84,7 +90,8 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
             String(q.email || '').toLowerCase().includes(s) ||
             String(q.date || '').toLowerCase().includes(s) ||
             String(q.category || '').toLowerCase().includes(s) ||
-            String(q.source || '').toLowerCase().includes(s);
+            String(q.source || '').toLowerCase().includes(s) ||
+            q.sourceDetail.toLowerCase().includes(s);
           if (!match) return false;
         }
         return true;
@@ -117,19 +124,6 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   const totalPages = Math.max(1, Math.ceil(filteredQuotesWithIndex.length / pageSize));
   const currentPage = Math.min(page, totalPages);
 
-  const pageNumbers = useMemo((): (number | 'ellipsis')[] => {
-    const delta = 2;
-    const result: (number | 'ellipsis')[] = [];
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
-        result.push(i);
-      } else if (result[result.length - 1] !== 'ellipsis') {
-        result.push('ellipsis');
-      }
-    }
-    return result;
-  }, [currentPage, totalPages]);
-
   const pageItems = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredQuotesWithIndex.slice(start, start + pageSize);
@@ -137,7 +131,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
   // CSV 내보내기 (구글 스프레드시트 전체 원본 열 기준 1:1 출력)
   const handleExportCsv = () => {
-    const headers = ['번호', '제목', '작성자', '회사명', '이메일', '접수날짜', '유입경로', '표준카테고리'];
+    const headers = ['번호', '제목', '작성자', '회사명', '이메일', '접수날짜', '유입경로', '유입 광고', '표준카테고리'];
     const rows = filteredQuotesWithIndex.map(({ q, originalIndex }) => [
       `"${q.sno || originalIndex + 1}"`,
       `"${(q.subject || '').replace(/"/g, '""')}"`,
@@ -146,6 +140,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       `"${q.email || ''}"`,
       `"${q.date || ''}"`,
       `"${q.source || ''}"`,
+      `"${q.sourceDetail.replace(/"/g, '""')}"`,
       `"${q.category || ''}"`,
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -160,7 +155,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   };
 
   return (
-    <div className="card card-admin-quotes" id="card-admin-quotes" data-card="admin-quotes">
+    <Card name="admin-quotes" id="card-admin-quotes">
       {/* 카드 헤더 및 툴바 */}
       <div className="qr-head">
         <div className="qr-head-meta">
@@ -177,70 +172,55 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         </div>
 
         <div className="qr-head-actions">
-          <a
+          <ButtonLink
             href={EXTERNAL_LINKS.quotesRawSheet}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-sheet-link"
+            size="sm"
+            icon={ExternalLink}
+            iconPosition="end"
+            className="btn-sheet-link"
             id="btn-admin-sheet-link"
             data-btn="sheet-link"
           >
-            <span>시트 원본 열기</span>
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
+            시트 원본 열기
+          </ButtonLink>
 
-          <button
-            type="button"
-            className="btn btn-export-csv"
+          <Button
+            size="sm"
+            icon={Download}
+            className="btn-export-csv"
             id="btn-admin-export-csv"
             data-btn="export-csv"
             onClick={handleExportCsv}
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>CSV 다운로드</span>
-          </button>
+            CSV 다운로드
+          </Button>
 
           {isDirty && onReset && (
-            <button
-              type="button"
-              className="btn btn-reset-quotes"
+            <Button
+              size="sm"
+              className="btn-reset-quotes"
               id="btn-admin-reset-quotes"
               data-btn="reset-quotes"
               onClick={onReset}
               disabled={saving}
             >
               수정 취소
-            </button>
+            </Button>
           )}
 
           {onSave && (
-            <button
-              type="button"
-              className="btn acc btn-save-supabase"
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Save}
+              className={`btn-save-supabase${isDirty ? ' dirty' : ''}${saving ? ' saving' : ''}`}
               id="btn-admin-save-supabase"
               data-btn="save-supabase"
               onClick={onSave}
               disabled={saving}
-              style={{
-                boxShadow: isDirty ? '0 2px 8px rgba(37, 99, 235, 0.35)' : 'none',
-                cursor: saving ? 'wait' : 'pointer',
-              }}
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
-              </svg>
-              <span>{saving ? '저장 중...' : isDirty ? '변경사항 저장' : '저장'}</span>
-            </button>
+              {saving ? '저장 중...' : isDirty ? '변경사항 저장' : '저장'}
+            </Button>
           )}
         </div>
       </div>
@@ -260,8 +240,8 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         </div>
 
         <label className="qr-filter-item">
-          <input
-            type="text"
+          <TextInput
+            aria-label="검색"
             placeholder="제목, 회사명, 성명, 카테고리..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -311,95 +291,25 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       </div>
 
       <div className="qr-table-wrap">
-        <table className="tbl tw stk" style={{ width: '100%', fontSize: '0.8125rem', whiteSpace: 'nowrap', tableLayout: 'fixed' }}>
+        <table className="tbl tw stk qr-table">
           <thead>
             <tr>
-              <th
-                className={`sortable${sortKey === 'sno' ? ' sorted' : ''}`}
-                style={{ width: '4.5rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('sno')}
-              >
-                <span className="th-sort-inner">
-                  <span>번호</span>
-                  <SortIcon active={sortKey === 'sno'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'date' ? ' sorted' : ''}`}
-                style={{ width: '7rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('date')}
-              >
-                <span className="th-sort-inner">
-                  <span>접수날짜</span>
-                  <SortIcon active={sortKey === 'date'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'subject' ? ' sorted' : ''}`}
-                style={{ width: '16rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('subject')}
-              >
-                <span className="th-sort-inner">
-                  <span>제목 (문의 내용)</span>
-                  <SortIcon active={sortKey === 'subject'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'company' ? ' sorted' : ''}`}
-                style={{ width: '10rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('company')}
-              >
-                <span className="th-sort-inner">
-                  <span>회사명</span>
-                  <SortIcon active={sortKey === 'company'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'name' ? ' sorted' : ''}`}
-                style={{ width: '6.5rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('name')}
-              >
-                <span className="th-sort-inner">
-                  <span>작성자</span>
-                  <SortIcon active={sortKey === 'name'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'email' ? ' sorted' : ''}`}
-                style={{ width: '10.5rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('email')}
-              >
-                <span className="th-sort-inner">
-                  <span>이메일</span>
-                  <SortIcon active={sortKey === 'email'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'category' ? ' sorted' : ''}`}
-                style={{ width: '11rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('category')}
-              >
-                <span className="th-sort-inner">
-                  <span>표준 카테고리 (수동 지정)</span>
-                  <SortIcon active={sortKey === 'category'} order={sortOrder} />
-                </span>
-              </th>
-              <th
-                className={`sortable${sortKey === 'source' ? ' sorted' : ''}`}
-                style={{ width: '9.5rem', cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => handleSort('source')}
-              >
-                <span className="th-sort-inner">
-                  <span>유입경로</span>
-                  <SortIcon active={sortKey === 'source'} order={sortOrder} />
-                </span>
-              </th>
+              <SortableTh sortKey="sno" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-sno">번호</SortableTh>
+              <SortableTh sortKey="date" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-date">접수날짜</SortableTh>
+              <SortableTh sortKey="subject" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-subject">제목 (문의 내용)</SortableTh>
+              <SortableTh sortKey="company" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-company">회사명</SortableTh>
+              <SortableTh sortKey="name" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-name">작성자</SortableTh>
+              <SortableTh sortKey="email" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-email">이메일</SortableTh>
+              <SortableTh sortKey="category" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-category">표준 카테고리 (수동 지정)</SortableTh>
+              <SortableTh sortKey="source" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-source">유입경로</SortableTh>
             </tr>
           </thead>
           <tbody>
-            {pageItems.length === 0 ? (
+            {pageItems.length === 0 && loading ? (
+              <SkelRows rows={8} widths={['3rem', '5rem', '60%', '50%', '4rem', '70%', '5rem', '5rem']} />
+            ) : pageItems.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--sub)' }}>
+                <td colSpan={8} className="qr-empty">
                   조회 조건에 해당하는 견적 접수 내역이 없습니다.
                 </td>
               </tr>
@@ -409,14 +319,14 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
                 return (
                   <tr key={rowKey}>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--sub)' }}>
+                    <td className="qr-sno">
                       {q.sno || '–'}
                     </td>
-                    <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                    <td className="qr-date">
                       {q.date || '–'}
                     </td>
                     <Tooltip content={q.subject}>
-                      <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td className="qr-subject">
                         {q.subject || '–'}
                       </td>
                     </Tooltip>
@@ -430,30 +340,36 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                         <span className="cell-wrap">{q.name || '–'}</span>
                       </Tooltip>
                     </td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{q.email || '–'}</td>
+                    <td className="qr-email">{q.email || '–'}</td>
                     <td>
                       <Dropdown
                         className="dd-cat"
                         ariaLabel="카테고리 선택"
                         value={q.category || '기타'}
                         options={[
-                          ...QUOTE_CATS.map((cat) => ({ value: cat, label: cat })),
-                          ...(!QUOTE_CATS.includes(q.category) && q.category
+                          ...ALL_CATEGORIES.map((cat) => ({ value: cat, label: cat })),
+                          ...(!ALL_CATEGORIES.includes(q.category) && q.category
                             ? [{ value: q.category, label: `${q.category} (기존)` }]
                             : []),
                         ]}
                         onChange={(v) => onUpdateQuoteCategory?.(rowKey, v)}
                       />
                     </td>
-                    <td>
+                    <td className="qr-source" title={q.sourceDetail ? `${q.source} - ${q.sourceDetail}` : undefined}>
+                      {/* 색은 유입경로마다 달라 인라인으로 둔다 */}
                       <span
-                        style={{
-                          color: `var(${sourceColorVar(q.source)})`,
-                          fontWeight: q.source?.includes('광고') ? 600 : 'normal',
-                        }}
+                        className={`qr-src${q.source?.includes('광고') ? ' ad' : ''}`}
+                        style={{ color: `var(${sourceColorVar(q.source)})` }}
                       >
                         {q.source || '미수집'}
                       </span>
+                      {q.sourceDetail ? (
+                        <span className="qr-src-detail">{q.sourceDetail}</span>
+                      ) : (
+                        // 광고 유입은 꼬리표(광고 이름)가 실데이터로 와서, 받는 동안 자리만 잡아 둔다
+                        loading &&
+                        q.source?.includes('광고') && <span className="qr-src-detail skel" aria-hidden="true" />
+                      )}
                     </td>
                   </tr>
                 );
@@ -471,34 +387,8 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
             : '0건'}
         </span>
 
-        <div className="qr-pagination-btns">
-          <button type="button" className="pag-btn pag-arrow" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} title="이전 페이지">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          {pageNumbers.map((p, i) =>
-            p === 'ellipsis' ? (
-              <span key={`el-${i}`} className="pag-ellipsis">…</span>
-            ) : (
-              <button
-                key={p}
-                type="button"
-                className={`pag-btn${p === currentPage ? ' active' : ''}`}
-                onClick={() => setPage(p)}
-                aria-current={p === currentPage ? 'page' : undefined}
-              >
-                {p}
-              </button>
-            )
-          )}
-          <button type="button" className="pag-btn pag-arrow" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} title="다음 페이지">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-        </div>
+        <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
       </div>
-    </div>
+    </Card>
   );
 };

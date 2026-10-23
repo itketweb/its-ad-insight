@@ -5,7 +5,11 @@ import { EXTERNAL_LINKS } from '../../utils/constants';
 import { MediaPill } from '../common/MediaPill';
 import { TableFootnote } from '../common/TableFootnote';
 import { MoreButton } from '../common/MoreButton';
-import { SortIcon } from '../common/SortIcon';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useSort } from '../../hooks/useSort';
+import { SortableTh } from '../common/SortableTh';
+import { TabButton } from '../common/TabButton';
+import { Card } from '../common/Card';
 
 interface KeywordAccordionTableProps {
   topGroups: KeywordGroup[];
@@ -24,7 +28,6 @@ const mediaKo = (m: string) => (m === 'Naver' ? '네이버' : m === 'Google' ? '
 const ctr = (clk: number, imp: number) => (imp ? `${((clk / imp) * 100).toFixed(1)}%` : '–');
 
 type SortKey = 'imp' | 'clk' | 'ctr' | 'conv' | 'cost';
-type SortOrder = 'asc' | 'desc';
 
 const NUMERIC_COLS: { key: SortKey; label: string }[] = [
   { key: 'imp', label: '노출' },
@@ -71,17 +74,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   const [visibleCount, setVisibleCount] = useState(10);
   const [moreOpen, setMoreOpen] = useState(false);
   const tabBarRef = useRef<HTMLDivElement>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('cost');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
-    } else {
-      setSortKey(key);
-      setSortOrder('desc');
-    }
-  };
+  const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('cost');
 
   // 더보기 목록: 바깥 클릭·Esc 로 닫는다
   useEffect(() => {
@@ -168,7 +161,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   const periodLabel = `${month.slice(0, 4)}년 ${mLabel(month)}`;
 
   return (
-    <div className="card card-kw-list" id="kw-list" data-card="kw-list">
+    <Card name="kw-list" id="kw-list">
       <h3 id="ttKw">
         {type === 'DA' ? (
           '키워드'
@@ -201,16 +194,17 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
       {type === 'SA' && campaigns.length > 0 && (
         <div id="kwTabBar" className="kw-tabs" ref={tabBarRef}>
           {['전체', ...campaigns.slice(0, VISIBLE_TABS).map(campLabel)].map((lbl, i) => (
-            <button
+            <TabButton
               key={i}
-              className={`kw-tab-btn btn-camp-tab${safeKwIdx === i ? ' on' : ''}`}
+              className="kw-tab-btn btn-camp-tab"
               data-btn="camp-tab"
+              active={safeKwIdx === i}
+              label={lbl}
               title={i === 0 ? '전체 (상위 10개 광고그룹)' : campTitle(campaigns[i - 1])}
               onClick={() => selectTab(i)}
             >
-              <span>{lbl}</span>
               {i > 0 && campIcons(campaigns[i - 1])}
-            </button>
+            </TabButton>
           ))}
 
           {hiddenCamps.length > 0 && (
@@ -232,18 +226,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               ) : (
                 <span>+{hiddenCamps.length}개 더보기</span>
               )}
-              <svg
-                className={`kw-more-chev${moreOpen ? ' open' : ''}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              <ChevronDown className={`kw-more-chev${moreOpen ? ' open' : ''}`} strokeWidth={2.25} aria-hidden="true" />
             </button>
           )}
 
@@ -337,24 +320,11 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
               <thead>
                 <tr>
                   <th>{selectedCamp ? '광고그룹 › 키워드' : '캠페인 › 광고그룹 › 키워드'}</th>
-                  {NUMERIC_COLS.map(({ key, label }) => {
-                    const isSorted = sortKey === key;
-                    return (
-                      <th
-                        key={key}
-                        className={`n sortable${isSorted ? ` sorted ${sortOrder}` : ''}`}
-                        onClick={() => handleSort(key)}
-                        title={`${label} 기준 ${isSorted && sortOrder === 'desc' ? '오름차순' : '내림차순'} 정렬`}
-                        role="columnheader"
-                        aria-sort={isSorted ? (sortOrder === 'desc' ? 'descending' : 'ascending') : 'none'}
-                      >
-                        <span className="th-sort-inner">
-                          <span>{label}</span>
-                          <SortIcon active={isSorted} order={sortOrder} />
-                        </span>
-                      </th>
-                    );
-                  })}
+                  {NUMERIC_COLS.map(({ key, label }) => (
+                    <SortableTh key={key} sortKey={key} activeKey={sortKey} order={sortOrder} onSort={toggleSort} className="n">
+                      {label}
+                    </SortableTh>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -385,17 +355,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                         <td>
                           <div className="grp-acc-cell">
                             <span className="grp-acc-main">
-                              <svg
-                                className={`grp-acc-chev${isOpen ? ' open' : ''}`}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.25"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="9 18 15 12 9 6" />
-                              </svg>
+                              <ChevronRight className={`grp-acc-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} />
                               <span className="grp-acc-title">
                                 {selectedCamp ? g.adgroup : `${g.campaign} › ${g.adgroup}`}
                               </span>
@@ -461,17 +421,14 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 
         <TableFootnote
           unit="원·회"
-          basis={`산출 근거: ${periodLabel} 월간 실적(당월은 1일~수집 시점) 광고비 상위 캠페인/그룹 · CTR = (클릭수 ÷ 노출수) × 100`}
+          basis={`산출 근거: ${periodLabel} 실적(당월은 수집 시점까지) · 광고비 상위 캠페인/그룹 · CTR = 클릭 ÷ 노출`}
           sources={[
-            <span key="g">
-              Google SA —{' '}
+            <span key="src">
+              출처:{' '}
               <a href={EXTERNAL_LINKS.googleAds} target="_blank" rel="noopener">
                 Google Ads
               </a>{' '}
-              API 자동 수집
-            </span>,
-            <span key="n">
-              Naver SA —{' '}
+              ·{' '}
               <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">
                 네이버 검색광고
               </a>{' '}
@@ -480,6 +437,6 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           ]}
         />
       </div>
-    </div>
+    </Card>
   );
 };

@@ -7,8 +7,40 @@ interface SkeletonViewProps {
   variant?: 'dashboard' | 'table';
 }
 
-const Bar: React.FC<{ w?: string; h?: string; className?: string }> = ({ w, h, className = '' }) => (
-  <span className={`skel ${className}`.trim()} style={{ width: w, height: h }} />
+/** 회색 자리표시 막대 (공용 .skel 색·깜빡임) */
+export const SkelBar: React.FC<{ w?: string; h?: string; className?: string }> = ({ w, h, className = '' }) => (
+  <span className={`skel ${className}`.trim()} style={{ width: w, height: h }} aria-hidden="true" />
+);
+const Bar = SkelBar;
+
+/** 실제 표 안(tbody)에 넣는 자리표시 행 — widths 는 칸마다 막대 너비 */
+export const SkelRows: React.FC<{ rows?: number; widths: string[] }> = ({ rows = 5, widths }) => (
+  <>
+    {Array.from({ length: rows }, (_, i) => (
+      <tr key={i} className="skel-tr" aria-hidden="true">
+        {widths.map((w, ci) => (
+          <td key={ci}>
+            <Bar w={w} />
+          </td>
+        ))}
+      </tr>
+    ))}
+  </>
+);
+
+/** 표 모양 자리표시 (표를 아직 그릴 수 없을 때 카드 안에 둔다) */
+export const SkelTable: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
+  <div className="skel-table" aria-hidden="true">
+    {Array.from({ length: rows }, (_, i) => (
+      <div key={i} className="skel-row">
+        <Bar w="24%" />
+        <Bar w="12%" />
+        <Bar w="12%" />
+        <Bar w="12%" />
+        <Bar w="16%" />
+      </div>
+    ))}
+  </div>
 );
 
 // 순위형 막대 카드 (카테고리별 소진 · 유입 매체 비중 등)
@@ -31,17 +63,7 @@ const ListCard: React.FC = () => (
 const TableCard: React.FC<{ rows: number }> = ({ rows }) => (
   <div className="card skel-card">
     <Bar w="30%" h="1rem" />
-    <div className="skel-table">
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="skel-row">
-          <Bar w="24%" />
-          <Bar w="12%" />
-          <Bar w="12%" />
-          <Bar w="12%" />
-          <Bar w="16%" />
-        </div>
-      ))}
-    </div>
+    <SkelTable rows={rows} />
   </div>
 );
 

@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type {
   AdRow,
+  AdStatRow,
   DashboardData,
   KeywordRow,
   ManualRow,
   QuoteRow,
   RawAdApiRow,
+  RawAdStatApiRow,
   RawApiPayload,
   RawKeywordApiRow,
   RawMetaApiRow,
@@ -14,13 +16,15 @@ import type {
   QuoteRawRow,
   SyncStatus,
 } from '../types/dashboard';
-import { buildCategoryMap, THIS_M } from '../utils/format';
+import { buildCategoryMap, LEGACY_ONLY_CATS, THIS_M } from '../utils/format';
+import { quoteCategoryOf } from '../utils/categoryText';
+import { adStatKey } from '../utils/creativeImage';
+import { readCachedPayload, writeCachedPayload } from '../utils/payloadCache';
 
 export const DEFAULT_URL =
   'https://script.google.com/macros/s/AKfycbzQS9yMlp9L_eRaH77QWLsY6GOY7L5hyRk1fkuaAHg8GvJmHHwhPRgr2zWldgbX5-cNcg/exec';
 export const DEFAULT_KEY = '2d3b0cc2b04a4873a835583968ca7a0b';
 
-const CACHE_STORAGE_KEY = 'adi_data_cache';
 
 export function getCfg(): { url: string; key: string } {
   const c = window.ADI || {};
@@ -55,6 +59,7 @@ function emptyData(): DashboardData {
     quotesRaw: [],
     keywords: [],
     ads: [],
+    adStats: [],
   };
 }
 
@@ -68,6 +73,27 @@ function fmtUpdatedTimestamp(s: string): string {
     }
   }
   return s;
+}
+
+/**
+ * 수집 스크립트가 아직 개편 전 7분류(서버·워크스테이션·스토리지…)로 견적을 나눠 보냈으면,
+ * 원장(quotes_raw)의 제목·광고 꼬리표로 새 분류표에 맞춰 다시 분류하고 월별 건수도 원장에서 다시 센다.
+ * 수집 스크립트(quoteCategory_)가 새 분류로 바뀐 뒤에는 그대로 통과한다.
+ */
+function withCurrentQuoteCategories(data: DashboardData): DashboardData {
+  const legacy = data.quotes.some((r) => LEGACY_ONLY_CATS.has(r.category));
+  // 제목이 없는 원장(배포에 묶인 data/latest.json 스냅숏 등)은 다시 분류할 근거가 없어 그대로 둔다
+  if (!legacy || !data.quotesRaw.some((r) => r.subject)) return data;
+  const quotesRaw = data.quotesRaw.map((r) => ({ ...r, category: quoteCategoryOf(r.subject || '', r.sourceDetail) }));
+  const agg = new Map<string, QuoteRow>();
+  quotesRaw.forEach((r) => {
+    const month = r.date.slice(0, 7);
+    const k = [month, r.category, r.source].join('\u0001');
+    const cur = agg.get(k);
+    if (cur) cur.count += 1;
+    else agg.set(k, { month, category: r.category, source: r.source, count: 1 });
+  });
+  return { ...data, quotes: [...agg.values()], quotesRaw };
 }
 
 export function fromApi(j: RawApiPayload): DashboardData {
@@ -165,14 +191,53 @@ export function fromApi(j: RawApiPayload): DashboardData {
     };
   };
 
-  const toAdRow = (media: string, r: RawAdApiRow): AdRow => ({
+  // 줄바꿈으로 이은 목록 열(images·titles·descs) → 배열. 대표 값(first)이 있으면 맨 앞에 둔다
+  const lines = (v: unknown, first = '') => {
+    const list = String(v ?? '')
+      .split(/\s*\n\s*/)
+      .filter(Boolean);
+    return [...new Set(first ? [first, ...list] : list)];
+  };
+
+  const toAdRow = (media: string, r: RawAdApiRow): AdRow => {
+    const images = lines(r.images, String(r.image || '').trim());
+    const title = String(r.title || r.ad_type || '').trim();
+    return {
+      media,
+      type: String(r.type || 'SA').trim(),
+      adId: String(r.ad_id ?? '').trim(),
+      adType: String(r.ad_type ?? '').trim(),
+      campaign: String(r.campaign ?? '').trim(),
+      adgroup: String(r.ad_group ?? '').trim(),
+      title,
+      titles: lines(r.titles, title),
+      descs: lines(r.descs),
+      url: String(r.url || '').trim(),
+      image: images[0] || '',
+      images,
+    };
+  };
+
+  // 캠페인 이름을 바꾸면 시트에 옛 이름의 행이 남아 같은 소재가 두 번 온다 — 앞(최근 수집) 행만 쓴다
+  const uniqueAds = (rows: AdRow[]) => {
+    const seen = new Set<string>();
+    return rows.filter((a) => {
+      if (!a.adId) return true;
+      const k = adStatKey(a.media, a.adId);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+
+  const toAdStatRow = (media: string, r: RawAdStatApiRow): AdStatRow => ({
+    month: String(r.month ?? '').trim().slice(0, 7),
     media,
-    type: String(r.type || 'SA').trim(),
-    campaign: String(r.campaign ?? '').trim(),
-    adgroup: String(r.ad_group ?? '').trim(),
-    title: String(r.title || r.ad_type || '').trim(),
-    url: String(r.url || '').trim(),
-    image: String(r.image || '').trim(),
+    adId: String(r.ad_id ?? '').trim(),
+    cost: n(r.cost),
+    imp: n(r.impressions),
+    clk: n(r.clicks),
+    conv: n(r.conversions),
   });
 
   const upd = (rows?: RawMetaApiRow[]) =>
@@ -184,7 +249,7 @@ export function fromApi(j: RawApiPayload): DashboardData {
   const precise = candidates.filter((s) => s.length >= 10);
   const rawUpdated = precise.length ? precise.sort().pop()! : candidates.sort().pop() || '';
 
-  return {
+  const data: DashboardData = {
     updated: fmtUpdatedTimestamp(rawUpdated),
     sources: { google: upd(j.g_meta), naver: upd(j.n_meta), quote: upd(j.q_meta) },
     spend,
@@ -212,6 +277,8 @@ export function fromApi(j: RawApiPayload): DashboardData {
           date: String(r.date || '').trim(),
           category: String(r.category || '').trim(),
           source: src === '직접·기타' ? '기타' : src,
+          // "네이버(광고) - ROSEHA" 처럼 " - " 뒤에 붙은 광고 꼬리표만 따로 둔다
+          sourceDetail: String(r.source_raw || '').split(/\s+-\s+/).slice(1).join(' - ').trim(),
         };
       })
       .filter((r) => r.date)
@@ -220,41 +287,27 @@ export function fromApi(j: RawApiPayload): DashboardData {
       ...(j.g_keywords || []).map((r) => toKeywordRow('Google', r)),
       ...naverRawKws.map((r) => toKeywordRow('Naver', r)),
     ],
-    ads: [
+    ads: uniqueAds([
       ...(j.g_ads || []).map((r) => toAdRow('Google', r)),
       ...(j.n_ads || []).map((r) => toAdRow('Naver', r)),
+    ]),
+    adStats: [
+      ...(j.g_ad_stats || []).map((r) => toAdStatRow('Google', r)),
+      ...(j.n_ad_stats || []).map((r) => toAdStatRow('Naver', r)),
     ],
   };
+  return withCurrentQuoteCategories(data);
 }
 
-function saveCacheSafe(payload: RawApiPayload): void {
-  try {
-    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    // ignore storage quota errors
-  }
-}
-
-function loadInitialCache(): { data: DashboardData; status: SyncStatus; restored: boolean } {
-  try {
-    const cached = localStorage.getItem(CACHE_STORAGE_KEY);
-    if (cached) {
-      const j = JSON.parse(cached) as RawApiPayload;
-      if (j && (j.quotes_monthly?.length || j.n_adgroup_monthly?.length) && j.quotes_raw?.length) {
-        return { data: fromApi(j), status: 'live', restored: true };
-      }
-    }
-  } catch (e) {
-    console.warn('[its-ad-insight] 로컬 캐시 복원 건너뜀:', e);
-  }
-  return { data: emptyData(), status: 'init', restored: false };
-}
+const isUsableCache = (j: RawApiPayload | null): j is RawApiPayload =>
+  !!j && !!(j.quotes_monthly?.length || j.n_adgroup_monthly?.length) && !!j.quotes_raw?.length;
 
 export function useDashboardData() {
-  const initial = useMemo(() => loadInitialCache(), []);
-  const [data, setData] = useState<DashboardData>(initial.data);
-  const [status, setStatus] = useState<SyncStatus>(initial.status);
+  const [data, setData] = useState<DashboardData>(emptyData);
+  const [status, setStatus] = useState<SyncStatus>('init');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  // 실데이터가 먼저 도착하면 늦게 읽힌 캐시로 덮어쓰지 않는다
+  const liveLoaded = useRef(false);
 
   const categoryMap = useMemo(() => buildCategoryMap(data.mapping), [data.mapping]);
 
@@ -265,7 +318,7 @@ export function useDashboardData() {
       const localJ = (await localRes.json()) as RawApiPayload;
       setData((prevData) => {
         if (prevData.spend.length > 0 && prevData.quotesRaw.length > 0) return prevData;
-        saveCacheSafe(localJ);
+        writeCachedPayload(localJ);
         return fromApi(localJ);
       });
       setStatus('live');
@@ -288,9 +341,10 @@ export function useDashboardData() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = (await res.json()) as RawApiPayload;
       if (j.error) throw new Error(j.error);
+      liveLoaded.current = true;
       setData(fromApi(j));
       setStatus('live');
-      saveCacheSafe(j);
+      writeCachedPayload(j);
     } catch (e) {
       console.error('[its-ad-insight] 실데이터 동기화 오류 (화면 데이터 유지):', e);
       setStatus((prev) => (prev === 'live' ? 'live' : 'error'));
@@ -301,17 +355,22 @@ export function useDashboardData() {
   }, [tryLoadStaticFallback]);
 
   useEffect(() => {
-    if (!initial.restored) {
-      tryLoadStaticFallback().finally(() => {
-        load();
-      });
-    } else {
+    // 지난번 받은 데이터로 먼저 그리고(없으면 배포에 묶인 스냅숏), 실데이터를 받아 바꿔 끼운다
+    readCachedPayload().then(async (cached) => {
+      if (isUsableCache(cached)) {
+        if (!liveLoaded.current) {
+          setData(fromApi(cached));
+          setStatus('live');
+        }
+      } else {
+        await tryLoadStaticFallback();
+      }
       load();
-    }
+    });
 
     const timer = setInterval(load, 15 * 60 * 1000);
     return () => clearInterval(timer);
-  }, [initial.restored, load, tryLoadStaticFallback]);
+  }, [load, tryLoadStaticFallback]);
 
   useEffect(() => {
     document.body.classList.toggle('live', status === 'live');

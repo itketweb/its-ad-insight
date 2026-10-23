@@ -1,22 +1,30 @@
 import React from 'react';
 import type { DataAuditReport } from '../../utils/dataAudit';
 import { TableFootnote } from '../common/TableFootnote';
+import { SkelBar, SkelRows } from '../common/SkeletonView';
 import { StatusBadge } from '../common/StatusBadge';
+import { Card } from '../common/Card';
 
 interface DataAuditTableProps {
   audit: DataAuditReport;
+  /** 첫 데이터를 받는 중 — 빈 데이터로 낸 '실패' 결과 대신 자리표시 */
+  loading?: boolean;
 }
 
-export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit }) => {
+export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit, loading = false }) => {
   return (
     <section id="data-audit-section">
       <h2 className="sec">
         실시간 데이터 매칭 · 통계 무결성 검증{' '}
-        <StatusBadge level={audit.overallLevel === 'ok' ? 'ok' : 'chk'}>
-          {audit.passedCount}/{audit.totalCount} 항목 통과
-        </StatusBadge>
+        {loading ? (
+          <SkelBar w="6rem" h="1.25rem" className="skel-inline" />
+        ) : (
+          <StatusBadge level={audit.overallLevel === 'ok' ? 'ok' : 'chk'}>
+            {audit.passedCount}/{audit.totalCount} 항목 통과
+          </StatusBadge>
+        )}
       </h2>
-      <div className="card card-audit tw" id="data-audit" data-card="audit">
+      <Card name="audit" tableWrap id="data-audit">
         <table className="stk" id="tbDataAudit">
           <thead>
             <tr>
@@ -26,7 +34,8 @@ export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit }) => {
             </tr>
           </thead>
           <tbody>
-            {audit.checks.map((chk) => (
+            {loading && <SkelRows rows={audit.checks.length || 6} widths={['60%', '80%', '4rem']} />}
+            {!loading && audit.checks.map((chk) => (
               <tr key={chk.id}>
                 <td>
                   <b>{chk.title}</b>
@@ -51,7 +60,7 @@ export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit }) => {
             '오차 판정 기준 — 누락 0건 (100% 무결성 보장)',
           ]}
         />
-      </div>
+      </Card>
     </section>
   );
 };

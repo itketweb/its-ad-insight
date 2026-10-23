@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 export interface AuthUser {
@@ -13,8 +14,7 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   isLoggedIn: boolean;
-  loginWithPassword: (password: string) => Promise<{ error?: string }>;
-  loginWithGoogle: () => Promise<{ error?: string }>;
+  loginWithPassword: (loginId: string, password: string) => Promise<{ error?: string }>;
   loginAsDevAdmin: () => void;
   logout: () => Promise<void>;
 }
@@ -23,61 +23,56 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const DEV_ADMIN_KEY = 'adi_dev_admin_session';
 
-// 관리자 지정 비밀번호 (기본값 설정 및 .env / Supabase 환경변수 연동)
-const ADMIN_MASTER_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'itket2026!';
+// 아이디만 입력하면 이 도메인을 붙여 Supabase Auth 이메일로 사용 (계정은 Supabase 대시보드에서만 생성, 회원가입 없음)
+const LOGIN_EMAIL_DOMAIN = 'gmail.com';
+
+const toLoginEmail = (loginId: string) => {
+  const id = loginId.trim().toLowerCase();
+  return id.includes('@') ? id : `${id}@${LOGIN_EMAIL_DOMAIN}`;
+};
+
+const toAuthUser = (sessionUser: Session['user']): AuthUser => ({
+  id: sessionUser.id,
+  email: sessionUser.email || '',
+  name: sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0],
+});
+
+// 개발 서버 전용 테스트 세션 (운영 빌드에서는 무시)
+const readDevSession = (): AuthUser | null => {
+  if (!import.meta.env.DEV) return null;
+  try {
+    const dev = localStorage.getItem(DEV_ADMIN_KEY);
+    return dev ? JSON.parse(dev) : null;
+  } catch {
+    return null;
+  }
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // 예전 방식(코드 내장 비밀번호)으로 운영에 남은 로컬 세션 제거
+    if (!import.meta.env.DEV) {
+      try {
+        localStorage.removeItem(DEV_ADMIN_KEY);
+      } catch {
+        // ignore
+      }
+    }
+
     // 1. Supabase Auth 세션 확인
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0],
-          avatarUrl: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
-        });
-        setLoading(false);
-      } else {
-        // 2. 개발/테스트용 로컬 관리자 세션 확인
-        try {
-          const dev = localStorage.getItem(DEV_ADMIN_KEY);
-          if (dev) {
-            setUser(JSON.parse(dev));
-          }
-        } catch {
-          // ignore
-        }
-        setLoading(false);
-      }
+      setUser(session?.user ? toAuthUser(session.user) : readDevSession());
+      setLoading(false);
     });
 
-    // 3. Supabase Auth 상태 변화 리스너
+    // 2. Supabase Auth 상태 변화 리스너
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0],
-          avatarUrl: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
-        });
-      } else {
-        try {
-          const dev = localStorage.getItem(DEV_ADMIN_KEY);
-          if (dev) {
-            setUser(JSON.parse(dev));
-            return;
-          }
-        } catch {
-          // ignore
-        }
-        setUser(null);
-      }
+      setUser(session?.user ? toAuthUser(session.user) : readDevSession());
       setLoading(false);
     });
 
@@ -86,49 +81,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const loginWithPassword = async (password: string): Promise<{ error?: string }> => {
-    if (!password) {
-      return { error: '관리자 비밀번호를 입력해주세요.' };
+  const loginWithPassword = async (loginId: string, password: string): Promise<{ error?: string }> => {
+    if (!loginId.trim() || !password) {
+      return { error: '아이디와 비밀번호를 입력해주세요.' };
     }
-    if (password !== ADMIN_MASTER_PASSWORD) {
-      return { error: '비밀번호가 일치하지 않습니다.' };
+    const { error } = await supabase.auth.signInWithPassword({
+      email: toLoginEmail(loginId),
+      password,
+    });
+    if (error) {
+      console.error('Login error:', error.message);
+      return { error: '아이디 또는 비밀번호가 일치하지 않습니다.' };
     }
-    const adminUser: AuthUser = {
-      id: 'admin_master',
-      email: 'admin@itket.com',
-      name: '관리자',
-      isDevAdmin: false,
-    };
-    try {
-      localStorage.setItem(DEV_ADMIN_KEY, JSON.stringify(adminUser));
-    } catch {
-      // ignore
-    }
-    setUser(adminUser);
     return {};
-  };
-
-  const loginWithGoogle = async () => {
-    try {
-      const redirectUrl = window.location.origin + window.location.pathname;
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-      if (error) {
-        console.error('Google login error:', error.message);
-        return { error: error.message };
-      }
-      return {};
-    } catch (err: any) {
-      return { error: err.message || 'Google 로그인에 실패했습니다.' };
-    }
   };
 
   const loginAsDevAdmin = () => {
@@ -163,7 +128,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isLoggedIn: !!user,
         loginWithPassword,
-        loginWithGoogle,
         loginAsDevAdmin,
         logout,
       }}

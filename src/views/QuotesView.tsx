@@ -5,8 +5,10 @@ import {
   fmt,
   mLabel,
   prevM,
-  QUOTE_CATS,
+  cat1Of,
   QUOTE_COLORS,
+  quoteCat1Order,
+  quoteChartCats,
   sumBy,
   ym,
 } from '../utils/format';
@@ -16,10 +18,15 @@ import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
+import { Card } from '../components/common/Card';
+import { SkelBar } from '../components/common/SkeletonView';
+import { EmptyState } from '../components/common/EmptyState';
 
 interface QuotesViewProps {
   data: DashboardData;
   status: SyncStatus;
+  /** 실데이터를 받는 중 */
+  isSyncing?: boolean;
   selectedMonth?: string;
 }
 
@@ -30,7 +37,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
   { label: 'collectQuotes · 15분 자동 동기화' },
 ];
 
-export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMonth }) => {
+export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing = false, selectedMonth }) => {
   const quotes = data.quotes || [];
   const quotesRaw = data.quotesRaw || [];
 
@@ -49,11 +56,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
             <div className="d flat">데이터 연결 필요</div>
           </div>
         </div>
-        <div className="card card-empty" id="quotes-empty" data-card="empty">
-          <div className="empty">
-            취합된 실제 견적 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요.
-          </div>
-        </div>
+        <Card name="empty" id="quotes-empty">
+          <EmptyState message="취합된 실제 견적 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요." />
+        </Card>
       </div>
     );
   }
@@ -72,8 +77,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
   const months = Array.from({ length: mm }, (_, i) => ym(yr, i + 1));
   const allMonths = Array.from({ length: 12 }, (_, i) => ym(yr, i + 1));
 
-  const cnt = (mo: string, k: string) =>
-    quotes.filter((r) => r.month === mo && r.category === k).reduce((a, r) => a + r.count, 0);
   const totM = (mo: string) =>
     quotes.filter((r) => r.month === mo).reduce((a, r) => a + r.count, 0);
   const curTot = totM(curM);
@@ -93,19 +96,29 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
     quotes
   );
 
-  const catCounts = QUOTE_CATS.map((k) => ({
-    k,
-    c: quotes
-      .filter((r) => r.month.startsWith(yr) && r.category === k)
-      .reduce((a, r) => a + r.count, 0),
-  })).sort((a, b) => b.c - a.c);
-  const topCat = catCounts[0];
+  // 카테고리는 분류표 1차 기준 (2차는 1차에 합산). 최다 카테고리는 '기타'를 빼고 고른다
+  const yrQuotes = quotes.filter((r) => r.month.startsWith(yr));
+  const topCatKey = quoteCat1Order(yrQuotes).find((c) => c !== '기타');
+  const topCat = topCatKey
+    ? { k: topCatKey, c: sumBy(yrQuotes.filter((r) => cat1Of(r.category) === topCatKey), (r) => r.count) }
+    : undefined;
 
-  const series = QUOTE_CATS.map((k, ci) => ({
-    k,
-    c: QUOTE_COLORS[ci],
-    v: labels.map((_, i) => cnt(`${yr}-${String(i + 1).padStart(2, '0')}`, k)),
-  })).filter((s) => s.v.some((x) => x));
+  // 추이 차트: 건수 상위 6개 1차 카테고리 + 그 외
+  const chartCats = quoteChartCats(yrQuotes);
+  const series = chartCats.keys
+    .map((k, ci) => ({
+      k,
+      c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
+      v: labels.map((_, i) =>
+        sumBy(
+          yrQuotes.filter(
+            (r) => r.month === `${yr}-${String(i + 1).padStart(2, '0')}` && chartCats.keyOf(r.category) === k
+          ),
+          (r) => r.count
+        )
+      ),
+    }))
+    .filter((s) => s.v.some((x) => x));
 
   return (
     <div className="view on" data-view="quotes" data-title="견적 상세">
@@ -133,12 +146,12 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
         <KpiCard
           label={`${yr}년 최다 유입 매체`}
           value={topSrcKey}
-          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : '집계 중'}
+          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '집계 중'}
         />
         <KpiCard
           label={`${yr}년 최다 견적 카테고리`}
           value={topCat?.k || '–'}
-          sub={`${fmt(topCat?.c || 0)}건 (${ytdQuotes > 0 ? ((topCat.c / ytdQuotes) * 100).toFixed(1) : 0}%)`}
+          sub={`${fmt(topCat?.c || 0)}건 (${ytdQuotes > 0 ? (((topCat?.c || 0) / ytdQuotes) * 100).toFixed(1) : 0}%)`}
         />
       </div>
 
@@ -150,14 +163,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
           series={series}
           unit="건"
         />
-        <div className="card card-quotes-src" id="quotes-src" data-card="quotes-src">
-          <h3>유입 매체 비중</h3>
+        <Card name="quotes-src" id="quotes-src" title="유입 매체 비중">
           <SourceBarChart
             id="chSrc"
             items={srcItems}
             emptyMessage="취합된 실제 유입 매체 데이터가 없습니다."
           />
-        </div>
+        </Card>
       </div>
 
       <MonthlyQuotesTable

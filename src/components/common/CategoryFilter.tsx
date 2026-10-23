@@ -42,25 +42,33 @@ export function buildCategoryFilter(
   ];
   const cat1 = cat1Set.includes(state.cat1) ? state.cat1 : '';
 
-  const inData = cat1
-    ? [
-        ...new Set(
-          keys
-            .filter((k) => parseCatParts(k).cat1 === cat1)
-            .map((k) => parseCatParts(k).cat2)
-            .filter(Boolean)
-        ),
-      ]
-    : [];
-  const known = CATEGORY_HIERARCHY.find((n) => n.cat1 === cat1)?.cat2 ?? [];
   // 2차: 분류표에 정의된 하위 카테고리는 이번 달 데이터가 없어도 보여 주고(고르면 빈 결과), 그 밖의 값은 뒤에 붙인다
-  const cat2Set = [...known, ...inData.filter((c) => !known.includes(c))];
+  const cat2Of = (c1: string) => {
+    const inData = [
+      ...new Set(
+        keys
+          .filter((k) => parseCatParts(k).cat1 === c1)
+          .map((k) => parseCatParts(k).cat2)
+          .filter(Boolean)
+      ),
+    ];
+    const known = CATEGORY_HIERARCHY.find((n) => n.cat1 === c1)?.cat2 ?? [];
+    return [...known, ...inData.filter((c) => !known.includes(c))];
+  };
+  const cat2Set = cat1 ? cat2Of(cat1) : [];
   const cat2 = cat2Set.includes(state.cat2) ? state.cat2 : '';
 
   return {
     cat1,
     cat2,
-    cat1Options: [{ value: '', label: '1차 전체' }, ...cat1Set.map((c) => ({ value: c, label: c }))],
+    cat1Options: [
+      { value: '', label: '1차 전체' },
+      ...cat1Set.map((c) => {
+        // 2차 카테고리가 있는 1차만 목록에 개수를 붙인다 (선택된 값 표시에는 붙지 않음)
+        const n = cat2Of(c).length;
+        return { value: c, label: c, hint: n ? `· ${n}` : undefined };
+      }),
+    ],
     cat2Options: [{ value: '', label: '2차 전체' }, ...cat2Set.map((c) => ({ value: c, label: c }))],
     hasCat2: cat2Set.length > 0,
     setCat1: state.setCat1,
