@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { QuoteRawRow } from '../../types/dashboard';
 import { EXTERNAL_LINKS } from '../../utils/constants';
-import { fmt, sourceColorVar } from '../../utils/format';
+import { fmt, sourceColorVar, THIS_M, THIS_Y } from '../../utils/format';
 import { ALL_CATEGORIES } from '../../utils/constants';
 import { SkelRows } from '../common/SkeletonView';
 import { Dropdown } from '../common/Dropdown';
@@ -28,6 +28,11 @@ interface QuotesRawAdminTableProps {
 }
 
 type SortKey = 'idx' | 'sno' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'category' | 'source';
+
+const MONTH_OPTIONS = [
+  { value: 'ALL', label: '월 전체' },
+  ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1).padStart(2, '0'), label: `${i + 1}월` })),
+];
 
 /** '2026-10-23 14:51:00' → '10.23 14:51' */
 const shortAt = (at: string) => {
@@ -68,9 +73,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('ALL');
   const [selectedSource, setSelectedSource] = useState('ALL');
-  const [selectedYear, setSelectedYear] = useState('ALL');
-  const thisMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
-  const [scopeMonth, setScopeMonth] = useState<string>('cur');
+  // 처음에는 이번 달만 보여 준다
+  const [selectedYear, setSelectedYear] = useState(String(THIS_Y));
+  const [selectedMonth, setSelectedMonth] = useState(THIS_M.slice(5, 7));
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('date', 'asc');
@@ -87,7 +92,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   }, [quotes]);
 
   const years = useMemo(() => {
-    return ['ALL', ...Array.from(new Set(quotes.map((q) => q.date?.slice(0, 4)).filter(Boolean))).sort().reverse()];
+    // 이번 해 견적이 아직 없어도 기본 선택값이 목록에 있도록 함께 넣는다
+    const used = quotes.map((q) => q.date?.slice(0, 4)).filter(Boolean);
+    return ['ALL', ...Array.from(new Set([String(THIS_Y), ...used])).sort().reverse()];
   }, [quotes]);
 
   // 행 식별 키 (id 우선, 없으면 sno, 없으면 index)
@@ -107,8 +114,8 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       .filter(({ q }) => {
         if (selectedCat !== 'ALL' && q.category !== selectedCat) return false;
         if (selectedSource !== 'ALL' && q.source !== selectedSource) return false;
-        if (scopeMonth === 'cur' && !q.date?.startsWith(thisMonth)) return false;
-        if (selectedYear !== 'ALL' && !q.date?.startsWith(selectedYear)) return false;
+        if (selectedYear !== 'ALL' && q.date?.slice(0, 4) !== selectedYear) return false;
+        if (selectedMonth !== 'ALL' && q.date?.slice(5, 7) !== selectedMonth) return false;
         if (search) {
           const s = search.toLowerCase();
           const match =
@@ -148,7 +155,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         }
         return sortOrder === 'asc' ? diff : -diff;
       });
-  }, [quotes, selectedCat, selectedSource, selectedYear, scopeMonth, thisMonth, search, sortKey, sortOrder]);
+  }, [quotes, selectedCat, selectedSource, selectedYear, selectedMonth, search, sortKey, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filteredQuotesWithIndex.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -160,9 +167,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
   // CSV 내보내기 (구글 스프레드시트 전체 원본 열 기준 1:1 출력)
   const handleExportCsv = () => {
-    const headers = ['번호', '제목', '작성자', '회사명', '이메일', '접수날짜', '유입경로', '유입 광고', '표준카테고리'];
-    const rows = filteredQuotesWithIndex.map(({ q, originalIndex }) => [
-      `"${q.sno || originalIndex + 1}"`,
+    const headers = ['SNO', '제목', '작성자', '회사명', '이메일', '접수날짜', '유입경로', '유입 광고', '표준카테고리'];
+    const rows = filteredQuotesWithIndex.map(({ q }) => [
+      `"${q.sno || ''}"`,
       `"${(q.subject || '').replace(/"/g, '""')}"`,
       `"${(q.name || '').replace(/"/g, '""')}"`,
       `"${(q.company || '').replace(/"/g, '""')}"`,
@@ -258,13 +265,19 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       <div className="qr-filter">
         <div className="qr-filter-item">
           <Dropdown
-            ariaLabel="기간 선택"
-            value={scopeMonth}
-            options={[
-              { value: 'cur', label: `${thisMonth.replace('-', '년 ')}월 (이번 달)` },
-              { value: 'ALL', label: '전체 기간' },
-            ]}
-            onChange={(v) => { setScopeMonth(v); setPage(1); }}
+            ariaLabel="연도 선택"
+            value={selectedYear}
+            options={years.map((y) => ({ value: y, label: y === 'ALL' ? '연도 전체' : `${y}년` }))}
+            onChange={(v) => { setSelectedYear(v); setPage(1); }}
+          />
+        </div>
+
+        <div className="qr-filter-item">
+          <Dropdown
+            ariaLabel="월 선택"
+            value={selectedMonth}
+            options={MONTH_OPTIONS}
+            onChange={(v) => { setSelectedMonth(v); setPage(1); }}
           />
         </div>
 
@@ -276,15 +289,6 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </label>
-
-        <div className="qr-filter-item">
-          <Dropdown
-            ariaLabel="연도 선택"
-            value={selectedYear}
-            options={years.map((y) => ({ value: y, label: y === 'ALL' ? '연도 전체' : `${y}년` }))}
-            onChange={(v) => { setSelectedYear(v); setPage(1); }}
-          />
-        </div>
 
         <div className="qr-filter-item">
           <Dropdown
@@ -323,7 +327,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         <table className="tbl tw stk qr-table">
           <thead>
             <tr>
-              <SortableTh sortKey="sno" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-sno">번호</SortableTh>
+              <SortableTh sortKey="sno" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-sno">SNO</SortableTh>
               <SortableTh sortKey="date" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-date">접수날짜</SortableTh>
               <SortableTh sortKey="subject" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-subject">제목 (문의 내용)</SortableTh>
               <SortableTh sortKey="company" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-company">회사명</SortableTh>
