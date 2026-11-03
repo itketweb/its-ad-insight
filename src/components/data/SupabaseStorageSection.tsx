@@ -83,7 +83,7 @@ create policy "Allow public update dashboard_snapshots"
           <tr>
             <th>프로젝트 URL</th>
             <td>
-              <code className="url-code">https://airzyqygxtdnlkzjsmec.supabase.co</code>
+              <code className="url-code">https://tqxljgmygvanysqnhiar.supabase.co</code>
             </td>
           </tr>
           <tr>
