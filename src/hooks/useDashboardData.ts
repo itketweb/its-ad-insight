@@ -101,6 +101,20 @@ function withCurrentQuoteCategories(data: DashboardData, manual: Map<string, str
   return { ...data, quotes: [...agg.values()], quotesRaw };
 }
 
+/**
+ * 영업담당 표기를 사람마다 가장 최근 직급 하나로 맞춘다 ("이병태 차장"·"이병태 부장" → "이병태 부장").
+ * 직급이 바뀌어도 한 사람으로 집계하기 위함이며, 직급 없이 이름만 적힌 건은 직급 있는 표기를 우선한다.
+ * rows 는 접수일 오름차순이어야 한다.
+ */
+function withLatestRepTitles<T extends { salesRep?: string }>(rows: T[]): T[] {
+  const nameOf = (rep: string) => rep.split(' ')[0];
+  const latest = new Map<string, string>();
+  rows.forEach(({ salesRep: rep }) => {
+    if (rep && (rep.includes(' ') || !latest.has(nameOf(rep)))) latest.set(nameOf(rep), rep);
+  });
+  return rows.map((r) => (r.salesRep ? { ...r, salesRep: latest.get(nameOf(r.salesRep)) } : r));
+}
+
 export function fromApi(j: RawApiPayload): DashboardData {
   const n = (v: unknown) => Number(v) || 0;
 
@@ -269,7 +283,7 @@ export function fromApi(j: RawApiPayload): DashboardData {
         count: n(r.count),
       };
     }),
-    quotesRaw: (j.quotes_raw || [])
+    quotesRaw: withLatestRepTitles((j.quotes_raw || [])
       .map((r, idx) => {
         const src = String(r.source || '').trim();
         return {
@@ -284,10 +298,11 @@ export function fromApi(j: RawApiPayload): DashboardData {
           source: src === '직접·기타' ? '기타' : src,
           // "네이버(광고) - ROSEHA" 처럼 " - " 뒤에 붙은 광고 꼬리표만 따로 둔다
           sourceDetail: String(r.source_raw || '').split(/\s+-\s+/).slice(1).join(' - ').trim(),
+          salesRep: String(r.sales_rep || '').trim().replace(/\s+/g, ' '),
         };
       })
       .filter((r) => r.date)
-      .sort((a, b) => a.date.localeCompare(b.date)),
+      .sort((a, b) => a.date.localeCompare(b.date))),
     keywords: [
       ...(j.g_keywords || []).map((r) => toKeywordRow('Google', r)),
       ...naverRawKws.map((r) => toKeywordRow('Naver', r)),

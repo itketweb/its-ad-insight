@@ -2,8 +2,8 @@
  * its-ad-insight — 네이버 검색광고 수집 + 대시보드용 웹앱 (Google Apps Script, 데이터 시트에 연결)
  *
  * script.google.com 에서 새 프로젝트(데이터 시트와 같은 구글 계정)에 붙여넣는다. 시트는 SHEET_ID 로 연다.
- *  - setup        : 처음 한 번. 관리용 시트(mapping·manual)와 웹앱 비밀키를 만들고, 15분마다 syncAll 을 예약한다.
- *  - syncAll      : 15분마다. 네이버는 구조+키워드 성과(collectNaver) 하루 1번 + 광고그룹 광고비(collectNaverStats) 15분마다로 나눠 UrlFetch 한도를 지킨다.
+ *  - setup        : 처음 한 번. 관리용 시트(mapping·manual)와 웹앱 비밀키를 만들고, 1시간마다 syncAll 을 예약한다.
+ *  - syncAll      : 1시간마다. 네이버는 구조+키워드 성과(collectNaver) 하루 1번 + 광고그룹 광고비(collectNaverStats) 매 실행으로 나눠 UrlFetch 한도를 지킨다.
  *  - collectNaver : 네이버 캠페인·광고그룹·키워드·소재 목록 → n_idx_groups · n_idx_keywords · n_ads, 이어서 성과까지
  *  - collectNaverStats : 색인의 ID 로 /stats 만 → n_adgroup_monthly (당월·전월은 매번, 과거 월은 비어 있는 달만). n_keywords 는 비어 있는 과거 달만 채운다. 소재 × 월 성과(n_ad_stats)는 하루 1번
  *  - doGet        : ?key=비밀키 로 부르면 시트 전체를 JSON 으로 내려준다 (대시보드가 읽음). 키가 틀리면 아무것도 주지 않는다.
@@ -39,8 +39,8 @@ function setup() {
   if (!PROPS.getProperty('API_TOKEN')) PROPS.setProperty('API_TOKEN', Utilities.getUuid().replace(/-/g, ''));
   const allFuncs = ['collectNaver', 'collectGfaEmail', 'collectGoogleAdsEmail', 'collectCommerce', 'collectQuotes', 'syncAll'];
   ScriptApp.getProjectTriggers().filter((t) => allFuncs.includes(t.getHandlerFunction())).forEach((t) => ScriptApp.deleteTrigger(t));
-  // 실시간 체감 극대화 및 안전 쿼터 운영: 15분 주기 통합 실행
-  ScriptApp.newTrigger('syncAll').timeBased().everyMinutes(15).create();
+  // 트리거 실행 시간 한도(계정당 하루 90분)를 지키려고 1시간 주기로 실행한다 (15분 주기는 하루 약 3시간 사용, 2026-11-03 추정)
+  ScriptApp.newTrigger('syncAll').timeBased().everyHours(1).create();
   console.log('웹앱 비밀키(대시보드 js/config.js 의 key): ' + PROPS.getProperty('API_TOKEN'));
 }
 
@@ -54,7 +54,7 @@ function syncAllBody_(t0) {
   // 네이버는 하루 UrlFetch 한도(2만 회)를 지키려고 둘로 나눈다.
   //  - 구조(캠페인·광고그룹·키워드·소재 목록): 하루 1번, 06시 이후 첫 실행 (약 500~700회)
   //    키워드 성과는 어제까지 집계라 하루 중에는 바뀌지 않으므로 구조 수집 때 함께 받는다 (약 100회)
-  //  - 광고그룹 광고비(/stats 만, 오늘 포함): NAVER_EVERY_MIN(기본 15분)마다 (약 10회)
+  //  - 광고그룹 광고비(/stats 만, 오늘 포함): syncAll 실행마다, 단 NAVER_EVERY_MIN(기본 15분)보다 자주 부르지 않는다 (약 10회)
   const now = Date.now(), kst = (f) => Utilities.formatDate(new Date(), 'Asia/Seoul', f);
   const structDue = PROPS.getProperty('NAVER_STRUCT_DAY') !== kst('yyyy-MM-dd') && Number(kst('H')) >= 6
     && now - (Number(PROPS.getProperty('NAVER_STRUCT_TRY')) || 0) >= 2 * 3600 * 1000; // 실패하면 2시간 뒤 다시
@@ -169,7 +169,7 @@ function collectNaver() {
 /* ── 네이버 검색광고: 성과 수집 (1시간마다) ──
  * 색인(n_idx_*)의 ID 로 /stats 만 불러 n_adgroup_monthly · n_keywords(월별)를 갱신한다.
  * 당월·전월은 매번 다시, 그 이전은 비어 있는 달을 한 번에 CFG.BACKFILL_MONTHS 개씩만 채운다.
- * withKeywords 가 아니면(15분 주기) 키워드는 당월·전월을 건너뛰고 비어 있는 과거 달만 채운다 — 다 채워지면 키워드 호출은 0회. */
+ * withKeywords 가 아니면(정기 실행) 키워드는 당월·전월을 건너뛰고 비어 있는 과거 달만 채운다 — 다 채워지면 키워드 호출은 0회. */
 function collectNaverStats() {
   checkNaverKeys_();
   collectNaverStats_(SpreadsheetApp.openById(CFG.SHEET_ID), Date.now(), false);
@@ -233,7 +233,7 @@ function collectNaverStats_(ss, t0, withKeywords) {
   const kKeep = kOld.filter((r) => !kDone.includes(r.month)).map((r) => kHead.map((h) => r[h]));
   if (kDone.length) put_(ss, 'n_keywords', [kHead].concat(kKeep.concat(kRows).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
   // 소재 성과는 하루 1번만 — 매번 돌리면 소재 수/50 회씩 늘어난다. 구조 수집(collectNaver)은 시간을 거의 다 쓰므로
-  // 그날 처음으로 시간이 1분 넘게 남은 실행(보통 15분 주기의 collectNaverStats)이 맡는다.
+  // 그날 처음으로 시간이 1분 넘게 남은 실행(보통 정기 실행의 collectNaverStats)이 맡는다.
   const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
   if (PROPS.getProperty('NAVER_AD_STATS_DAY') !== today && Date.now() - t0 < CFG.BUDGET_MS - 60 * 1000) {
     if (collectNaverAdStats_(ss, t0, fresh, back)) PROPS.setProperty('NAVER_AD_STATS_DAY', today);
@@ -713,7 +713,7 @@ function saveGoogleKeywordRows_(ss, rows) {
 /* ── 견적 집계 ──
  * 아이티켓 쇼핑몰이 견적 접수 때마다 구글 시트(견적요청 리스트)에 한 줄씩 쌓는다.
  * 월·카테고리·유입경로별 건수를 quotes_monthly 에 집계하고,
- * 번호·제목·작성자·회사명·연락처·이메일·접수날짜·주문상태·유입경로·표준카테고리를 quotes_raw 에 1:1 보존한다.
+ * 번호·제목·작성자·회사명·연락처·이메일·접수날짜·주문상태·유입경로·표준카테고리·영업담당을 quotes_raw 에 1:1 보존한다.
  * 스크립트 속성: QUOTE_SHEET_ID(견적 시트 ID, 필수), QUOTE_SHEET_TAB(탭 이름, 기본 '견적문의'). */
 function collectQuotes() {
   const id = PROPS.getProperty('QUOTE_SHEET_ID');
@@ -763,9 +763,10 @@ function collectQuotes() {
   const iName    = findCol_('작성자', '이름', '신청자', '신청자명', '고객명', '주문자명', '주문자', '담당자');
   const iCompany = findCol_('회사명', '업체명', '회사', '기업명', '기관명');
   const iEmail   = findCol_('이메일', 'email', 'Email', 'EMAIL');
+  const iRep     = findCol_('영업담당', '영업담당자'); // 사내 담당자. 시트의 '담당자' 열은 고객 쪽 담당자라 별개
 
   // source 는 집계용으로 정리한 값, source_raw 는 시트 원문 (예: "네이버(광고) - ROSEHA" — 어느 광고로 들어왔는지)
-  const rawHead = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category', 'source_raw'];
+  const rawHead = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category', 'source_raw', 'sales_rep'];
   const rawRows = [rawHead];
   v.forEach((r) => {
     const d = r[iDate];
@@ -782,6 +783,7 @@ function collectQuotes() {
       iSrc < 0 ? '미수집' : quoteSource_(r[iSrc]),
       currentCategory_(overrideMap[snoVal]) || quoteCategory_(r[iSub], iSrc < 0 ? '' : r[iSrc]),
       iSrc < 0 ? '' : String(r[iSrc] || '').trim(),
+      iRep < 0 ? '' : String(r[iRep] || '').trim(),
     ]);
   });
   put_(ss, 'quotes_raw', rawRows);

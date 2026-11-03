@@ -27,7 +27,7 @@ interface MonthlyQuotesTableProps {
   allMonths: string[];
 }
 
-type SummaryTab = 'src' | 'cat';
+type SummaryTab = 'src' | 'cat' | 'rep';
 type SourcePlatform = '네이버' | '구글' | '기타·직접';
 
 const BASE_SRC_GROUPS: Record<SourcePlatform, string[]> = {
@@ -35,6 +35,9 @@ const BASE_SRC_GROUPS: Record<SourcePlatform, string[]> = {
   구글: ['구글(광고)', '구글(검색)', '구글(유튜브)', '구글(디스플레이)'],
   '기타·직접': ['Meta', '카카오', '유튜브', '블로그·커뮤니티', '직접', '기타', '미수집'],
 };
+
+const REP_UNASSIGNED = '미지정';
+const REP_EMPTY_TEXT = '담당자 데이터가 아직 수집되지 않았습니다. 견적 데이터 수집이 다시 실행되면 표시됩니다.';
 
 export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
   quotes,
@@ -48,9 +51,13 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
   const [timeScope, setTimeScope] = useState<'cur' | 'ytd'>('cur');
   const [summaryTab, setSummaryTab] = useState<SummaryTab>('cat');
   const [srcPlatform, setSrcPlatform] = useState<SourcePlatform>('네이버');
-  // 카테고리는 10개까지만 보이고 나머지는 '더보기'로 (막대 목록·표 함께)
-  const [showAllCats, setShowAllCats] = useState(false);
-  const catLimit = showAllCats ? undefined : LIST_LIMIT;
+  // 카테고리·담당자는 10개까지만 보이고 나머지는 '더보기'로 (막대 목록·표 함께). 탭을 바꾸면 접는다
+  const [showAllRows, setShowAllRows] = useState(false);
+  const rowLimit = showAllRows ? undefined : LIST_LIMIT;
+  const changeSummaryTab = (tab: SummaryTab) => {
+    setSummaryTab(tab);
+    setShowAllRows(false);
+  };
 
   const isFuture = (mo: string) => mo > curM;
 
@@ -64,6 +71,23 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
     quotes.filter((r) => r.month === mo).reduce((a, r) => a + r.count, 0);
 
   const lastYearQuote = (mo: string) => totMonth(ym(+yr - 1, +mo.slice(5)));
+
+  // 담당자별: 원장(quotes_raw)의 영업담당 기준. 값이 없는 건은 '미지정'으로 모은다
+  const hasRepData = useMemo(() => quotesRaw.some((r) => r.salesRep), [quotesRaw]);
+  const repOf = (r: QuoteRawRow) => r.salesRep || REP_UNASSIGNED;
+  const cntRep = (mo: string, rep: string) =>
+    quotesRaw.filter((r) => r.date?.startsWith(mo) && repOf(r) === rep).length;
+  // 올해 견적이 있는 담당자 전부, 건수 큰 순 ('미지정'은 맨 뒤)
+  const yearReps = useMemo(() => {
+    if (!hasRepData) return [];
+    const byRep = new Map<string, number>();
+    quotesRaw
+      .filter((r) => months.some((mo) => r.date?.startsWith(mo)))
+      .forEach((r) => byRep.set(repOf(r), (byRep.get(repOf(r)) || 0) + 1));
+    return [...byRep.keys()].sort((a, b) =>
+      a === REP_UNASSIGNED ? 1 : b === REP_UNASSIGNED ? -1 : byRep.get(b)! - byRep.get(a)!
+    );
+  }, [quotesRaw, months, hasRepData]);
 
   // 유입 매체 그룹 구성 (정의되지 않은 동적 매체는 '기타·직접'에 병합)
   const knownSet = new Set(Object.values(BASE_SRC_GROUPS).flat());
@@ -91,7 +115,19 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
 
   // 차트 모드 데이터 산출
   const chartData = useMemo(() => {
-    if (summaryTab === 'cat') {
+    if (summaryTab === 'rep') {
+      const items = yearReps.map((k) => ({
+        k,
+        count: timeScope === 'cur' ? cntRep(curM, k) : sumBy(months, (mo) => cntRep(mo, k)),
+        color: k === REP_UNASSIGNED ? '--c-etc' : undefined,
+      }));
+      const total = items.reduce((a, b) => a + b.count, 0);
+      const sorted = items
+        .filter((it) => it.count > 0)
+        .sort((a, b) => (a.k === REP_UNASSIGNED ? 1 : b.k === REP_UNASSIGNED ? -1 : b.count - a.count))
+        .map((it) => ({ ...it, pct: total > 0 ? (it.count / total) * 100 : 0 }));
+      return { items: sorted, total, max: Math.max(...sorted.map((s) => s.count), 1) };
+    } else if (summaryTab === 'cat') {
       const items = yearCats.map((c, ci) => {
         const count =
           timeScope === 'cur'
@@ -137,15 +173,23 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
         }));
       return { items: sorted, total, max: Math.max(...sorted.map((s) => s.count), 1) };
     }
-  }, [summaryTab, timeScope, curM, yr, months, quotes, quotesRaw, yearCats]);
+  }, [summaryTab, timeScope, curM, yr, months, quotes, quotesRaw, yearCats, yearReps]);
 
-  const curCount =
-    summaryTab === 'cat'
+  const isRep = summaryTab === 'rep';
+  // 표: 카테고리·담당자는 행 기준만 다르고 구성이 같다
+  const groupRows = isRep ? yearReps : yearCats;
+  const cntGroup = isRep ? cntRep : cntCat;
+  const totGroupMonth = isRep ? totRawMonth : totMonth;
+
+  const curCount = isRep
+    ? hasRepData ? totRawMonth(curM) : 0
+    : summaryTab === 'cat'
       ? totMonth(curM)
       : quotesRaw.filter((r) => r.date?.startsWith(curM) && r.source && r.source !== '미수집').length;
 
-  const ytdCount =
-    summaryTab === 'cat'
+  const ytdCount = isRep
+    ? hasRepData ? sumBy(months, totRawMonth) : 0
+    : summaryTab === 'cat'
       ? sumBy(months, totMonth)
       : quotesRaw.filter((r) => r.date?.startsWith(yr) && r.source && r.source !== '미수집').length;
 
@@ -167,10 +211,11 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
           <SegmentedControl<SummaryTab>
             mini
             value={summaryTab}
-            onChange={setSummaryTab}
+            onChange={changeSummaryTab}
             options={[
               { value: 'cat', label: '카테고리별' },
               { value: 'src', label: '유입 매체별' },
+              { value: 'rep', label: '담당자별' },
             ]}
           />
         </div>
@@ -207,7 +252,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
 
           {chartData.items.length ? (
             <div className="cpa-list quote-rank-list">
-              {chartData.items.slice(0, summaryTab === 'cat' ? catLimit : undefined).map((it, idx) => {
+              {chartData.items.slice(0, summaryTab === 'src' ? undefined : rowLimit).map((it, idx) => {
                 const widthPct = Math.max(5, Math.round((it.count / chartData.max) * 100));
                 return (
                   <div key={it.k} className="cpa-row">
@@ -231,17 +276,21 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                   </div>
                 );
               })}
-              {summaryTab === 'cat' && (
-                <ShowMoreButton total={chartData.items.length} expanded={showAllCats} onToggle={() => setShowAllCats((v) => !v)} />
+              {summaryTab !== 'src' && (
+                <ShowMoreButton noun={isRep ? '담당자' : '카테고리'} total={chartData.items.length} expanded={showAllRows} onToggle={() => setShowAllRows((v) => !v)} />
               )}
             </div>
           ) : (
             <div className="empty" style={{ margin: '1.5rem 0' }}>
-              선택한 조건의 견적 접수 데이터가 없습니다.
+              {isRep && !hasRepData ? REP_EMPTY_TEXT : '선택한 조건의 견적 접수 데이터가 없습니다.'}
             </div>
           )}
         </div>
-      ) : summaryTab === 'cat' ? (
+      ) : isRep && !hasRepData ? (
+        <div className="empty" style={{ margin: '1.5rem 0' }}>
+          {REP_EMPTY_TEXT}
+        </div>
+      ) : summaryTab !== 'src' ? (
         <div id="tbQuotesSummary">
           <table className="stk" id="tbQuotesCat">
             <colgroup>
@@ -253,7 +302,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
             </colgroup>
             <thead>
               <tr>
-                <th>카테고리</th>
+                <th>{isRep ? '담당자' : '카테고리'}</th>
                 {allMonths.map((mo) => (
                   <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
                     {mLabel(mo)}
@@ -263,16 +312,16 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
               </tr>
             </thead>
             <tbody>
-              {yearCats.slice(0, catLimit).map((c) => (
+              {groupRows.slice(0, rowLimit).map((c) => (
                 <tr key={c}>
                   <td>{c}</td>
                   {allMonths.map((mo) => (
                     <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
-                      {fmt(cntCat(mo, c))}
+                      {fmt(cntGroup(mo, c))}
                     </td>
                   ))}
                   <td className="n">
-                    <b>{fmt(sumBy(months, (mo) => cntCat(mo, c)))}</b>
+                    <b>{fmt(sumBy(months, (mo) => cntGroup(mo, c)))}</b>
                   </td>
                 </tr>
               ))}
@@ -280,11 +329,11 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                 <td>합계</td>
                 {allMonths.map((mo) => (
                   <td key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
-                    {fmt(totMonth(mo))}
+                    {fmt(totGroupMonth(mo))}
                   </td>
                 ))}
                 <td className="n">
-                  <b>{fmt(sumBy(months, totMonth))}</b>
+                  <b>{fmt(sumBy(months, totGroupMonth))}</b>
                 </td>
               </tr>
               <tr>
@@ -300,16 +349,16 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                 <td className="sub-t">전년비</td>
                 {allMonths.map((mo) => (
                   <td key={mo} className={`n sub-t${isFuture(mo) ? ' future' : ''}`}>
-                    <DeltaSpan a={totMonth(mo)} b={lastYearQuote(mo)} />
+                    <DeltaSpan a={totGroupMonth(mo)} b={lastYearQuote(mo)} />
                   </td>
                 ))}
                 <td className="n sub-t">
-                  <DeltaSpan a={sumBy(months, totMonth)} b={sumBy(months, lastYearQuote)} />
+                  <DeltaSpan a={sumBy(months, totGroupMonth)} b={sumBy(months, lastYearQuote)} />
                 </td>
               </tr>
             </tbody>
           </table>
-          <ShowMoreButton total={yearCats.length} expanded={showAllCats} onToggle={() => setShowAllCats((v) => !v)} />
+          <ShowMoreButton noun={isRep ? '담당자' : '카테고리'} total={groupRows.length} expanded={showAllRows} onToggle={() => setShowAllRows((v) => !v)} />
         </div>
       ) : (
         <div id="tbQuotesSrc">
@@ -421,7 +470,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
 
       <TableFootnote
         unit="건"
-        basis="산출 근거: 접수 시점 UTM/Referrer 경로 기반 매체 자동 판별 · 카테고리 = 분류표 1차 (견적 제목·유입 광고로 자동 분류, 2차는 1차에 합산)"
+        basis="산출 근거: 접수 시점 UTM/Referrer 경로 기반 매체 자동 판별 · 카테고리 = 분류표 1차 (견적 제목·유입 광고로 자동 분류, 2차는 1차에 합산) · 담당자 = 견적 시트 영업담당 (직급이 바뀌어도 같은 사람으로 합산, 최근 직급으로 표기)"
         sources={[
           '견적 접수 원본 시트 · collectQuotes 자동 동기화',
         ]}
