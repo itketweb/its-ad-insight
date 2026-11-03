@@ -2,10 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import type { DashboardData } from '../types/dashboard';
 
 const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || 'https://airzyqygxtdnlkzjsmec.supabase.co';
+  import.meta.env.VITE_SUPABASE_URL || 'https://tqxljgmygvanysqnhiar.supabase.co';
 const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpcnp5cXlneHRkbmxrempzbWVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1Mzc3NDIsImV4cCI6MjEwODExMzc0Mn0.yViIq4o0bs47sokNI-nRMh5sMwCsBFrc0-NHJ0aIOOY';
+  'sb_publishable__Oq9NpOHnxEqRSZ02qJDaw_n-FIAGC2';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
