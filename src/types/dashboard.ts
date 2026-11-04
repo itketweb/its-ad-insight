@@ -39,6 +39,8 @@ export interface QuoteRow {
 
 export interface QuoteRawRow {
   id?: string;
+  /** 아이티켓 외 사이트 (zbyhp·cadkorea). 아이티켓 원장은 비어 있다 */
+  site?: string;
   sno?: string | number;
   subject?: string;
   name?: string;
@@ -51,6 +53,10 @@ export interface QuoteRawRow {
   sourceDetail: string;
   /** 사내 영업 담당자 "이름 직급" (사람마다 가장 최근 직급으로 통일). 수집 전 데이터는 빈 값 */
   salesRep?: string;
+  /** 전화문의 고객 전화번호 */
+  phone?: string;
+  /** 전화문의를 받은 직원 */
+  receiver?: string;
   /** 자동 분류 결과 (제목 → 유입 광고 꼬리표) — 수동 지정과 비교해 흔적을 보여 준다 */
   autoCategory?: string;
   /** 어드민에서 수동 지정해 저장된 기록 (manual_categories 시트) */
@@ -156,6 +162,10 @@ export interface DashboardData {
   mapping: MappingRow[];
   quotes: QuoteRow[];
   quotesRaw: QuoteRawRow[];
+  /** 어드민 리스트 전용 다른 사이트 견적 — 통계에는 쓰지 않는다 */
+  quotesSites: QuoteRawRow[];
+  /** 어드민 리스트 전용 전화문의 — 통계에는 쓰지 않는다 */
+  quotesPhone: QuoteRawRow[];
   keywords: KeywordRow[];
   ads: AdRow[];
   adStats: AdStatRow[];
@@ -274,6 +284,22 @@ export interface RawQuoteRawApiRow {
   source_raw?: unknown;
   /** 견적 시트 영업담당 원문 (예: "이병태 차장") */
   sales_rep?: unknown;
+  /** quotes_raw_sites 의 사이트 구분 */
+  site?: unknown;
+}
+
+/** 전화문의 시트 한 행 (quotes_phone) */
+export interface RawQuotePhoneApiRow {
+  sno?: unknown;
+  source?: unknown;
+  company?: unknown;
+  name?: unknown;
+  phone?: unknown;
+  category?: unknown;
+  sales_rep?: unknown;
+  receiver?: unknown;
+  received_at?: unknown;
+  memo?: unknown;
 }
 
 /** 어드민에서 수동 지정한 견적 카테고리 (manual_categories 시트) */
@@ -297,6 +323,8 @@ export interface RawApiPayload {
   mapping?: MappingRow[];
   quotes_monthly?: RawQuoteMonthlyApiRow[];
   quotes_raw?: RawQuoteRawApiRow[];
+  quotes_raw_sites?: RawQuoteRawApiRow[];
+  quotes_phone?: RawQuotePhoneApiRow[];
   manual_categories?: RawManualCategoryApiRow[];
   g_keywords?: RawKeywordApiRow[];
   n_keywords?: RawKeywordApiRow[];

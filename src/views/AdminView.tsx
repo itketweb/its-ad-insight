@@ -2,52 +2,70 @@ import React, { useState } from 'react';
 import type { DashboardData, QuoteRawRow } from '../types/dashboard';
 import { ViewHeader } from '../components/common/ViewHeader';
 import { QuotesRawAdminTable } from '../components/admin/QuotesRawAdminTable';
-import { Notice } from '../components/common/Notice';
 import { getCfg } from '../hooks/useDashboardData';
 import { useAuth } from '../context/AuthContext';
+import { quoteKey } from '../utils/format';
+
+/** 표에 올릴 행 — 아이티켓은 2026-10 이후만, 다른 사이트는 건수가 적어 전체를 보여 준다 */
+const toAdminRows = (raw: QuoteRawRow[], sites: QuoteRawRow[]): QuoteRawRow[] => [
+  ...raw.filter((r) => r.date >= '2026-10'),
+  ...sites,
+];
 
 interface AdminViewProps {
   data: DashboardData;
   /** 실데이터를 받는 중 (화면은 저장해 둔 이전 데이터로 먼저 그린다) */
   isSyncing?: boolean;
   onUpdateQuotesRaw?: (newQuotes: QuoteRawRow[]) => void;
+  onUpdateQuotesSites?: (newQuotes: QuoteRawRow[]) => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw, onUpdateQuotesSites }) => {
   const [localQuotes, setLocalQuotes] = useState<QuoteRawRow[]>(() =>
-    (data.quotesRaw || []).filter((r) => r.date >= '2026-10')
+    toAdminRows(data.quotesRaw || [], data.quotesSites || [])
   );
   const [isDirty, setIsDirty] = useState<boolean>(false);
-  // 수동 변경된 sno → 새 카테고리 추적 (저장 시 Apps Script로 전송)
+  // 수동 변경된 행(quoteKey) → 새 카테고리 추적 (저장 시 Apps Script로 전송)
   const [pendingOverrides, setPendingOverrides] = useState<Map<string, string>>(new Map());
-  // 저장 전 변경의 원래 값 (sno → 처음 바꾸기 전 카테고리) — 표에 '이전: ○○' 흔적으로 보여 준다
+  // 저장 전 변경의 원래 값 (quoteKey → 처음 바꾸기 전 카테고리) — 표에 '이전: ○○' 흔적으로 보여 준다
   const [originals, setOriginals] = useState<Map<string, string>>(new Map());
   const { user } = useAuth();
 
   // 수정을 시작하기 전 전체 원장 — 되돌리기 때 이 상태로 돌린다
   const baseQuotes = React.useRef<QuoteRawRow[]>(data.quotesRaw || []);
+  const baseSites = React.useRef<QuoteRawRow[]>(data.quotesSites || []);
 
   // 저장해 둔 이전 데이터로 먼저 그린 뒤 실데이터가 오면 바꿔 끼운다 (수정 중이면 그대로 둔다)
   React.useEffect(() => {
     if (!isDirty && data.quotesRaw?.length) {
       baseQuotes.current = data.quotesRaw;
-      setLocalQuotes(data.quotesRaw.filter((r) => r.date >= '2026-10'));
+      baseSites.current = data.quotesSites || [];
+      setLocalQuotes(toAdminRows(data.quotesRaw, data.quotesSites || []));
     }
-  }, [data.quotesRaw, isDirty]);
+  }, [data.quotesRaw, data.quotesSites, isDirty]);
 
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  // 개별 행 카테고리 수동 지정 변경 — 변경된 sno를 pendingOverrides에 기록
+  // 저장 성공 안내는 표를 가리지 않도록 잠시 뒤 닫는다 (실패 안내는 다시 시도할 때까지 둔다)
+  React.useEffect(() => {
+    if (!saveMsg?.ok) return;
+    const timer = window.setTimeout(() => setSaveMsg(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [saveMsg]);
+
+  // 개별 행 카테고리 수동 지정 변경 — 변경된 행을 pendingOverrides에 기록
   const handleUpdateQuoteCategory = (idOrIndex: string | number, newCategory: string) => {
     let changedSno: string | undefined;
     let changedId: string | undefined;
+    let changedIsSite = false;
     let prevCategory = '';
     const updated = localQuotes.map((q, idx) => {
       const match = typeof idOrIndex === 'string' ? q.id === idOrIndex : idx === idOrIndex;
       if (match) {
-        changedSno = String(q.sno ?? '');
+        changedSno = q.sno != null && q.sno !== '' ? quoteKey(q) : '';
         changedId = q.id;
+        changedIsSite = !!q.site;
         prevCategory = q.category;
         return { ...q, category: newCategory };
       }
@@ -77,8 +95,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
       }
     }
     // 화면에는 10월 이후만 보이지만 앱 전체 원장은 지난달까지 들고 있다 — 바뀐 한 건만 갈아 끼운다
-    if (onUpdateQuotesRaw && changedId) {
-      onUpdateQuotesRaw(data.quotesRaw.map((q) => (q.id === changedId ? { ...q, category: newCategory } : q)));
+    if (changedId) {
+      const withChange = (rows: QuoteRawRow[]) => rows.map((q) => (q.id === changedId ? { ...q, category: newCategory } : q));
+      if (changedIsSite) onUpdateQuotesSites?.(withChange(data.quotesSites || []));
+      else onUpdateQuotesRaw?.(withChange(data.quotesRaw));
     }
   };
 
@@ -101,13 +121,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
       });
       const json = await res.json();
       if (json.success) {
-        setSaveMsg({ text: `${overrides.length}건 저장됨. 다음 동기화(최대 15분) 후 전체 통계에 반영됩니다.`, ok: true });
+        setSaveMsg({ text: `${overrides.length}건 저장됨. 다음 동기화(최대 1시간) 후 반영됩니다.`, ok: true });
         // 저장한 행은 '수동 지정' 흔적으로 바로 바꿔 보여 준다 (다음 동기화 전에도)
         const at = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 19);
         const by = user?.email || user?.name || undefined;
         setLocalQuotes((prev) =>
           prev.map((q) => {
-            const cat = pendingOverrides.get(String(q.sno ?? ''));
+            const cat = pendingOverrides.get(quoteKey(q));
             return cat ? { ...q, manual: { category: cat, at, ...(by ? { by } : {}) } } : q;
           })
         );
@@ -127,11 +147,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
   const handleResetChanges = () => {
     if (confirm('저장하지 않은 모든 카테고리 수동 변경사항을 되돌리시겠습니까?')) {
       const original = baseQuotes.current;
-      setLocalQuotes(original.filter((r) => r.date >= '2026-10'));
+      setLocalQuotes(toAdminRows(original, baseSites.current));
       setIsDirty(false);
       setPendingOverrides(new Map());
+      setOriginals(new Map());
       setSaveMsg(null);
       if (onUpdateQuotesRaw) onUpdateQuotesRaw(original);
+      if (onUpdateQuotesSites) onUpdateQuotesSites(baseSites.current);
     }
   };
 
@@ -144,19 +166,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
         status="live"
       />
 
-      {saveMsg && <Notice tone={saveMsg.ok ? 'ok' : 'warn'}>{saveMsg.text}</Notice>}
-
       {/* 견적 원본 스프레드시트 관리 테이블 */}
       <div className="admin-body">
         <QuotesRawAdminTable
           quotes={localQuotes}
+          phoneQuotes={data.quotesPhone || []}
           originals={originals}
           loading={isSyncing}
           onUpdateQuoteCategory={handleUpdateQuoteCategory}
-          isDirty={isDirty}
+          changedCount={pendingOverrides.size}
           onSave={handleSaveOverrides}
           onReset={handleResetChanges}
           saving={saving}
+          saveMsg={saveMsg}
         />
       </div>
     </div>

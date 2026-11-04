@@ -45,12 +45,22 @@ export async function readCachedPayload(): Promise<RawApiPayload | null> {
   }
 }
 
+/** 브라우저에는 공개 데이터만 남긴다 — 관리자 응답의 고객 정보는 저장하지 않는다 */
+function toPublicPayload(payload: RawApiPayload): RawApiPayload {
+  const { quotes_raw_sites: _sites, quotes_phone: _phone, ...rest } = payload;
+  return {
+    ...rest,
+    quotes_raw: rest.quotes_raw?.map(({ name: _name, company: _company, email: _email, ...row }) => row),
+    manual_categories: rest.manual_categories?.map(({ updated_by: _by, ...row }) => row),
+  };
+}
+
 export async function writeCachedPayload(payload: RawApiPayload): Promise<void> {
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(payload, KEY);
+      tx.objectStore(STORE).put(toPublicPayload(payload), KEY);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

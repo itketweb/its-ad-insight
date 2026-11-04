@@ -56,7 +56,7 @@ export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit, loading =
         <TableFootnote
           basis="검증 근거: 취합 스프레드시트 11개 시트 전수 대조 · 견적 및 광고비 교차 검증 엔진 (dataAudit.ts)"
           sources={[
-            '검증 주기 — Apps Script 15분 자동 동기화 시 실시간 실행',
+            '검증 주기 — Apps Script 1시간 자동 동기화 시 실시간 실행',
             '오차 판정 기준 — 누락 0건 (100% 무결성 보장)',
           ]}
         />

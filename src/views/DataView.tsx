@@ -149,7 +149,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status, l
                 {live ? '정상 연동' : status === 'error' ? '동기화 지연' : '연결 중'}
               </StatusBadge>{' '}
               {data.updated ? (
-                `마지막 수집: ${data.updated} (15분 주기 자동 동기화)`
+                `마지막 수집: ${data.updated} (1시간 주기 자동 동기화)`
               ) : loading ? (
                 <SkelBar w="16rem" h="0.75rem" className="skel-inline" />
               ) : (

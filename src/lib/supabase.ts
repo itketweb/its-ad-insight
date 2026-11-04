@@ -49,6 +49,8 @@ export async function saveDashboardSnapshot(
 ): Promise<{ ok: boolean; message: string; timestamp?: string }> {
   try {
     const nowIso = new Date().toISOString();
+    // 어드민 리스트 전용 다른 사이트 견적·전화문의(고객 정보 포함)는 스냅숏에 넣지 않는다
+    const { quotesSites: _adminOnly, quotesPhone: _adminOnlyPhone, ...snapshot } = data;
     const totalSpend = (data.spend || []).reduce((acc, r) => acc + (r.cost || 0), 0);
     const quoteCount =
       data.quotesRaw?.length || (data.quotes || []).reduce((acc, r) => acc + (r.count || 0), 0);
@@ -69,7 +71,7 @@ export async function saveDashboardSnapshot(
         updated_at: nowIso,
         month: currentMonth || '',
         stats,
-        data,
+        data: snapshot,
       },
       { onConflict: 'id' }
     );
@@ -87,7 +89,7 @@ export async function saveDashboardSnapshot(
         updated_at: nowIso,
         month: currentMonth || '',
         stats,
-        data,
+        data: snapshot,
       },
       { onConflict: 'id' }
     );

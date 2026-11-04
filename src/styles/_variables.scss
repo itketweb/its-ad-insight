@@ -133,7 +133,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button {
+button,
+input,
+select,
+textarea,
+pre,
+code {
   font-family: inherit;
 }
 
@@ -157,7 +162,8 @@ li + li {
 }
 
 code {
-  font: 0.75rem/1.5 ui-monospace, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
   background: var(--card);
   border: 1px solid transparent;
   border-radius: 0;

@@ -34,7 +34,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
   { label: '아이티켓 고도몰 견적 목록', href: EXTERNAL_LINKS.itketEstimateList },
   { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
   { label: '견적 접수 원본 시트', href: EXTERNAL_LINKS.quotesRawSheet },
-  { label: 'collectQuotes · 15분 자동 동기화' },
+  { label: 'collectQuotes · 1시간 자동 동기화' },
 ];
 
 export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing = false, selectedMonth }) => {

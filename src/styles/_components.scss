@@ -746,11 +746,6 @@ th.n.sortable {
     color: #fff;
     border: none;
 
-    // 저장 안 한 변경이 있으면 눈에 띄게
-    &.dirty {
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
-    }
-
     &.saving {
       cursor: wait;
     }
@@ -839,15 +834,42 @@ th.n.sortable {
       .col-source {
         width: 15rem;
       }
+
+      // 전화문의 탭 전용 열
+      .col-datetime {
+        width: 9.5rem;
+      }
+
+      .col-phone {
+        width: 8rem;
+      }
+
+      .col-phone-category {
+        width: 11rem;
+      }
+
+      .col-phone-source {
+        width: 6rem;
+      }
+
+      .col-rep {
+        width: 9.5rem;
+      }
     }
 
     .qr-sno,
     .qr-date,
     .qr-email {
-      font-family: monospace;
+      font-variant-numeric: tabular-nums; // 고정폭 글꼴 대신 숫자 폭만 맞춰 세로 정렬 유지
     }
 
     .qr-sno {
+      color: var(--sub);
+    }
+
+    .qr-site {
+      display: block;
+      font-size: 0.75rem;
       color: var(--sub);
     }
 
@@ -980,6 +1002,42 @@ th.n.sortable {
       color: var(--sub);
     }
 
+  }
+
+  // 저장 바 — 카드 끝까지 화면 아래에 붙는다 (드롭다운 목록 30·상단바 4~5 보다 아래)
+  .qr-savebar {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1.25rem -1.25rem -1.25rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--card);
+    border-top: 1px solid var(--line2);
+
+    &-status {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      min-width: 0;
+
+      .notice {
+        margin-bottom: 0;
+        padding: 0.375rem 0.75rem;
+      }
+    }
+
+    &-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+    }
   }
 }
 

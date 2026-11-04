@@ -24,7 +24,16 @@ const CFG = {
   NAVER_DAILY_CAP: 6000,
   RUN_LIMIT_MS: 5 * 60 * 1000,               // syncAll 전체가 이 시간을 넘기면 남은 수집은 다음 실행으로 (6분 강제 종료 방지)
   SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_ad_stats', 'g_meta',
-    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_ad_stats', 'n_meta', 'quotes_monthly', 'quotes_raw', 'q_meta', 'mapping', 'manual', 'manual_categories'],
+    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_ad_stats', 'n_meta', 'quotes_monthly', 'quotes_raw', 'quotes_raw_sites', 'quotes_phone', 'q_meta', 'mapping', 'manual', 'manual_categories'],
+  // 대시보드 주소와 키는 공개 번들에 들어 있다. 고객 정보는 관리자 로그인이 확인될 때만 내려준다 (doGet)
+  SUPABASE_URL: 'https://tqxljgmygvanysqnhiar.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable__Oq9NpOHnxEqRSZ02qJDaw_n-FIAGC2',
+  ADMIN_ONLY_SHEETS: ['quotes_raw_sites', 'quotes_phone'],
+  // 어드민 견적 리스트에만 보여 주는 다른 사이트 시트. 대시보드 통계(quotes_raw·quotes_monthly)에는 넣지 않는다
+  QUOTE_SITES: [
+    { id: 'zbyhp', sheetId: '1vWHN_dT6biPcSM1mGETt6aieSTiUe3o2-ysPSRRpov8' },
+    { id: 'cadkorea', sheetId: '1mmA4mAb3hRKLlMrAoU18ZyVbEgB2kgGZ3Xz0SJln-pg' },
+  ],
 };
 const PROPS = PropertiesService.getScriptProperties();
 const STAT_FIELDS = '["impCnt","clkCnt","salesAmt","ccnt"]';
@@ -75,6 +84,8 @@ function syncAllBody_(t0) {
   }
   const rest = [
     ['견적 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotes(); }, 'collectQuotes'],
+    ['다른 사이트 견적 데이터', collectQuoteSites, 'collectQuoteSites'],
+    ['전화문의 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotePhone(); }, 'collectQuotePhone'],
     ['구글 광고 이메일 리포트', collectGoogleAdsEmail, 'collectGoogleAdsEmail'],
     ['네이버 GFA 리포트', collectGfaEmail, 'collectGfaEmail'],
     ['네이버 커머스', collectCommerce, 'collectCommerce'],
@@ -718,22 +729,131 @@ function saveGoogleKeywordRows_(ss, rows) {
 function collectQuotes() {
   const id = PROPS.getProperty('QUOTE_SHEET_ID');
   if (!id) throw new Error('스크립트 속성에 QUOTE_SHEET_ID 가 없습니다');
+  const { v, c } = readQuoteSheet_(id, PROPS.getProperty('QUOTE_SHEET_TAB') || '견적문의');
+
+  // 어드민에서 수동 지정한 카테고리 오버라이드 로드 (sno → category)
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const overrideMap = loadManualCategories_(ss);
+
+  const agg = {};
+  v.forEach((r) => {
+    const m = quoteMonth_(r[c.date]);
+    if (!m) return;
+    const cat = currentCategory_(overrideMap[quoteSno_(r, c)]) || quoteCategory_(r[c.sub], c.src < 0 ? '' : r[c.src]);
+    const k = [m, cat, c.src < 0 ? '미수집' : quoteSource_(r[c.src])].join('\u0001');
+    agg[k] = (agg[k] || 0) + 1;
+  });
+  const rows = [['month', 'category', 'source', 'count']];
+  Object.keys(agg).sort().forEach((k) => rows.push(k.split('\u0001').concat(agg[k])));
+  put_(ss, 'quotes_monthly', rows);
+  put_(ss, 'q_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['rows', v.length]]);
+
+  // quotes_raw: 원본 시트 보존 (관리자 전용 대시보드 연동)
+  const rawRows = [QUOTE_RAW_HEAD];
+  v.forEach((r) => {
+    const sno = quoteSno_(r, c);
+    const row = quoteRawRow_(r, c, sno, overrideMap[sno]);
+    if (row) rawRows.push(row);
+  });
+  put_(ss, 'quotes_raw', rawRows);
+}
+
+/* ── 다른 사이트 견적 (어드민 리스트 전용) ──
+ * CFG.QUOTE_SITES 의 시트를 아이티켓과 같은 양식으로 읽어 quotes_raw_sites 에 쓴다. 통계에는 쓰지 않는다.
+ * sno 는 사이트마다 따로 매겨지므로 수동 지정은 "사이트:sno" (예: zbyhp:12) 로 구분한다.
+ * 한 시트를 못 읽어도 다른 시트는 갱신하고, 못 읽은 시트는 지난번 값을 유지한다. */
+function collectQuoteSites() {
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const overrideMap = loadManualCategories_(ss);
+  const prev = read_(ss, 'quotes_raw_sites');
+  const head = ['site'].concat(QUOTE_RAW_HEAD);
+  const rows = [head], failed = [];
+  CFG.QUOTE_SITES.forEach((site) => {
+    try {
+      const { v, c } = readQuoteSheet_(site.sheetId, '견적문의');
+      const siteRows = [];
+      v.forEach((r) => {
+        const sno = quoteSno_(r, c);
+        const row = quoteRawRow_(r, c, sno, overrideMap[site.id + ':' + sno]);
+        if (row) siteRows.push([site.id].concat(row));
+      });
+      siteRows.forEach((row) => rows.push(row));
+    } catch (e) {
+      failed.push(site.id + ': ' + e.message);
+      prev.filter((p) => p.site === site.id).forEach((p) => rows.push(head.map((k) => p[k])));
+    }
+  });
+  put_(ss, 'quotes_raw_sites', rows);
+  if (failed.length) throw new Error(failed.join(' / '));
+}
+
+/* ── 전화문의 (어드민 리스트 전용) ──
+ * 아이티켓 견적요청 DB 의 '전화문의' 탭을 quotes_phone 에 옮긴다. 통계에는 쓰지 않는다.
+ * 열 머리글을 못 찾거나 탭이 없으면 오류를 내고, quotes_phone 은 지난번 값을 유지한다.
+ * 날짜 열 이름을 date 로 두면 read_ 가 시각을 잘라 내므로 received_at 으로 둔다. */
+const QUOTE_PHONE_HEAD = ['sno', 'source', 'company', 'name', 'phone', 'category', 'sales_rep', 'receiver', 'received_at', 'memo'];
+function collectQuotePhone() {
+  const sh = SpreadsheetApp.openById(PROPS.getProperty('QUOTE_SHEET_ID')).getSheetByName('전화문의');
+  if (!sh) throw new Error("견적 시트에 '전화문의' 탭이 없습니다");
+  const v = sh.getDataRange().getValues();
+  const h = v.shift().map((x) => String(x).replace(/\s+/g, ''));
+  const col = (name) => { const i = h.indexOf(name); if (i < 0) throw new Error('전화문의 탭에 ' + name + ' 열이 없습니다'); return i; };
+  const c = { sno: col('번호'), source: col('경로'), company: col('고객사'), name: col('고객사담당'), phone: col('고객전화번호'),
+    category: col('카테고리'), rep: col('연결영업대표'), receiver: col('전화수신자'), at: col('접수일시'), memo: col('메모') };
+  // 시트는 값이 없으면 '-' 로 적는다
+  const text = (x) => { const s = String(x == null ? '' : x).trim(); return s === '-' ? '' : s; };
+  const rows = [QUOTE_PHONE_HEAD];
+  v.forEach((r) => {
+    const at = r[c.at] instanceof Date ? Utilities.formatDate(r[c.at], 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : text(r[c.at]);
+    if (!text(r[c.sno]) || !quoteMonth_(at)) return;
+    rows.push([text(r[c.sno]), text(r[c.source]), text(r[c.company]), text(r[c.name]), phoneText_(r[c.phone]),
+      text(r[c.category]), text(r[c.rep]), text(r[c.receiver]), at,
+      text(r[c.memo])]);
+  });
+  put_(SpreadsheetApp.openById(CFG.SHEET_ID), 'quotes_phone', rows);
+}
+/**
+ * 숫자만 적힌 전화번호에 하이픈을 넣는다. "01027577817" 그대로 시트에 쓰면 숫자로 바뀌어 앞의 0 이 사라진다.
+ * 숫자 칸은 이미 앞의 0 이 빠져 있어 되살린다. 그 밖의 표기는 원문 그대로 둔다.
+ */
+function phoneText_(x) {
+  const s = typeof x === 'number' ? '0' + x : String(x == null ? '' : x).trim();
+  if (s === '-') return '';
+  if (!/^\d+$/.test(s)) return s;
+  return /^02/.test(s) ? s.replace(/^(02)(\d{3,4})(\d{4})$/, '$1-$2-$3') : s.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
+}
+
+// source 는 집계용으로 정리한 값, source_raw 는 시트 원문 (예: "네이버(광고) - ROSEHA" — 어느 광고로 들어왔는지)
+const QUOTE_RAW_HEAD = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category', 'source_raw', 'sales_rep'];
+
+/** 견적 시트 한 장을 읽어 데이터 행(v)과 열 위치(c)를 돌려준다 */
+function readQuoteSheet_(id, tabName) {
   const src = SpreadsheetApp.openById(id);
-  const sh = src.getSheetByName(PROPS.getProperty('QUOTE_SHEET_TAB') || '견적문의') || src.getSheets()[0];
+  const sh = src.getSheetByName(tabName) || src.getSheets()[0];
   const v = sh.getDataRange().getValues();
   const h = v.shift().map((x) => String(x).replace(/\s+/g, ''));
 
   // 여러 컬럼명 후보 중 처음 존재하는 열 인덱스를 반환한다
   const findCol_ = (...names) => { for (const n of names) { const i = h.indexOf(n); if (i >= 0) return i; } return -1; };
 
-  const iSub = findCol_('제목', '문의제목', '내용');
-  const iDate = findCol_('접수날짜', '접수일', '작성일', '신청일', '주문일');
-  const iSrc  = findCol_('유입경로', '유입채널', '방문경로', '채널');
-  if (iSub < 0 || iDate < 0) throw new Error('견적 시트에 제목·접수날짜 열이 없습니다');
-  const iSno     = findCol_('번호', 'No', 'NO', '순번', '주문번호', 'sno');
-
-  // 어드민에서 수동 지정한 카테고리 오버라이드 로드 (sno → category)
-  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const c = {
+    sub: findCol_('제목', '문의제목', '내용'),
+    date: findCol_('접수날짜', '접수일', '작성일', '신청일', '주문일'),
+    src: findCol_('유입경로', '유입채널', '방문경로', '채널'),
+    sno: findCol_('번호', 'No', 'NO', '순번', '주문번호', 'sno'),
+    name: findCol_('작성자', '이름', '신청자', '신청자명', '고객명', '주문자명', '주문자', '담당자'),
+    company: findCol_('회사명', '업체명', '회사', '기업명', '기관명'),
+    email: findCol_('이메일', 'email', 'Email', 'EMAIL'),
+    rep: findCol_('영업담당', '영업담당자'), // 사내 담당자. 시트의 '담당자' 열은 고객 쪽 담당자라 별개
+  };
+  if (c.sub < 0 || c.date < 0) throw new Error('견적 시트에 제목·접수날짜 열이 없습니다');
+  return { v, c };
+}
+function quoteSno_(r, c) {
+  return c.sno >= 0 ? String(r[c.sno] || r[0] || '') : String(r[0] || '');
+}
+/** manual_categories 시트 → { 키: category } (키: 아이티켓은 sno, 다른 사이트는 "사이트:sno") */
+function loadManualCategories_(ss) {
   const overrideMap = {};
   const shOv = ss.getSheetByName('manual_categories');
   if (shOv && shOv.getLastRow() >= 2) {
@@ -744,49 +864,25 @@ function collectQuotes() {
       ov.forEach((r) => { if (r[oiSno] && r[oiCat]) overrideMap[String(r[oiSno])] = String(r[oiCat]); });
     }
   }
-
-  const agg = {};
-  v.forEach((r) => {
-    const m = quoteMonth_(r[iDate]);
-    if (!m) return;
-    const snoVal = iSno >= 0 ? String(r[iSno] || r[0] || '') : String(r[0] || '');
-    const cat = currentCategory_(overrideMap[snoVal]) || quoteCategory_(r[iSub], iSrc < 0 ? '' : r[iSrc]);
-    const k = [m, cat, iSrc < 0 ? '미수집' : quoteSource_(r[iSrc])].join('\u0001');
-    agg[k] = (agg[k] || 0) + 1;
-  });
-  const rows = [['month', 'category', 'source', 'count']];
-  Object.keys(agg).sort().forEach((k) => rows.push(k.split('\u0001').concat(agg[k])));
-  put_(ss, 'quotes_monthly', rows);
-  put_(ss, 'q_meta', [['key', 'value'], ['updated', Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm')], ['rows', v.length]]);
-
-  // quotes_raw: 원본 시트 보존 (관리자 전용 대시보드 연동)
-  const iName    = findCol_('작성자', '이름', '신청자', '신청자명', '고객명', '주문자명', '주문자', '담당자');
-  const iCompany = findCol_('회사명', '업체명', '회사', '기업명', '기관명');
-  const iEmail   = findCol_('이메일', 'email', 'Email', 'EMAIL');
-  const iRep     = findCol_('영업담당', '영업담당자'); // 사내 담당자. 시트의 '담당자' 열은 고객 쪽 담당자라 별개
-
-  // source 는 집계용으로 정리한 값, source_raw 는 시트 원문 (예: "네이버(광고) - ROSEHA" — 어느 광고로 들어왔는지)
-  const rawHead = ['sno', 'subject', 'name', 'company', 'email', 'date', 'source', 'category', 'source_raw', 'sales_rep'];
-  const rawRows = [rawHead];
-  v.forEach((r) => {
-    const d = r[iDate];
-    const dateStr = d instanceof Date ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '');
-    if (!dateStr || !quoteMonth_(r[iDate])) return;
-    const snoVal = iSno >= 0 ? String(r[iSno] || r[0] || '') : String(r[0] || '');
-    rawRows.push([
-      snoVal,
-      iSub < 0 ? '' : String(r[iSub] || ''),
-      iName < 0 ? '' : String(r[iName] || ''),
-      iCompany < 0 ? '' : String(r[iCompany] || ''),
-      iEmail < 0 ? '' : String(r[iEmail] || ''),
-      dateStr,
-      iSrc < 0 ? '미수집' : quoteSource_(r[iSrc]),
-      currentCategory_(overrideMap[snoVal]) || quoteCategory_(r[iSub], iSrc < 0 ? '' : r[iSrc]),
-      iSrc < 0 ? '' : String(r[iSrc] || '').trim(),
-      iRep < 0 ? '' : String(r[iRep] || '').trim(),
-    ]);
-  });
-  put_(ss, 'quotes_raw', rawRows);
+  return overrideMap;
+}
+/** 시트 한 행 → QUOTE_RAW_HEAD 순서의 배열. 접수날짜가 없으면 null */
+function quoteRawRow_(r, c, sno, manualCategory) {
+  const d = r[c.date];
+  const dateStr = d instanceof Date ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '');
+  if (!dateStr || !quoteMonth_(r[c.date])) return null;
+  return [
+    sno,
+    c.sub < 0 ? '' : String(r[c.sub] || ''),
+    c.name < 0 ? '' : String(r[c.name] || ''),
+    c.company < 0 ? '' : String(r[c.company] || ''),
+    c.email < 0 ? '' : String(r[c.email] || ''),
+    dateStr,
+    c.src < 0 ? '미수집' : quoteSource_(r[c.src]),
+    currentCategory_(manualCategory) || quoteCategory_(r[c.sub], c.src < 0 ? '' : r[c.src]),
+    c.src < 0 ? '' : String(r[c.src] || '').trim(),
+    c.rep < 0 ? '' : String(r[c.rep] || '').trim(),
+  ];
 }
 /** 접수날짜(날짜 또는 "2026-10-12 9:30:00" 글자) → "2026-10" */
 function quoteMonth_(d) {
@@ -863,8 +959,36 @@ function doGet(e) {
   const token = PROPS.getProperty('API_TOKEN');
   if (!token || !e || !e.parameter || e.parameter.key !== token) return json_({ error: 'unauthorized' });
   const ss = SpreadsheetApp.openById(CFG.SHEET_ID), out = { served: Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm') };
-  CFG.SHEETS.forEach((n) => (out[n] = read_(ss, n)));
+  const isAdmin = isAdminToken_(ss, e.parameter.access_token);
+  CFG.SHEETS.forEach((n) => { if (isAdmin || !CFG.ADMIN_ONLY_SHEETS.includes(n)) out[n] = read_(ss, n); });
+  if (!isAdmin) {
+    // 공개 화면은 고객 이름·회사·이메일과 저장한 관리자 계정을 쓰지 않는다
+    out.quotes_raw = (out.quotes_raw || []).map(({ name, company, email, ...rest }) => rest);
+    out.manual_categories = (out.manual_categories || []).map(({ updated_by, ...rest }) => rest);
+  }
   return json_(out);
+}
+
+/**
+ * Supabase 로그인 토큰이 유효하고 그 계정이 데이터 시트 admins 탭(A열 이메일)에 있으면 true.
+ * 회원가입이 열려 있어도 탭에 없는 계정은 관리자가 아니다. 탭이 없거나 확인에 실패하면 false 다.
+ */
+function isAdminToken_(ss, accessToken) {
+  if (!accessToken) return false;
+  const shAdmins = ss.getSheetByName('admins');
+  if (!shAdmins) return false;
+  const admins = shAdmins.getDataRange().getValues().map((r) => String(r[0]).trim().toLowerCase()).filter(Boolean);
+  try {
+    const res = UrlFetchApp.fetch(CFG.SUPABASE_URL + '/auth/v1/user', {
+      headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + accessToken },
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return false;
+    return admins.includes(String(JSON.parse(res.getContentText()).email || '').trim().toLowerCase());
+  } catch (err) {
+    console.error('관리자 확인 실패: ' + err.message);
+    return false;
+  }
 }
 
 /* ── 견적 실시간 웹훅 수신 ──

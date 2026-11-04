@@ -58,6 +58,16 @@ export const VIEW_TITLES: Record<ViewId, string> = {
   admin: '어드민 관리',
 };
 
+/** 어드민 견적 리스트의 사이트 탭. 아이티켓 외 사이트는 수집 스크립트 CFG.QUOTE_SITES 와 id 를 맞춘다 */
+export const QUOTE_SITES = [
+  { id: 'itket', label: '아이티켓', sheetId: '18tMYBQLuIhkmX_x_c8MK-aNXlGvOgz1TWauvqo8Dmjg' },
+  { id: 'zbyhp', label: 'zbyhp', sheetId: '1vWHN_dT6biPcSM1mGETt6aieSTiUe3o2-ysPSRRpov8' },
+  { id: 'cadkorea', label: 'cadkorea', sheetId: '1mmA4mAb3hRKLlMrAoU18ZyVbEgB2kgGZ3Xz0SJln-pg' },
+] as const;
+
+/** 아이티켓 견적요청 DB 의 전화문의 탭 (수집 스크립트 collectQuotePhone 이 읽는 탭) */
+export const QUOTE_PHONE_SHEET = { sheetId: '18tMYBQLuIhkmX_x_c8MK-aNXlGvOgz1TWauvqo8Dmjg', gid: 1011193634 } as const;
+
 export const EXTERNAL_LINKS = {
   googleAds: 'https://ads.google.com',
   naverSearchAd: 'https://searchad.naver.com',

@@ -35,7 +35,7 @@ const OVERVIEW_SOURCES: SourceLinkItem[] = [
   { label: 'Google Ads API', href: EXTERNAL_LINKS.googleAds },
   { label: '네이버 검색광고 API', href: EXTERNAL_LINKS.naverSearchAd },
   { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
-  { label: '15분 자동 동기화' },
+  { label: '1시간 자동 동기화' },
 ];
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
