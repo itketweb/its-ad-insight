@@ -12,7 +12,7 @@
 | **웹 앱 URL** | `https://script.google.com/macros/s/AKfycbzQS9yMlp9L_eRaH77QWLsY6GOY7L5hyRk1fkuaAHg8GvJmHHwhPRgr2zWldgbX5-cNcg/exec` | Google Apps Script 최신 배포 엔드포인트 |
 | **웹 앱 비밀키 (Key)** | `2d3b0cc2b04a4873a835583968ca7a0b` | API 인증 파라미터 (`?key=...`) |
 | **취합 구글 스프레드시트 ID** | `1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg` | [광고비·전환·견적 취합 시트 바로가기](https://docs.google.com/spreadsheets/d/1mxrTeh7bo50RTz_2_UNyQxtQrljoEK4-xgPy9fr8nIg/edit) |
-| **자동 동기화 주기** | 15분마다 백그라운드 자동 갱신 | 브라우저 열어둘 시 15분 간격 SWR 무중단 갱신 |
+| **자동 동기화 주기** | 1시간마다 백그라운드 자동 갱신 | 브라우저 열어둘 시 15분 간격 SWR 무중단 갱신 |
 
 ---
 
@@ -52,6 +52,15 @@ flowchart TD
 - **ITKET 견적 접수 현황**:
   - 2021년 12월 ~ 2026년 10월 월별 접수 견적 (293개 월/카테고리 행)
   - 서버·워크스테이션·스토리지·PC·노트북 카테고리별 유입 및 CPA 집계
+- **고객 정보 접근 제한**:
+  - 웹앱 주소와 키는 공개 번들에 있으므로 키만으로는 고객 이름·회사·이메일, 다른 사이트 견적, 전화문의가 내려오지 않음
+  - Supabase 로그인 토큰이 유효하고 데이터 시트 `admins` 탭(A열 이메일)에 있는 계정에만 내려줌. 관리자 추가는 이 탭에 이메일 추가
+- **다른 사이트 견적 (어드민 리스트 전용)**:
+  - zbyhp·cadkorea 견적요청 DB → `quotes_raw_sites` 시트 (`collectQuoteSites`, 시트 ID는 `Code.gs`의 `CFG.QUOTE_SITES`)
+  - 대시보드 통계(`quotes_raw`·`quotes_monthly`)에는 포함하지 않음. 수동 지정 키는 `사이트:sno` (예: `zbyhp:12`)
+- **전화문의 (어드민 리스트 전용)**:
+  - 아이티켓 견적요청 DB `전화문의` 탭 → `quotes_phone` 시트 (`collectQuotePhone`). 전화번호·이름·메모 원문 그대로 저장
+  - 대시보드 통계와 Supabase 스냅숏에는 포함하지 않음
 - **매체/캠페인 매핑**:
   - 90개 매체·캠페인·광고그룹 대 카테고리 자동 배분 매핑 규칙 적용
 

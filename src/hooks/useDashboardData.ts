@@ -9,6 +9,7 @@ import type {
   RawAdApiRow,
   RawAdStatApiRow,
   RawApiPayload,
+  RawQuotePhoneApiRow, RawQuoteRawApiRow,
   RawKeywordApiRow,
   RawMetaApiRow,
   RawSpendApiRow,
@@ -17,10 +18,11 @@ import type {
   QuoteManualMark,
   SyncStatus,
 } from '../types/dashboard';
-import { buildCategoryMap, LEGACY_ONLY_CATS, THIS_M } from '../utils/format';
+import { buildCategoryMap, LEGACY_ONLY_CATS, quoteKey, THIS_M } from '../utils/format';
 import { quoteCategoryOf } from '../utils/categoryText';
 import { adStatKey } from '../utils/creativeImage';
 import { readCachedPayload, writeCachedPayload } from '../utils/payloadCache';
+import { supabase } from '../lib/supabase';
 
 export const DEFAULT_URL =
   'https://script.google.com/macros/s/AKfycbzQS9yMlp9L_eRaH77QWLsY6GOY7L5hyRk1fkuaAHg8GvJmHHwhPRgr2zWldgbX5-cNcg/exec';
@@ -58,6 +60,8 @@ function emptyData(): DashboardData {
     mapping: [],
     quotes: [],
     quotesRaw: [],
+    quotesSites: [],
+    quotesPhone: [],
     keywords: [],
     ads: [],
     adStats: [],
@@ -284,25 +288,17 @@ export function fromApi(j: RawApiPayload): DashboardData {
       };
     }),
     quotesRaw: withLatestRepTitles((j.quotes_raw || [])
-      .map((r, idx) => {
-        const src = String(r.source || '').trim();
-        return {
-          id: r.id ? String(r.id) : ('q_' + (idx + 1)),
-          sno: r.sno != null ? String(r.sno).trim() : undefined,
-          subject: r.subject != null ? String(r.subject).trim() : undefined,
-          company: r.company != null ? String(r.company).trim() : undefined,
-          name: r.name != null ? String(r.name).trim() : undefined,
-          email: r.email != null ? String(r.email).trim() : undefined,
-          date: String(r.date || '').trim(),
-          category: String(r.category || '').trim(),
-          source: src === '직접·기타' ? '기타' : src,
-          // "네이버(광고) - ROSEHA" 처럼 " - " 뒤에 붙은 광고 꼬리표만 따로 둔다
-          sourceDetail: String(r.source_raw || '').split(/\s+-\s+/).slice(1).join(' - ').trim(),
-          salesRep: String(r.sales_rep || '').trim().replace(/\s+/g, ' '),
-        };
-      })
+      .map((r, idx) => toQuoteRawRow(r, r.id ? String(r.id) : ('q_' + (idx + 1))))
       .filter((r) => r.date)
       .sort((a, b) => a.date.localeCompare(b.date))),
+    quotesSites: (j.quotes_raw_sites || [])
+      .map((r, idx) => ({ ...toQuoteRawRow(r, 'qs_' + (idx + 1)), site: String(r.site || '').trim() }))
+      .filter((r) => r.date && r.site)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+    quotesPhone: (j.quotes_phone || [])
+      .map((r, idx) => toQuotePhoneRow(r, 'qp_' + (idx + 1)))
+      .filter((r) => r.date)
+      .sort((a, b) => a.date.localeCompare(b.date)),
     keywords: [
       ...(j.g_keywords || []).map((r) => toKeywordRow('Google', r)),
       ...naverRawKws.map((r) => toKeywordRow('Naver', r)),
@@ -327,13 +323,53 @@ export function fromApi(j: RawApiPayload): DashboardData {
   const manualCats = new Map([...marks].map(([sno, m]) => [sno, m.category] as const));
   const out = withCurrentQuoteCategories(data, manualCats);
   // 수동 지정 흔적: 저장 기록과, 비교용 자동 분류 결과 (제목이 있을 때만)
+  const withTrace = (r: QuoteRawRow): QuoteRawRow => {
+    const mark = marks.get(quoteKey(r));
+    const autoCategory = r.subject ? quoteCategoryOf(r.subject, r.sourceDetail) : undefined;
+    return mark || autoCategory ? { ...r, autoCategory, manual: mark } : r;
+  };
   return {
     ...out,
-    quotesRaw: out.quotesRaw.map((r) => {
-      const mark = marks.get(String(r.sno ?? ''));
-      const autoCategory = r.subject ? quoteCategoryOf(r.subject, r.sourceDetail) : undefined;
-      return mark || autoCategory ? { ...r, autoCategory, manual: mark } : r;
-    }),
+    quotesRaw: out.quotesRaw.map(withTrace),
+    quotesSites: out.quotesSites.map(withTrace),
+  };
+}
+
+/** 전화문의 시트 한 행 — 메모를 제목 자리에, 경로(전화·톡플러스)를 유입경로 자리에 둔다 */
+function toQuotePhoneRow(r: RawQuotePhoneApiRow, id: string): QuoteRawRow {
+  const text = (v: unknown) => String(v ?? '').trim();
+  return {
+    id,
+    sno: text(r.sno),
+    subject: text(r.memo),
+    company: text(r.company),
+    name: text(r.name),
+    phone: text(r.phone),
+    date: text(r.received_at),
+    category: text(r.category),
+    source: text(r.source),
+    sourceDetail: '',
+    salesRep: text(r.sales_rep),
+    receiver: text(r.receiver),
+  };
+}
+
+/** 견적 시트 한 행 (quotes_raw · quotes_raw_sites 공통) */
+function toQuoteRawRow(r: RawQuoteRawApiRow, id: string): QuoteRawRow {
+  const src = String(r.source || '').trim();
+  return {
+    id,
+    sno: r.sno != null ? String(r.sno).trim() : undefined,
+    subject: r.subject != null ? String(r.subject).trim() : undefined,
+    company: r.company != null ? String(r.company).trim() : undefined,
+    name: r.name != null ? String(r.name).trim() : undefined,
+    email: r.email != null ? String(r.email).trim() : undefined,
+    date: String(r.date || '').trim(),
+    category: String(r.category || '').trim(),
+    source: src === '직접·기타' ? '기타' : src,
+    // "네이버(광고) - ROSEHA" 처럼 " - " 뒤에 붙은 광고 꼬리표만 따로 둔다
+    sourceDetail: String(r.source_raw || '').split(/\s+-\s+/).slice(1).join(' - ').trim(),
+    salesRep: String(r.sales_rep || '').trim().replace(/\s+/g, ' '),
   };
 }
 
@@ -375,7 +411,10 @@ export function useDashboardData() {
 
     try {
       const fetchUrl = `${c.url}${c.url.includes('?') ? '&' : '?'}key=${encodeURIComponent(c.key)}`;
-      const res = await fetch(fetchUrl);
+      // 로그인한 관리자에게만 고객 정보가 내려온다 (Apps Script doGet 이 토큰과 admins 탭을 확인)
+      const { data: auth } = await supabase.auth.getSession();
+      const token = auth.session?.access_token;
+      const res = await fetch(token ? `${fetchUrl}&access_token=${encodeURIComponent(token)}` : fetchUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = (await res.json()) as RawApiPayload;
       if (j.error) throw new Error(j.error);
@@ -410,6 +449,22 @@ export function useDashboardData() {
     return () => clearInterval(timer);
   }, [load, tryLoadStaticFallback]);
 
+  // 로그인·로그아웃하면 그 권한에 맞는 데이터로 다시 받는다 (토큰 갱신처럼 계정이 그대로면 받지 않는다)
+  useEffect(() => {
+    let userId: string | undefined;
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const next = session?.user.id;
+      if (event === 'INITIAL_SESSION') {
+        userId = next;
+        return;
+      }
+      if (next === userId) return;
+      userId = next;
+      setTimeout(() => load(), 0); // 이 콜백 안에서 Supabase 를 다시 부르면 멈출 수 있어 밖으로 뺀다
+    });
+    return () => data.subscription.unsubscribe();
+  }, [load]);
+
   useEffect(() => {
     document.body.classList.toggle('live', status === 'live');
   }, [status]);
@@ -433,5 +488,10 @@ export function useDashboardData() {
     }));
   }, []);
 
-  return { data, categoryMap, status, isSyncing, load, updateQuotesRaw };
+  // 다른 사이트 견적은 통계에 쓰지 않아 월별 집계를 다시 내지 않는다
+  const updateQuotesSites = useCallback((quotesSites: QuoteRawRow[]) => {
+    setData((prev) => ({ ...prev, quotesSites }));
+  }, []);
+
+  return { data, categoryMap, status, isSyncing, load, updateQuotesRaw, updateQuotesSites };
 }

@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import type { QuoteRawRow } from '../../types/dashboard';
 import { EXTERNAL_LINKS } from '../../utils/constants';
-import { fmt, sourceColorVar, THIS_M, THIS_Y } from '../../utils/format';
-import { ALL_CATEGORIES } from '../../utils/constants';
+import { fmt, quoteKey, sourceColorVar, THIS_M, THIS_Y } from '../../utils/format';
+import { ALL_CATEGORIES, QUOTE_PHONE_SHEET, QUOTE_SITES } from '../../utils/constants';
 import { SkelRows } from '../common/SkeletonView';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
@@ -13,26 +13,43 @@ import { Button, ButtonLink } from '../common/Button';
 import { TextInput } from '../common/TextInput';
 import { Pagination } from '../common/Pagination';
 import { Card } from '../common/Card';
+import { TabButton } from '../common/TabButton';
+import { SegmentedControl } from '../common/SegmentedControl';
+import { Notice } from '../common/Notice';
 
 interface QuotesRawAdminTableProps {
   quotes: QuoteRawRow[];
+  /** 전화문의 행 — 카테고리는 시트에서 관리해 여기서는 읽기만 한다 */
+  phoneQuotes?: QuoteRawRow[];
   /** 실데이터를 받는 중 — 아직 없는 광고 꼬리표는 스켈레톤으로 보여 준다 */
   loading?: boolean;
-  /** 저장 전 변경의 원래 값 (sno → 바꾸기 전 카테고리) */
+  /** 저장 전 변경의 원래 값 (quoteKey → 바꾸기 전 카테고리) */
   originals?: Map<string, string>;
   onUpdateQuoteCategory?: (quoteIdOrIndex: string | number, newCategory: string) => void;
-  isDirty?: boolean;
+  /** 저장 전 변경 건수 — 1건 이상이면 화면 아래에 저장 바를 띄운다 */
+  changedCount?: number;
   onSave?: () => void;
   onReset?: () => void;
   saving?: boolean;
+  /** 저장 결과 — 목록 아래쪽에서 저장해도 보이도록 저장 바에 함께 보여 준다 */
+  saveMsg?: { text: string; ok: boolean } | null;
 }
 
-type SortKey = 'idx' | 'sno' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'category' | 'source';
+type SortKey = 'idx' | 'sno' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'phone' | 'rep' | 'category' | 'source';
+type Channel = 'live' | 'phone';
+
+const CHANNEL_OPTIONS: { value: Channel; label: string }[] = [
+  { value: 'live', label: '실시간문의' },
+  { value: 'phone', label: '전화문의' },
+];
 
 const MONTH_OPTIONS = [
   { value: 'ALL', label: '월 전체' },
   ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1).padStart(2, '0'), label: `${i + 1}월` })),
 ];
+
+/** 아이티켓 원장 행은 site 가 비어 있다 */
+const siteOf = (q: QuoteRawRow): string => q.site || 'itket';
 
 /** '2026-10-23 14:51:00' → '10.23 14:51' */
 const shortAt = (at: string) => {
@@ -61,16 +78,23 @@ const CategoryTrace: React.FC<{ quote: QuoteRawRow; original?: string }> = ({ qu
 };
 
 export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
-  quotes,
+  quotes: liveQuotes,
+  phoneQuotes = [],
   loading = false,
   originals,
   onUpdateQuoteCategory,
-  isDirty,
+  changedCount = 0,
   onSave,
   onReset,
   saving,
+  saveMsg,
 }) => {
+  const [channel, setChannel] = useState<Channel>('live');
+  const isPhone = channel === 'phone';
+  // 아래 필터·건수·정렬은 모두 고른 문의 종류의 행을 기준으로 한다
+  const quotes = isPhone ? phoneQuotes : liveQuotes;
   const [search, setSearch] = useState('');
+  const [selectedSite, setSelectedSite] = useState('ALL');
   const [selectedCat, setSelectedCat] = useState('ALL');
   const [selectedSource, setSelectedSource] = useState('ALL');
   // 처음에는 이번 달만 보여 준다
@@ -102,13 +126,21 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
     return q.id ?? q.sno ?? index;
   };
 
+  // 카테고리·경로 값이 문의 종류마다 달라 옮길 때 두 필터를 풀어 준다
+  const handleChannel = (next: Channel) => {
+    setChannel(next);
+    setSelectedCat('ALL');
+    setSelectedSource('ALL');
+    setPage(1);
+  };
+
   const handleSort = (key: SortKey) => {
     toggleSort(key);
     setPage(1);
   };
 
-  // 필터링 및 정렬 (원래 인덱스를 유지하여 식별)
-  const filteredQuotesWithIndex = useMemo(() => {
+  // 사이트 탭을 뺀 나머지 조건으로 거른다 (원래 인덱스를 유지하여 식별) — 탭 옆 건수에 쓴다
+  const matchedQuotes = useMemo(() => {
     return quotes
       .map((q, originalIndex) => ({ q, originalIndex }))
       .filter(({ q }) => {
@@ -124,6 +156,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
             String(q.company || '').toLowerCase().includes(s) ||
             String(q.name || '').toLowerCase().includes(s) ||
             String(q.email || '').toLowerCase().includes(s) ||
+            String(q.phone || '').toLowerCase().includes(s) ||
+            String(q.salesRep || '').toLowerCase().includes(s) ||
+            String(q.receiver || '').toLowerCase().includes(s) ||
             String(q.date || '').toLowerCase().includes(s) ||
             String(q.category || '').toLowerCase().includes(s) ||
             String(q.source || '').toLowerCase().includes(s) ||
@@ -131,7 +166,25 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
           if (!match) return false;
         }
         return true;
-      })
+      });
+  }, [quotes, selectedCat, selectedSource, selectedYear, selectedMonth, search]);
+
+  const siteCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    matchedQuotes.forEach(({ q }) => counts.set(siteOf(q), (counts.get(siteOf(q)) || 0) + 1));
+    return counts;
+  }, [matchedQuotes]);
+
+  const siteTotal = useMemo(
+    () => (selectedSite === 'ALL' ? quotes.length : quotes.filter((q) => siteOf(q) === selectedSite).length),
+    [quotes, selectedSite]
+  );
+  const siteInfo = QUOTE_SITES.find((s) => s.id === selectedSite);
+
+  // 사이트 탭까지 적용해 정렬
+  const filteredQuotesWithIndex = useMemo(() => {
+    return matchedQuotes
+      .filter(({ q }) => selectedSite === 'ALL' || siteOf(q) === selectedSite)
       .sort((a, b) => {
         let diff = 0;
         if (sortKey === 'idx') {
@@ -148,6 +201,10 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
           diff = (a.q.name || '').localeCompare(b.q.name || '');
         } else if (sortKey === 'email') {
           diff = (a.q.email || '').localeCompare(b.q.email || '');
+        } else if (sortKey === 'phone') {
+          diff = (a.q.phone || '').localeCompare(b.q.phone || '');
+        } else if (sortKey === 'rep') {
+          diff = (a.q.salesRep || '').localeCompare(b.q.salesRep || '');
         } else if (sortKey === 'category') {
           diff = (a.q.category || '').localeCompare(b.q.category || '');
         } else if (sortKey === 'source') {
@@ -155,7 +212,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         }
         return sortOrder === 'asc' ? diff : -diff;
       });
-  }, [quotes, selectedCat, selectedSource, selectedYear, selectedMonth, search, sortKey, sortOrder]);
+  }, [matchedQuotes, selectedSite, sortKey, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filteredQuotesWithIndex.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -167,8 +224,13 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
   // CSV 내보내기 (구글 스프레드시트 전체 원본 열 기준 1:1 출력)
   const handleExportCsv = () => {
-    const headers = ['SNO', '제목', '작성자', '회사명', '이메일', '접수날짜', '유입경로', '유입 광고', '표준카테고리'];
-    const rows = filteredQuotesWithIndex.map(({ q }) => [
+    const cell = (v?: string | number) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headers = isPhone
+      ? ['번호', '접수일시', '메모', '고객사', '고객사담당', '전화번호', '카테고리', '경로', '연결영업대표', '전화수신자']
+      : ['SNO', '제목', '작성자', '회사명', '이메일', '접수날짜', '유입경로', '유입 광고', '표준카테고리', '사이트'];
+    const rows = filteredQuotesWithIndex.map(({ q }) => isPhone ? [
+      q.sno, q.date, q.subject, q.company, q.name, q.phone, q.category, q.source, q.salesRep, q.receiver,
+    ].map(cell) : [
       `"${q.sno || ''}"`,
       `"${(q.subject || '').replace(/"/g, '""')}"`,
       `"${(q.name || '').replace(/"/g, '""')}"`,
@@ -178,13 +240,14 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       `"${q.source || ''}"`,
       `"${q.sourceDetail.replace(/"/g, '""')}"`,
       `"${q.category || ''}"`,
+      `"${QUOTE_SITES.find((s) => s.id === siteOf(q))?.label || siteOf(q)}"`,
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `quotes_raw_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `${isPhone ? 'quotes_phone' : 'quotes_raw'}_export_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -196,20 +259,29 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       <div className="qr-head">
         <div className="qr-head-meta">
           <h3 className="qr-title">
-            견적 접수 원본 리스트 (Google 스프레드시트 연동)
+            {isPhone ? '전화문의 원본 리스트' : '견적 접수 원본 리스트'} (Google 스프레드시트 연동)
             <span className="qr-count muted">
-              총 <b>{fmt(quotes.length)}</b>건 중 <b>{fmt(filteredQuotesWithIndex.length)}</b>건 표시
+              총 <b>{fmt(siteTotal)}</b>건 중 <b>{fmt(filteredQuotesWithIndex.length)}</b>건 표시
             </span>
-            {isDirty && <span className="qr-unsaved">● 미저장 변경사항 있음</span>}
           </h3>
           <p className="qr-sheet-info">
-            시트 ID: <code>18tMYBQLuIhkmX_x_c8MK-aNXlGvOgz1TWauvqo8Dmjg</code> · 카테고리 수동 재분류 가능
+            {isPhone ? (
+              <>시트 ID: <code>{QUOTE_PHONE_SHEET.sheetId}</code> · 카테고리는 시트에서 관리</>
+            ) : (
+              <>{siteInfo ? <>시트 ID: <code>{siteInfo.sheetId}</code></> : <>견적요청 DB 시트 {QUOTE_SITES.length}개 통합</>} · 카테고리 수동 재분류 가능</>
+            )}
           </p>
         </div>
 
         <div className="qr-head-actions">
           <ButtonLink
-            href={EXTERNAL_LINKS.quotesRawSheet}
+            href={
+              isPhone
+                ? `https://docs.google.com/spreadsheets/d/${QUOTE_PHONE_SHEET.sheetId}/edit?gid=${QUOTE_PHONE_SHEET.gid}#gid=${QUOTE_PHONE_SHEET.gid}`
+                : siteInfo
+                  ? `https://docs.google.com/spreadsheets/d/${siteInfo.sheetId}/edit`
+                  : EXTERNAL_LINKS.quotesRawSheet
+            }
             size="sm"
             icon={ExternalLink}
             iconPosition="end"
@@ -230,39 +302,38 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
           >
             CSV 다운로드
           </Button>
-
-          {isDirty && onReset && (
-            <Button
-              size="sm"
-              className="btn-reset-quotes"
-              id="btn-admin-reset-quotes"
-              data-btn="reset-quotes"
-              onClick={onReset}
-              disabled={saving}
-            >
-              수정 취소
-            </Button>
-          )}
-
-          {onSave && (
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Save}
-              className={`btn-save-supabase${isDirty ? ' dirty' : ''}${saving ? ' saving' : ''}`}
-              id="btn-admin-save-supabase"
-              data-btn="save-supabase"
-              onClick={onSave}
-              disabled={saving}
-            >
-              {saving ? '저장 중...' : isDirty ? '변경사항 저장' : '저장'}
-            </Button>
-          )}
         </div>
+      </div>
+
+      {/* 사이트 탭 — 건수는 아래 필터를 적용한 값 */}
+      <div className="kw-tabs qr-site-tabs">
+        <TabButton
+          className="btn-quote-site"
+          data-btn="quote-site-all"
+          active={selectedSite === 'ALL'}
+          label="전체"
+          count={matchedQuotes.length}
+          onClick={() => { setSelectedSite('ALL'); setPage(1); }}
+        />
+        {QUOTE_SITES.map((site) => (
+          <TabButton
+            key={site.id}
+            className="btn-quote-site"
+            data-btn={`quote-site-${site.id}`}
+            active={selectedSite === site.id}
+            label={site.label}
+            count={siteCounts.get(site.id) || 0}
+            onClick={() => { setSelectedSite(site.id); setPage(1); }}
+          />
+        ))}
       </div>
 
       {/* 필터 바 */}
       <div className="qr-filter">
+        <div className="qr-filter-item">
+          <SegmentedControl<Channel> id="seg-quote-channel" options={CHANNEL_OPTIONS} value={channel} onChange={handleChannel} />
+        </div>
+
         <div className="qr-filter-item">
           <Dropdown
             ariaLabel="연도 선택"
@@ -284,7 +355,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         <label className="qr-filter-item">
           <TextInput
             aria-label="검색"
-            placeholder="제목, 회사명, 성명, 카테고리..."
+            placeholder={isPhone ? '메모, 고객사, 담당, 전화번호...' : '제목, 회사명, 성명, 카테고리...'}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
@@ -301,9 +372,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
         <div className="qr-filter-item">
           <Dropdown
-            ariaLabel="유입경로 선택"
+            ariaLabel={isPhone ? '경로 선택' : '유입경로 선택'}
             value={selectedSource}
-            options={sources.map((s) => ({ value: s, label: s === 'ALL' ? '유입경로 전체' : s }))}
+            options={sources.map((s) => ({ value: s, label: s === 'ALL' ? (isPhone ? '경로 전체' : '유입경로 전체') : s }))}
             onChange={(v) => { setSelectedSource(v); setPage(1); }}
           />
         </div>
@@ -327,23 +398,34 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         <table className="tbl tw stk qr-table">
           <thead>
             <tr>
-              <SortableTh sortKey="sno" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-sno">SNO</SortableTh>
-              <SortableTh sortKey="date" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-date">접수날짜</SortableTh>
-              <SortableTh sortKey="subject" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-subject">제목 (문의 내용)</SortableTh>
-              <SortableTh sortKey="company" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-company">회사명</SortableTh>
-              <SortableTh sortKey="name" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-name">작성자</SortableTh>
-              <SortableTh sortKey="email" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-email">이메일</SortableTh>
-              <SortableTh sortKey="category" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-category">표준 카테고리 (수동 지정)</SortableTh>
-              <SortableTh sortKey="source" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-source">유입경로</SortableTh>
+              <SortableTh sortKey="sno" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-sno">{isPhone ? '번호' : 'SNO'}</SortableTh>
+              <SortableTh sortKey="date" activeKey={sortKey} order={sortOrder} onSort={handleSort} className={isPhone ? 'col-datetime' : 'col-date'}>{isPhone ? '접수일시' : '접수날짜'}</SortableTh>
+              <SortableTh sortKey="subject" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-subject">{isPhone ? '메모' : '제목 (문의 내용)'}</SortableTh>
+              <SortableTh sortKey="company" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-company">{isPhone ? '고객사' : '회사명'}</SortableTh>
+              <SortableTh sortKey="name" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-name">{isPhone ? '고객사담당' : '작성자'}</SortableTh>
+              {isPhone ? (
+                <SortableTh sortKey="phone" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-phone">전화번호</SortableTh>
+              ) : (
+                <SortableTh sortKey="email" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-email">이메일</SortableTh>
+              )}
+              <SortableTh sortKey="category" activeKey={sortKey} order={sortOrder} onSort={handleSort} className={isPhone ? 'col-phone-category' : 'col-category'}>{isPhone ? '카테고리' : '표준 카테고리 (수동 지정)'}</SortableTh>
+              <SortableTh sortKey="source" activeKey={sortKey} order={sortOrder} onSort={handleSort} className={isPhone ? 'col-phone-source' : 'col-source'}>{isPhone ? '경로' : '유입경로'}</SortableTh>
+              {isPhone && <SortableTh sortKey="rep" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-rep">연결영업대표 · 수신자</SortableTh>}
             </tr>
           </thead>
           <tbody>
             {pageItems.length === 0 && loading ? (
-              <SkelRows rows={8} widths={['3rem', '5rem', '60%', '50%', '4rem', '70%', '5rem', '5rem']} />
+              <SkelRows rows={8} widths={['3rem', '5rem', '60%', '50%', '4rem', '70%', '5rem', '5rem', ...(isPhone ? ['5rem'] : [])]} />
             ) : pageItems.length === 0 ? (
               <tr>
-                <td colSpan={8} className="qr-empty">
-                  조회 조건에 해당하는 견적 접수 내역이 없습니다.
+                <td colSpan={isPhone ? 9 : 8} className="qr-empty">
+                  {isPhone
+                    ? phoneQuotes.length === 0
+                      ? '전화문의가 아직 수집되지 않았습니다.'
+                      : '조회 조건에 해당하는 전화문의 내역이 없습니다.'
+                    : siteInfo && siteTotal === 0
+                      ? `${siteInfo.label} 견적이 아직 수집되지 않았습니다.`
+                      : '조회 조건에 해당하는 견적 접수 내역이 없습니다.'}
                 </td>
               </tr>
             ) : (
@@ -354,6 +436,10 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                   <tr key={rowKey}>
                     <td className="qr-sno">
                       {q.sno || '–'}
+                      {/* 전체 탭에서는 sno 가 사이트마다 겹칠 수 있어 어느 사이트인지 함께 적는다 */}
+                      {selectedSite === 'ALL' && !isPhone && (
+                        <span className="qr-site">{QUOTE_SITES.find((s) => s.id === siteOf(q))?.label || siteOf(q)}</span>
+                      )}
                     </td>
                     <td className="qr-date">
                       {q.date || '–'}
@@ -373,10 +459,17 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                         <span className="cell-wrap">{q.name || '–'}</span>
                       </Tooltip>
                     </td>
-                    <td className="qr-email">{q.email || '–'}</td>
+                    <td className="qr-email">{(isPhone ? q.phone : q.email) || '–'}</td>
+                    {isPhone ? (
+                      <td>
+                        <Tooltip content={q.category}>
+                          <span className="cell-truncate">{q.category || '–'}</span>
+                        </Tooltip>
+                      </td>
+                    ) : (
                     <td className="qr-cat">
                       <Dropdown
-                        className={`dd-cat${originals?.has(String(q.sno ?? '')) ? ' is-changed' : ''}`}
+                        className={`dd-cat${originals?.has(quoteKey(q)) ? ' is-changed' : ''}`}
                         ariaLabel="카테고리 선택"
                         value={q.category || '기타'}
                         options={[
@@ -387,8 +480,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                         ]}
                         onChange={(v) => onUpdateQuoteCategory?.(rowKey, v)}
                       />
-                      <CategoryTrace quote={q} original={originals?.get(String(q.sno ?? ''))} />
+                      <CategoryTrace quote={q} original={originals?.get(quoteKey(q))} />
                     </td>
+                    )}
                     <td className="qr-source" title={q.sourceDetail ? `${q.source} - ${q.sourceDetail}` : undefined}>
                       {/* 색은 유입경로마다 달라 인라인으로 둔다 */}
                       <span
@@ -405,6 +499,12 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                         q.source?.includes('광고') && <span className="qr-src-detail skel" aria-hidden="true" />
                       )}
                     </td>
+                    {isPhone && (
+                      <td className="qr-rep">
+                        {q.salesRep || '–'}
+                        {q.receiver && <span className="qr-site">수신 {q.receiver}</span>}
+                      </td>
+                    )}
                   </tr>
                 );
               })
@@ -423,6 +523,48 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
         <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
       </div>
+
+      {/* 저장 바 — 목록을 아래로 내려도 화면 아래에 붙어 있다 */}
+      {(changedCount > 0 || saveMsg) && (
+        <div className="qr-savebar">
+          <div className="qr-savebar-status">
+            {changedCount > 0 && <span className="qr-unsaved">● 미저장 변경 {fmt(changedCount)}건</span>}
+            {saveMsg && <Notice tone={saveMsg.ok ? 'ok' : 'warn'}>{saveMsg.text}</Notice>}
+          </div>
+
+          {changedCount > 0 && (
+            <div className="qr-savebar-actions">
+              {onReset && (
+                <Button
+                  size="sm"
+                  className="btn-reset-quotes"
+                  id="btn-admin-reset-quotes"
+                  data-btn="reset-quotes"
+                  onClick={onReset}
+                  disabled={saving}
+                >
+                  수정 취소
+                </Button>
+              )}
+
+              {onSave && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Save}
+                  className={`btn-save-supabase${saving ? ' saving' : ''}`}
+                  id="btn-admin-save-supabase"
+                  data-btn="save-supabase"
+                  onClick={onSave}
+                  disabled={saving}
+                >
+                  {saving ? '저장 중...' : '변경사항 저장'}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 };

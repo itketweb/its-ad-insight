@@ -112,7 +112,7 @@ create policy "Allow public update dashboard_snapshots"
               {copied ? '복사됨!' : 'SQL 복사'}
             </Button>
           </div>
-          <pre style={{ margin: 0, fontSize: '0.75rem', fontFamily: 'monospace', overflowX: 'auto', background: 'var(--card)', padding: '0.75rem', border: '1px solid var(--line)' }}>
+          <pre style={{ margin: 0, fontSize: '0.75rem', overflowX: 'auto', background: 'var(--card)', padding: '0.75rem', border: '1px solid var(--line)' }}>
             {sqlCode}
           </pre>
         </div>

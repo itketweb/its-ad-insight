@@ -23,7 +23,7 @@ export const measureSvgText = (() => {
       ctx = c.getContext('2d');
     }
     if (!ctx) return text.length * r * 0.6;
-    ctx.font = `500 ${r}px "Pretendard", sans-serif`;
+    ctx.font = `500 ${r}px "Pretendard Variable", "Pretendard", sans-serif`;
     return ctx.measureText(text).width;
   };
 })();
@@ -411,3 +411,7 @@ export function quoteCountFor(
   if (!siblingSpend) return Math.round(groupTotal / siblings.length);
   return Math.round(groupTotal * (mySpend / siblingSpend));
 }
+
+/** 수동 지정 키 — 아이티켓은 sno, 다른 사이트는 sno 가 겹칠 수 있어 "사이트:sno" */
+export const quoteKey = (q: { site?: string; sno?: string | number }): string =>
+  q.site ? `${q.site}:${q.sno ?? ''}` : String(q.sno ?? '');
