@@ -24,12 +24,13 @@ const CFG = {
   NAVER_DAILY_CAP: 6000,
   RUN_LIMIT_MS: 5 * 60 * 1000,               // syncAll 전체가 이 시간을 넘기면 남은 수집은 다음 실행으로 (6분 강제 종료 방지)
   SHEETS: ['g_campaign_monthly', 'g_adgroup_monthly', 'g_keywords', 'g_ads', 'g_ad_stats', 'g_meta',
-    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_ad_stats', 'n_meta', 'quotes_monthly', 'quotes_raw', 'quotes_raw_sites', 'quotes_phone', 'q_meta', 'mapping', 'manual', 'manual_categories'],
+    'n_adgroup_monthly', 'n_keywords', 'n_ads', 'n_ad_stats', 'n_meta', 'quotes_monthly', 'quotes_raw', 'quotes_raw_sites', 'quotes_phone', 'quotes_stats_extra', 'q_meta', 'mapping', 'manual', 'manual_categories'],
   // 대시보드 주소와 키는 공개 번들에 들어 있다. 고객 정보는 관리자 로그인이 확인될 때만 내려준다 (doGet)
   SUPABASE_URL: 'https://tqxljgmygvanysqnhiar.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable__Oq9NpOHnxEqRSZ02qJDaw_n-FIAGC2',
   ADMIN_ONLY_SHEETS: ['quotes_raw_sites', 'quotes_phone'],
-  // 어드민 견적 리스트에만 보여 주는 다른 사이트 시트. 대시보드 통계(quotes_raw·quotes_monthly)에는 넣지 않는다
+  // 다른 사이트 견적 시트. 원본은 어드민 리스트에만 보여 주고, 건수 통계는 고객 정보를 뺀 quotes_stats_extra 로 내보낸다.
+  // quotes_raw·quotes_monthly 는 CPA·견적전환율 기준이라 아이티켓만 둔다
   QUOTE_SITES: [
     { id: 'zbyhp', sheetId: '1vWHN_dT6biPcSM1mGETt6aieSTiUe3o2-ysPSRRpov8' },
     { id: 'cadkorea', sheetId: '1mmA4mAb3hRKLlMrAoU18ZyVbEgB2kgGZ3Xz0SJln-pg' },
@@ -86,6 +87,7 @@ function syncAllBody_(t0) {
     ['견적 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) withQuoteLock_(collectQuotes); }, 'collectQuotes'],
     ['다른 사이트 견적 데이터', () => withQuoteLock_(collectQuoteSites), 'collectQuoteSites'],
     ['전화문의 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotePhone(); }, 'collectQuotePhone'],
+    ['통계용 추가 견적', () => withQuoteLock_(collectQuoteStatsExtra), 'collectQuoteStatsExtra'],
     ['구글 광고 이메일 리포트', collectGoogleAdsEmail, 'collectGoogleAdsEmail'],
     ['네이버 GFA 리포트', collectGfaEmail, 'collectGfaEmail'],
     ['네이버 커머스', collectCommerce, 'collectCommerce'],
@@ -769,7 +771,7 @@ function recollectManual_(overrides) {
   const isSite = (o) => String(o.sno).includes(':');
   withQuoteLock_(() => {
     if (overrides.some((o) => !isSite(o))) collectQuotes();
-    if (overrides.some(isSite)) collectQuoteSites();
+    if (overrides.some(isSite)) { collectQuoteSites(); collectQuoteStatsExtra(); }
   });
 }
 
@@ -826,6 +828,31 @@ function collectQuotePhone() {
       text(r[c.memo])]);
   });
   put_(SpreadsheetApp.openById(CFG.SHEET_ID), 'quotes_phone', rows);
+}
+/* ── 건수 통계용 추가 견적 ──
+ * 다른 사이트 견적과 전화문의를 건수 통계에 함께 세도록 quotes_stats_extra 에 쓴다. 공개 응답에 나가므로 고객 정보는 넣지 않는다.
+ * CPA·견적전환율은 quotes_monthly(아이티켓) 기준이라 여기 값이 들어가지 않는다. */
+const QUOTE_STATS_EXTRA_HEAD = ['date', 'origin', 'category', 'source', 'sales_rep'];
+function collectQuoteStatsExtra() {
+  const ss = SpreadsheetApp.openById(CFG.SHEET_ID);
+  const day = (x) => (x instanceof Date ? Utilities.formatDate(x, 'Asia/Seoul', 'yyyy-MM-dd') : String(x == null ? '' : x).trim().slice(0, 10));
+  const rows = [QUOTE_STATS_EXTRA_HEAD];
+  read_(ss, 'quotes_raw_sites').forEach((r) => {
+    if (quoteMonth_(day(r.date))) rows.push([day(r.date), String(r.site), String(r.category || '기타'), String(r.source || '미수집'), String(r.sales_rep || '')]);
+  });
+  read_(ss, 'quotes_phone').forEach((r) => {
+    if (quoteMonth_(day(r.received_at))) rows.push([day(r.received_at), 'phone', phoneCategory_(r.category, r.memo), String(r.source || '미수집'), String(r.sales_rep || '')]);
+  });
+  put_(ss, 'quotes_stats_extra', rows);
+}
+/** 전화문의 카테고리는 자유 입력이라 분류표로 맞춘다. 기타로 적힌 건은 그대로 두고, 비었거나 못 찾으면 메모로 한 번 더 찾는다 */
+function phoneCategory_(category, memo) {
+  const raw = String(category == null ? '' : category).trim();
+  if (raw === '기타') return '기타';
+  if (/^3dconn/i.test(raw)) return '3Dconnexion';
+  if (/\bpc\b/i.test(raw)) return '데스크탑'; // "DELL PC" 가 브랜드 규칙에 먼저 걸려 서버로 가지 않게 한다
+  const c = categoryFromText_(raw);
+  return c !== '기타' ? c : categoryFromText_(memo);
 }
 /**
  * 숫자만 적힌 전화번호에 하이픈을 넣는다. "01027577817" 그대로 시트에 쓰면 숫자로 바뀌어 앞의 0 이 사라진다.

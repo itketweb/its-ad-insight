@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard';
+import React, { useMemo, useRef, useState } from 'react';
+import type { CategoryMap, DashboardData, QuoteRow, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
   buildSourceShareData,
@@ -16,6 +16,7 @@ import {
   ym,
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
+import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
@@ -44,6 +45,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   status,
   selectedMonth,
 }) => {
+  // 건수 통계는 다른 사이트·전화문의까지 더하고, CPA·카테고리별 소진은 data.quotes(아이티켓) 기준을 유지한다
+  const stats = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
   const [visibleCount, setVisibleCount] = useState(LIST_LIMIT);
@@ -90,13 +93,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const curSpendTot = totSpend(curM);
   const pvSpendTot = totSpend(pv);
 
-  const atQuotes = (mo: string) => data.quotes.filter((r) => r.month === mo);
-  const totQuotes = (mo: string) => sumBy(atQuotes(mo), (r) => r.count);
-  const curQuotesTot = totQuotes(curM);
-  const pvQuotesTot = totQuotes(pv);
+  const totQuotes = (rows: QuoteRow[], mo: string) => sumBy(rows.filter((r) => r.month === mo), (r) => r.count);
+  const curQuotesTot = totQuotes(stats.quotes, curM);
+  const pvQuotesTot = totQuotes(stats.quotes, pv);
 
-  const curCpa = curQuotesTot > 0 ? curSpendTot / curQuotesTot : 0;
-  const pvCpa = pvQuotesTot > 0 ? pvSpendTot / pvQuotesTot : 0;
+  const curAdQuotes = totQuotes(data.quotes, curM);
+  const pvAdQuotes = totQuotes(data.quotes, pv);
+  const curCpa = curAdQuotes > 0 ? curSpendTot / curAdQuotes : 0;
+  const pvCpa = pvAdQuotes > 0 ? pvSpendTot / pvAdQuotes : 0;
 
   const ytdSpend = sumBy(
     data.spend.filter((r) => r.month >= ym(yr, 1) && r.month <= curM),
@@ -115,7 +119,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     .map((s) => ({ ...s, v: s.raw.map((v) => v / 1e4) }));
 
   // 견적 추이: 올해 건수 상위 6개 1차 카테고리 + 그 외 (2차는 1차에 합산)
-  const yrQuoteRows = data.quotes.filter((r) => r.month >= ym(+yr, 1) && r.month <= curM);
+  const yrQuoteRows = stats.quotes.filter((r) => r.month >= ym(+yr, 1) && r.month <= curM);
   const quoteCats = quoteChartCats(yrQuoteRows);
   const quoteSeries = quoteCats.keys
     .map((k, ci) => ({
@@ -147,7 +151,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const list = fullList.slice(0, visibleCount);
 
   // 유입 매체 비중
-  const { items: srcItems } = buildSourceShareData(data.quotesRaw || [], yr, data.quotes);
+  const { items: srcItems } = buildSourceShareData(stats.quotesRaw || [], yr, stats.quotes);
 
   return (
     <div className="view on" data-view="overview" data-title="종합 요약">
@@ -183,7 +187,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cmpLabel="전월"
         />
         <KpiCard
-          label={`${mLabel(curM)} 견적당 광고비 (CPA)`}
+          label={
+            <>
+              {mLabel(curM)} 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small>
+            </>
+          }
           value={`${fmt(curCpa)}원`}
           cur={curCpa}
           prev={pvCpa}
@@ -236,7 +244,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <i className="prev" />
               전월
             </span>
-            <span className="leg-note">단위: 만원{hasQuotes ? ' · 우측: 견적 건수' : ''}</span>
+            <span className="leg-note">단위: 만원{hasQuotes ? ' · 우측: 견적 건수(아이티켓)' : ''}</span>
           </div>
           <ShowMoreButton
             total={fullList.length}

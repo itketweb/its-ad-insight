@@ -166,6 +166,8 @@ export interface DashboardData {
   quotesSites: QuoteRawRow[];
   /** 어드민 리스트 전용 전화문의 — 통계에는 쓰지 않는다 */
   quotesPhone: QuoteRawRow[];
+  /** 건수 통계에만 더하는 다른 사이트·전화문의 (CPA·견적전환율에는 쓰지 않는다) */
+  quotesExtra: QuoteRawRow[];
   keywords: KeywordRow[];
   ads: AdRow[];
   adStats: AdStatRow[];
@@ -288,6 +290,15 @@ export interface RawQuoteRawApiRow {
   site?: unknown;
 }
 
+/** 건수 통계용 추가 견적 한 행 (quotes_stats_extra) — 다른 사이트·전화문의, 고객 정보 없음 */
+export interface RawQuoteStatsExtraApiRow {
+  date?: unknown;
+  origin?: unknown;
+  category?: unknown;
+  source?: unknown;
+  sales_rep?: unknown;
+}
+
 /** 전화문의 시트 한 행 (quotes_phone) */
 export interface RawQuotePhoneApiRow {
   sno?: unknown;
@@ -325,6 +336,7 @@ export interface RawApiPayload {
   quotes_raw?: RawQuoteRawApiRow[];
   quotes_raw_sites?: RawQuoteRawApiRow[];
   quotes_phone?: RawQuotePhoneApiRow[];
+  quotes_stats_extra?: RawQuoteStatsExtraApiRow[];
   manual_categories?: RawManualCategoryApiRow[];
   g_keywords?: RawKeywordApiRow[];
   n_keywords?: RawKeywordApiRow[];

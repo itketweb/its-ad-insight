@@ -58,7 +58,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
         <ViewHeader
           title="카테고리 효율 분석"
-          description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교"
+          description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓 기준)"
           status={status}
         />
         <div className="kpis" id="kpiCatEff">
@@ -171,7 +171,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
       <ViewHeader
         title="카테고리 효율 분석"
-        description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교"
+        description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓 기준)"
         status={status}
       />
 

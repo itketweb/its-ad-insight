@@ -62,6 +62,7 @@ function emptyData(): DashboardData {
     quotesRaw: [],
     quotesSites: [],
     quotesPhone: [],
+    quotesExtra: [],
     keywords: [],
     ads: [],
     adStats: [],
@@ -117,6 +118,28 @@ function withLatestRepTitles<T extends { salesRep?: string }>(rows: T[]): T[] {
     if (rep && (rep.includes(' ') || !latest.has(nameOf(rep)))) latest.set(nameOf(rep), rep);
   });
   return rows.map((r) => (r.salesRep ? { ...r, salesRep: latest.get(nameOf(r.salesRep)) } : r));
+}
+
+/**
+ * 건수 통계용 견적 — 아이티켓에 다른 사이트·전화문의를 더한다.
+ * CPA·견적전환율은 광고 효율 지표라 이 값이 아니라 data.quotes(아이티켓)로 계산한다.
+ */
+export function quoteStatsOf(data: Pick<DashboardData, 'quotes' | 'quotesRaw' | 'quotesExtra'>): { quotes: QuoteRow[]; quotesRaw: QuoteRawRow[] } {
+  const extra = data.quotesExtra || [];
+  if (!extra.length) return { quotes: data.quotes, quotesRaw: data.quotesRaw };
+  const agg = new Map<string, QuoteRow>();
+  const add = (month: string, category: string, source: string, count: number) => {
+    const k = [month, category, source].join('\u0001');
+    const cur = agg.get(k);
+    if (cur) cur.count += count;
+    else agg.set(k, { month, category, source, count });
+  };
+  data.quotes.forEach((r) => add(r.month, r.category, r.source, r.count));
+  extra.forEach((r) => add(r.date.slice(0, 7), r.category, r.source, 1));
+  return {
+    quotes: [...agg.values()],
+    quotesRaw: withLatestRepTitles([...data.quotesRaw, ...extra].sort((a, b) => a.date.localeCompare(b.date))),
+  };
 }
 
 export function fromApi(j: RawApiPayload): DashboardData {
@@ -299,6 +322,17 @@ export function fromApi(j: RawApiPayload): DashboardData {
       .map((r, idx) => toQuotePhoneRow(r, 'qp_' + (idx + 1)))
       .filter((r) => r.date)
       .sort((a, b) => a.date.localeCompare(b.date)),
+    quotesExtra: (j.quotes_stats_extra || [])
+      .map((r, idx) => ({
+        id: 'qx_' + (idx + 1),
+        site: String(r.origin ?? '').trim(),
+        date: String(r.date ?? '').trim(),
+        category: String(r.category ?? '').trim() || '기타',
+        source: String(r.source ?? '').trim() || '미수집',
+        sourceDetail: '',
+        salesRep: String(r.sales_rep ?? '').trim().replace(/\s+/g, ' '),
+      }))
+      .filter((r) => r.date),
     keywords: [
       ...(j.g_keywords || []).map((r) => toKeywordRow('Google', r)),
       ...naverRawKws.map((r) => toKeywordRow('Naver', r)),
