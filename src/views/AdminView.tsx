@@ -24,9 +24,11 @@ interface AdminViewProps {
   isSyncing?: boolean;
   onUpdateQuotesRaw?: (newQuotes: QuoteRawRow[]) => void;
   onUpdateQuotesSites?: (newQuotes: QuoteRawRow[]) => void;
+  /** 저장 후 서버에서 다시 계산한 데이터를 받아 온다 */
+  onReload?: () => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw, onUpdateQuotesSites }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw, onUpdateQuotesSites, onReload }) => {
   const [localQuotes, setLocalQuotes] = useState<QuoteRawRow[]>(() =>
     toAdminRows(data.quotesRaw || [], data.quotesSites || [])
   );
@@ -109,7 +111,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
     }
   };
 
-  // Apps Script manual_categories 시트에 오버라이드 저장 → 다음 동기화 때 quotes_monthly 재산출
+  // Apps Script manual_categories 시트에 오버라이드 저장 → 서버가 바로 quotes_monthly 재산출 (실패하면 다음 정기 수집 때)
   const handleSaveOverrides = async () => {
     if (pendingOverrides.size === 0) {
       setSaveMsg({ text: '저장할 변경사항이 없습니다.', ok: false });
@@ -128,7 +130,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
       });
       const json = await res.json();
       if (json.success) {
-        setSaveMsg({ text: `${overrides.length}건 저장됨. 다음 동기화(최대 1시간) 후 반영됩니다.`, ok: true });
+        // recalculated 가 없으면 아직 이전 버전 웹앱이다 — 정기 수집 때 반영된다
+        if (json.recalculated === true) {
+          setSaveMsg({ text: `${overrides.length}건 저장하고 통계에 반영했습니다.`, ok: true });
+        } else if (json.recalculated === false) {
+          setSaveMsg({ text: `${overrides.length}건 저장했지만 통계 반영에 실패했습니다. 다음 동기화(최대 1시간) 때 반영됩니다.`, ok: false });
+        } else {
+          setSaveMsg({ text: `${overrides.length}건 저장됨. 다음 동기화(최대 1시간) 후 반영됩니다.`, ok: true });
+        }
         // 저장한 행은 '수동 지정' 흔적으로 바로 바꿔 보여 준다 (다음 동기화 전에도)
         const at = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 19);
         const by = user?.email || user?.name || undefined;
@@ -141,6 +150,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
         setPendingOverrides(new Map());
         setOriginals(new Map());
         setIsDirty(false);
+        if (json.recalculated === true) onReload?.();
       } else {
         setSaveMsg({ text: json.error || '저장 실패', ok: false });
       }
