@@ -1208,6 +1208,11 @@ tr.kw-more-row td {
   position: relative;
 }
 
+// 견적문의/전화문의 전환 — 머리말과 카드 사이
+.admin-channel {
+  margin-bottom: 1rem;
+}
+
 // 로그인 모달 바탕 — 지금 화면 위 전체를 덮는다 (헤더 .top z-index 5 보다 위)
 .login-backdrop {
   position: fixed;

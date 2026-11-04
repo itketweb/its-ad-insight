@@ -807,6 +807,10 @@ th.n.sortable {
         width: 4.5rem;
       }
 
+      .col-site {
+        width: 5rem;
+      }
+
       .col-date {
         width: 7rem;
       }
@@ -824,7 +828,7 @@ th.n.sortable {
       }
 
       .col-email {
-        width: 10.5rem;
+        width: 13rem;
       }
 
       .col-category {
@@ -832,7 +836,7 @@ th.n.sortable {
       }
 
       .col-source {
-        width: 15rem;
+        width: 10rem;
       }
 
       // 전화문의 탭 전용 열
@@ -841,7 +845,7 @@ th.n.sortable {
       }
 
       .col-phone {
-        width: 8rem;
+        width: 8.5rem;
       }
 
       .col-phone-category {
@@ -853,7 +857,7 @@ th.n.sortable {
       }
 
       .col-rep {
-        width: 9.5rem;
+        width: 11.5rem; // 영업대표 · 수신자를 한 줄로 (둘 다 직급까지 붙어도 잘리지 않게)
       }
     }
 
@@ -868,8 +872,10 @@ th.n.sortable {
     }
 
     .qr-site {
-      display: block;
-      font-size: 0.75rem;
+      color: var(--sub);
+    }
+
+    .qr-receiver {
       color: var(--sub);
     }
 
@@ -883,8 +889,10 @@ th.n.sortable {
       text-overflow: ellipsis;
     }
 
+    // 이메일·전화번호: 표 기본 글자 크기(14px), 넘치면 말줄임, 전체는 title
     .qr-email {
-      font-size: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .qr-src.ad {

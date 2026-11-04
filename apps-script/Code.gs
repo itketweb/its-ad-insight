@@ -83,8 +83,8 @@ function syncAllBody_(t0) {
     console.log('- 네이버 검색광고: ' + statsEvery + '분 주기 대기 중 (마지막 ' + Utilities.formatDate(new Date(statsLast), 'Asia/Seoul', 'HH:mm') + ')');
   }
   const rest = [
-    ['견적 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotes(); }, 'collectQuotes'],
-    ['다른 사이트 견적 데이터', collectQuoteSites, 'collectQuoteSites'],
+    ['견적 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) withQuoteLock_(collectQuotes); }, 'collectQuotes'],
+    ['다른 사이트 견적 데이터', () => withQuoteLock_(collectQuoteSites), 'collectQuoteSites'],
     ['전화문의 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotePhone(); }, 'collectQuotePhone'],
     ['구글 광고 이메일 리포트', collectGoogleAdsEmail, 'collectGoogleAdsEmail'],
     ['네이버 GFA 리포트', collectGfaEmail, 'collectGfaEmail'],
@@ -758,6 +758,21 @@ function collectQuotes() {
   put_(ss, 'quotes_raw', rawRows);
 }
 
+/** 정기 수집과 수동 지정 저장이 겹쳐도 견적 시트를 번갈아 쓰게 한다 (put_ 은 시트를 비우고 다시 쓴다) */
+function withQuoteLock_(fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(60 * 1000)) throw new Error('견적 수집이 이미 실행 중입니다');
+  try { fn(); } finally { lock.releaseLock(); }
+}
+/** 수동 지정 저장 직후 바뀐 쪽만 다시 수집한다. 키가 "사이트:sno" 면 다른 사이트 건이다 */
+function recollectManual_(overrides) {
+  const isSite = (o) => String(o.sno).includes(':');
+  withQuoteLock_(() => {
+    if (overrides.some((o) => !isSite(o))) collectQuotes();
+    if (overrides.some(isSite)) collectQuoteSites();
+  });
+}
+
 /* ── 다른 사이트 견적 (어드민 리스트 전용) ──
  * CFG.QUOTE_SITES 의 시트를 아이티켓과 같은 양식으로 읽어 quotes_raw_sites 에 쓴다. 통계에는 쓰지 않는다.
  * sno 는 사이트마다 따로 매겨지므로 수동 지정은 "사이트:sno" (예: zbyhp:12) 로 구분한다.
@@ -1086,7 +1101,15 @@ function doPost(e) {
           shOv.appendRow(Array.from(row, (v) => (v == null ? '' : v)));
         }
       });
-      return json_({ success: true, saved: data.overrides.length });
+      // 저장은 이미 끝났으므로 다시 수집이 실패해도 성공으로 답하고, 다음 정기 수집에 맡긴다
+      let recalculated = true;
+      try {
+        recollectManual_(data.overrides);
+      } catch (err) {
+        recalculated = false;
+        console.error('수동 지정 저장 후 다시 수집 실패: ' + err.message);
+      }
+      return json_({ success: true, saved: data.overrides.length, recalculated });
     }
 
     // [B] 쇼핑몰 실시간 견적 접수 수신

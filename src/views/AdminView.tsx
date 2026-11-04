@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import type { DashboardData, QuoteRawRow } from '../types/dashboard';
 import { ViewHeader } from '../components/common/ViewHeader';
-import { QuotesRawAdminTable } from '../components/admin/QuotesRawAdminTable';
+import { QuotesRawAdminTable, type QuoteChannel } from '../components/admin/QuotesRawAdminTable';
+import { SegmentedControl } from '../components/common/SegmentedControl';
 import { getCfg } from '../hooks/useDashboardData';
 import { useAuth } from '../context/AuthContext';
 import { quoteKey } from '../utils/format';
+
+const CHANNEL_OPTIONS: { value: QuoteChannel; label: string }[] = [
+  { value: 'live', label: '견적문의' },
+  { value: 'phone', label: '전화문의' },
+];
 
 /** 표에 올릴 행 — 아이티켓은 2026-10 이후만, 다른 사이트는 건수가 적어 전체를 보여 준다 */
 const toAdminRows = (raw: QuoteRawRow[], sites: QuoteRawRow[]): QuoteRawRow[] => [
@@ -18,13 +24,16 @@ interface AdminViewProps {
   isSyncing?: boolean;
   onUpdateQuotesRaw?: (newQuotes: QuoteRawRow[]) => void;
   onUpdateQuotesSites?: (newQuotes: QuoteRawRow[]) => void;
+  /** 저장 후 서버에서 다시 계산한 데이터를 받아 온다 */
+  onReload?: () => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw, onUpdateQuotesSites }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, onUpdateQuotesRaw, onUpdateQuotesSites, onReload }) => {
   const [localQuotes, setLocalQuotes] = useState<QuoteRawRow[]>(() =>
     toAdminRows(data.quotesRaw || [], data.quotesSites || [])
   );
   const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [channel, setChannel] = useState<QuoteChannel>('live');
   // 수동 변경된 행(quoteKey) → 새 카테고리 추적 (저장 시 Apps Script로 전송)
   const [pendingOverrides, setPendingOverrides] = useState<Map<string, string>>(new Map());
   // 저장 전 변경의 원래 값 (quoteKey → 처음 바꾸기 전 카테고리) — 표에 '이전: ○○' 흔적으로 보여 준다
@@ -102,7 +111,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
     }
   };
 
-  // Apps Script manual_categories 시트에 오버라이드 저장 → 다음 동기화 때 quotes_monthly 재산출
+  // Apps Script manual_categories 시트에 오버라이드 저장 → 서버가 바로 quotes_monthly 재산출 (실패하면 다음 정기 수집 때)
   const handleSaveOverrides = async () => {
     if (pendingOverrides.size === 0) {
       setSaveMsg({ text: '저장할 변경사항이 없습니다.', ok: false });
@@ -121,7 +130,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
       });
       const json = await res.json();
       if (json.success) {
-        setSaveMsg({ text: `${overrides.length}건 저장됨. 다음 동기화(최대 1시간) 후 반영됩니다.`, ok: true });
+        // recalculated 가 없으면 아직 이전 버전 웹앱이다 — 정기 수집 때 반영된다
+        if (json.recalculated === true) {
+          setSaveMsg({ text: `${overrides.length}건 저장하고 통계에 반영했습니다.`, ok: true });
+        } else if (json.recalculated === false) {
+          setSaveMsg({ text: `${overrides.length}건 저장했지만 통계 반영에 실패했습니다. 다음 동기화(최대 1시간) 때 반영됩니다.`, ok: false });
+        } else {
+          setSaveMsg({ text: `${overrides.length}건 저장됨. 다음 동기화(최대 1시간) 후 반영됩니다.`, ok: true });
+        }
         // 저장한 행은 '수동 지정' 흔적으로 바로 바꿔 보여 준다 (다음 동기화 전에도)
         const at = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 19);
         const by = user?.email || user?.name || undefined;
@@ -134,6 +150,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
         setPendingOverrides(new Map());
         setOriginals(new Map());
         setIsDirty(false);
+        if (json.recalculated === true) onReload?.();
       } else {
         setSaveMsg({ text: json.error || '저장 실패', ok: false });
       }
@@ -166,10 +183,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
         status="live"
       />
 
+      {/* 아래 카드 전체(제목·열·필터)가 바뀌는 전환이라 카드 밖 머리말 아래에 둔다 */}
+      <div className="admin-channel">
+        <SegmentedControl<QuoteChannel> id="seg-quote-channel" options={CHANNEL_OPTIONS} value={channel} onChange={setChannel} />
+      </div>
+
       {/* 견적 원본 스프레드시트 관리 테이블 */}
       <div className="admin-body">
         <QuotesRawAdminTable
           quotes={localQuotes}
+          channel={channel}
           phoneQuotes={data.quotesPhone || []}
           originals={originals}
           loading={isSyncing}
