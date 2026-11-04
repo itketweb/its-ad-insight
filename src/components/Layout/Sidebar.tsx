@@ -99,35 +99,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
           </nav>
         </div>
-        <div className="sm">
-          <div className="lbl">설정 · 연동</div>
-          <nav className="toc">
-            <button
-              className={`nv nv-data${currentView === 'data' ? ' on' : ''}`}
-              id="nav-data"
-              data-v="data"
-              data-btn="data"
-              aria-current={currentView === 'data' ? 'page' : undefined}
-              onClick={() => onNavigate('data')}
-            >
-              <Database />
-              <span>데이터 연결</span>
-            </button>
-            {isLoggedIn && (
-            <button
-              className={`nv nv-admin${currentView === 'admin' ? ' on' : ''}`}
-              id="nav-admin"
-              data-v="admin"
-              data-btn="admin"
-              aria-current={currentView === 'admin' ? 'page' : undefined}
-              onClick={() => onNavigate('admin')}
-            >
-              <Lock />
-              <span>어드민 관리</span>
-            </button>
-          )}
-          </nav>
-        </div>
+        {/* 설정·연동은 로그인한 관리자에게만 보인다 (주소로 들어오는 경우는 App 에서 막는다) */}
+        {isLoggedIn && (
+          <div className="sm">
+            <div className="lbl">설정 · 연동</div>
+            <nav className="toc">
+              <button
+                className={`nv nv-data${currentView === 'data' ? ' on' : ''}`}
+                id="nav-data"
+                data-v="data"
+                data-btn="data"
+                aria-current={currentView === 'data' ? 'page' : undefined}
+                onClick={() => onNavigate('data')}
+              >
+                <Database />
+                <span>데이터 연결</span>
+              </button>
+              <button
+                className={`nv nv-admin${currentView === 'admin' ? ' on' : ''}`}
+                id="nav-admin"
+                data-v="admin"
+                data-btn="admin"
+                aria-current={currentView === 'admin' ? 'page' : undefined}
+                onClick={() => onNavigate('admin')}
+              >
+                <Lock />
+                <span>어드민 관리</span>
+              </button>
+            </nav>
+          </div>
+        )}
         {/* 마케팅팀 · 배포 날짜 기준 릴리즈 (같은 날 여러 번이면 -2, -3 …) */}
         <div className="sfoot">
           마케팅팀 ·{' '}
