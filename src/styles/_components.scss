@@ -574,7 +574,7 @@ table {
 
 th,
 td {
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.5rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: middle;
@@ -591,16 +591,6 @@ thead th {
   background: var(--bg);
   color: var(--ink2);
   font-weight: 600;
-}
-
-th:first-child,
-td:first-child {
-  padding-left: 0.75rem;
-}
-
-th:last-child,
-td:last-child {
-  padding-right: 0.75rem;
 }
 
 td.n,
