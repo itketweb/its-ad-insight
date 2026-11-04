@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { DashboardData, SyncStatus } from '../types/dashboard';
 import {
   buildSourceShareData,
@@ -13,6 +13,7 @@ import {
   ym,
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
+import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
@@ -34,19 +35,19 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
   { label: '아이티켓 고도몰 견적 목록', href: EXTERNAL_LINKS.itketEstimateList },
   { label: '취합 스프레드시트', href: EXTERNAL_LINKS.masterSheet },
   { label: '견적 접수 원본 시트', href: EXTERNAL_LINKS.quotesRawSheet },
-  { label: 'collectQuotes · 1시간 자동 동기화' },
+  { label: 'collectQuotes · collectQuoteStatsExtra · 1시간 자동 동기화' },
 ];
 
 export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing = false, selectedMonth }) => {
-  const quotes = data.quotes || [];
-  const quotesRaw = data.quotesRaw || [];
+  // 건수 통계는 아이티켓에 다른 사이트·전화문의를 더해 센다
+  const { quotes, quotesRaw } = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
 
   if (!quotes.length) {
     return (
       <div className="view on" data-view="quotes" data-title="견적 상세">
         <ViewHeader
           title="ITKET 견적 상세 현황"
-          description="쇼핑몰(고도몰5) 및 직영 채널 접수 견적의 월별·카테고리별 유입 추이"
+          description="아이티켓·zbyhp·cadkorea 견적과 전화문의의 월별·카테고리별 유입 추이"
           status={status}
         />
         <div className="kpis" id="kpiQuotes">
@@ -124,7 +125,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     <div className="view on" data-view="quotes" data-title="견적 상세">
       <ViewHeader
         title="ITKET 견적 상세 현황"
-        description="쇼핑몰(고도몰5) 및 직영 채널 접수 견적의 월별·카테고리별 유입 추이"
+        description="아이티켓·zbyhp·cadkorea 견적과 전화문의의 월별·카테고리별 유입 추이"
         status={status}
       />
 
