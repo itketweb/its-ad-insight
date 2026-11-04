@@ -53,6 +53,11 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
       }
     });
 
+    // 하위 항목과 함께 1차로만 분류된 금액이 있으면 '공통' 행으로 넣어야 1차 합계에서 빠지지 않는다
+    topKeys.forEach((parent) => {
+      if (childrenOf[parent].length > 0 && categoryKeys.includes(parent)) childrenOf[parent].push(parent);
+    });
+
     return { topKeys, childrenOf };
   }, [categoryKeys]);
 
@@ -129,7 +134,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
                       </tr>
 
                       {hasChildren && isOpen && children.map((childKey) => {
-                        const childLabel = childKey.slice(parentKey.length + 3); // " > " = 3
+                        const childLabel = childKey.slice(parentKey.length + 3) || '공통'; // " > " = 3
                         const cc = costByCat[childKey] || 0;
                         const ck = clkByCat[childKey]  || 0;
                         const cv = convByCat[childKey]  || 0;

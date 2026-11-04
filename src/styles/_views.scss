@@ -333,8 +333,6 @@ p.small {
 
   th.n,
   td.n {
-    padding-left: 0.25rem;
-    padding-right: 0.5rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
@@ -521,7 +519,7 @@ tr.grp-accordion {
 
 tr.kw-more-row td {
   text-align: center;
-  padding: 0.5rem 0.75rem !important;
+  padding: 0.5rem 0.5rem !important;
 }
 
 // 표 아래 더보기 버튼 줄 — 가운데 정렬
@@ -742,6 +740,27 @@ tr.kw-more-row td {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+// 눌러서 펼치는 광고그룹 제목 — 상세 버튼처럼 올리거나 펼치면 강조색
+.cr-meta .cr-title-btn {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  b {
+    transition: color 0.15s ease;
+  }
+
+  &:hover b,
+  &[aria-expanded='true'] b {
+    color: var(--accink);
   }
 }
 

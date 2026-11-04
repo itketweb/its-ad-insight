@@ -333,19 +333,36 @@ const CreativeItem: React.FC<{
   // 확장소재 이미지는 광고그룹에 걸려 소재마다 같은 경우가 많다 — 모두 같으면 한 번만 보여 준다
   const imageSets = ads.map((a) => getCreativeImages(a).join(' '));
   const sharedImages = multi && imageSets[0] !== '' && imageSets.every((k) => k === imageSets[0]);
+  const titleContent = (
+    <>
+      <MediaMark media={group.media} />
+      <b>
+        {group.campaign} › {group.adgroup}
+      </b>
+      {multi && <span className="cr-n">소재 {ads.length}</span>}
+    </>
+  );
 
   return (
     <>
       <tr className={`cr-row${open ? ' open' : ''}`}>
         <td>
           <div className="cr-meta">
-            <span className="cr-title">
-              <MediaMark media={group.media} />
-              <b>
-                {group.campaign} › {group.adgroup}
-              </b>
-              {multi && <span className="cr-n">소재 {ads.length}</span>}
-            </span>
+            {/* 펼칠 내용이 있으면 제목을 눌러도 상세 버튼과 똑같이 펼친다 */}
+            {hasDetail ? (
+              <button
+                type="button"
+                className="cr-title cr-title-btn"
+                data-btn="cr-title"
+                aria-expanded={open}
+                aria-controls={detailId}
+                onClick={() => setOpen((v) => !v)}
+              >
+                {titleContent}
+              </button>
+            ) : (
+              <span className="cr-title">{titleContent}</span>
+            )}
           </div>
         </td>
         <td className="c">

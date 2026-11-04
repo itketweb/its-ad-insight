@@ -9,7 +9,7 @@ import type {
   RawAdApiRow,
   RawAdStatApiRow,
   RawApiPayload,
-  RawQuotePhoneApiRow, RawQuoteRawApiRow,
+  RawQuotePhoneApiRow, RawQuoteStatsExtraApiRow, RawQuoteRawApiRow,
   RawKeywordApiRow,
   RawMetaApiRow,
   RawSpendApiRow,
@@ -328,7 +328,7 @@ export function fromApi(j: RawApiPayload): DashboardData {
         site: String(r.origin ?? '').trim(),
         date: String(r.date ?? '').trim(),
         category: String(r.category ?? '').trim() || '기타',
-        source: String(r.source ?? '').trim() || '미수집',
+        source: extraSourceOf(r),
         sourceDetail: '',
         salesRep: String(r.sales_rep ?? '').trim().replace(/\s+/g, ' '),
       }))
@@ -367,6 +367,13 @@ export function fromApi(j: RawApiPayload): DashboardData {
     quotesRaw: out.quotesRaw.map(withTrace),
     quotesSites: out.quotesSites.map(withTrace),
   };
+}
+
+// 전화·톡플러스는 문의 방법이지 유입 매체가 아니라 유입 통계에서 뺀다 ('미수집'은 유입 통계에서 제외된다)
+const NOT_INFLOW_SOURCES = new Set(['전화', '톡플러스']);
+function extraSourceOf(r: RawQuoteStatsExtraApiRow): string {
+  const source = String(r.source ?? '').trim();
+  return !source || NOT_INFLOW_SOURCES.has(source) ? '미수집' : source;
 }
 
 /** 전화문의 시트 한 행 — 메모를 제목 자리에, 경로(전화·톡플러스)를 유입경로 자리에 둔다 */

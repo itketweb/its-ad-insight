@@ -123,8 +123,8 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
           <col className="col-eff-share" />
           <col className="col-eff-clk" />
           <col className="col-eff-conv" />
-          <col className="col-eff-quotes" />
           <col className="col-eff-rate" />
+          <col className="col-eff-quotes" />
           <col className="col-eff-cpa" />
         </colgroup>
         <thead>
@@ -134,8 +134,8 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
             {th('비중', 'share')}
             {th('클릭수', 'clk')}
             {th('광고전환', 'conv')}
-            {th('접수견적', 'quotes')}
-            {th('견적전환율', 'convRate')}
+            {th('광고전환율', 'convRate')}
+            {th('총 견적', 'quotes')}
             {th('건당 광고비 (CPA)', 'cpa')}
           </tr>
         </thead>
@@ -164,13 +164,14 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
                   <td className="n">{share.toFixed(1)}%</td>
                   <td className="n">{fmt(clk)}</td>
                   <td className="n">{fmt(conv)}</td>
-                  <td className="n"><b>{quotes ? `${fmt(quotes)}건` : '–'}</b></td>
                   <td className="n">{convRateStr(quotes, clk)}</td>
+                  <td className="n"><b>{quotes ? `${fmt(quotes)}건` : '–'}</b></td>
                   <td className="n"><b>{cpaStr(cpa)}</b></td>
                 </tr>
 
                 {hasChildren && isOpen && items.map((item) => {
-                  const childLabel = item.k.slice(parentKey.length + 3);
+                  // 2차 없이 1차로만 분류된 항목은 잘라 낼 이름이 없어 '공통'으로 보여 준다
+                  const childLabel = item.k.slice(parentKey.length + 3) || '공통';
                   return (
                     <tr key={item.k} className="kw-cat-child">
                       <td className="kw-cat-child-label">{childLabel}</td>
@@ -178,8 +179,8 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
                       <td className="n">{totSpend > 0 ? `${((item.cost / totSpend) * 100).toFixed(1)}%` : '–'}</td>
                       <td className="n">{fmt(item.clk)}</td>
                       <td className="n">{fmt(item.conv)}</td>
-                      <td className="n">{item.quotes ? `${fmt(item.quotes)}건` : '–'}</td>
                       <td className="n">{convRateStr(item.quotes, item.clk)}</td>
+                      <td className="n">{item.quotes ? `${fmt(item.quotes)}건` : '–'}</td>
                       <td className="n">{cpaStr(item.cpa)}</td>
                     </tr>
                   );
@@ -193,8 +194,8 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
             <td className="n">100.0%</td>
             <td className="n">{fmt(totClk)}</td>
             <td className="n">{fmt(totConv)}</td>
-            <td className="n"><b>{fmt(totQuotes)}건</b></td>
             <td className="n">{totClk > 0 ? `${((totQuotes / totClk) * 100).toFixed(2)}%` : '–'}</td>
+            <td className="n"><b>{fmt(totQuotes)}건</b></td>
             <td className="n"><b>{avgCpa ? `${fmt(avgCpa)}원` : '–'}</b></td>
           </tr>
         </tbody>
@@ -203,7 +204,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
       <TableFootnote
         id="srcCatEfficiency"
         unit="원·건"
-        basis="산출 근거: 견적전환율 = (접수견적 ÷ 클릭수) × 100 · CPA = 광고비 ÷ 접수견적"
+        basis="산출 근거: 광고전환율 = (총 견적 ÷ 클릭수) × 100 · CPA = 광고비 ÷ 총 견적"
         sources={[
           <span key="ads">
             광고비·클릭·전환 —{' '}
@@ -212,7 +213,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
             <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">네이버 검색광고</a>{' '}
             API 자동 수집
           </span>,
-          '접수 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)',
+          '총 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)',
         ]}
       />
     </Card>
