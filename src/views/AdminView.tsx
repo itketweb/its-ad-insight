@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import type { DashboardData, QuoteRawRow } from '../types/dashboard';
 import { ViewHeader } from '../components/common/ViewHeader';
-import { QuotesRawAdminTable } from '../components/admin/QuotesRawAdminTable';
+import { QuotesRawAdminTable, type QuoteChannel } from '../components/admin/QuotesRawAdminTable';
+import { SegmentedControl } from '../components/common/SegmentedControl';
 import { getCfg } from '../hooks/useDashboardData';
 import { useAuth } from '../context/AuthContext';
 import { quoteKey } from '../utils/format';
+
+const CHANNEL_OPTIONS: { value: QuoteChannel; label: string }[] = [
+  { value: 'live', label: '견적문의' },
+  { value: 'phone', label: '전화문의' },
+];
 
 /** 표에 올릴 행 — 아이티켓은 2026-10 이후만, 다른 사이트는 건수가 적어 전체를 보여 준다 */
 const toAdminRows = (raw: QuoteRawRow[], sites: QuoteRawRow[]): QuoteRawRow[] => [
@@ -25,6 +31,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
     toAdminRows(data.quotesRaw || [], data.quotesSites || [])
   );
   const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [channel, setChannel] = useState<QuoteChannel>('live');
   // 수동 변경된 행(quoteKey) → 새 카테고리 추적 (저장 시 Apps Script로 전송)
   const [pendingOverrides, setPendingOverrides] = useState<Map<string, string>>(new Map());
   // 저장 전 변경의 원래 값 (quoteKey → 처음 바꾸기 전 카테고리) — 표에 '이전: ○○' 흔적으로 보여 준다
@@ -166,10 +173,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ data, isSyncing = false, o
         status="live"
       />
 
+      {/* 아래 카드 전체(제목·열·필터)가 바뀌는 전환이라 카드 밖 머리말 아래에 둔다 */}
+      <div className="admin-channel">
+        <SegmentedControl<QuoteChannel> id="seg-quote-channel" options={CHANNEL_OPTIONS} value={channel} onChange={setChannel} />
+      </div>
+
       {/* 견적 원본 스프레드시트 관리 테이블 */}
       <div className="admin-body">
         <QuotesRawAdminTable
           quotes={localQuotes}
+          channel={channel}
           phoneQuotes={data.quotesPhone || []}
           originals={originals}
           loading={isSyncing}

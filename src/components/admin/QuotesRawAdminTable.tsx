@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { QuoteRawRow } from '../../types/dashboard';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { fmt, quoteKey, sourceColorVar, THIS_M, THIS_Y } from '../../utils/format';
@@ -14,11 +14,12 @@ import { TextInput } from '../common/TextInput';
 import { Pagination } from '../common/Pagination';
 import { Card } from '../common/Card';
 import { TabButton } from '../common/TabButton';
-import { SegmentedControl } from '../common/SegmentedControl';
 import { Notice } from '../common/Notice';
 
 interface QuotesRawAdminTableProps {
   quotes: QuoteRawRow[];
+  /** 보고 있는 문의 종류 (어드민 머리말 아래 전환 버튼) */
+  channel?: QuoteChannel;
   /** 전화문의 행 — 카테고리는 시트에서 관리해 여기서는 읽기만 한다 */
   phoneQuotes?: QuoteRawRow[];
   /** 실데이터를 받는 중 — 아직 없는 광고 꼬리표는 스켈레톤으로 보여 준다 */
@@ -35,13 +36,8 @@ interface QuotesRawAdminTableProps {
   saveMsg?: { text: string; ok: boolean } | null;
 }
 
-type SortKey = 'idx' | 'sno' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'phone' | 'rep' | 'category' | 'source';
-type Channel = 'live' | 'phone';
-
-const CHANNEL_OPTIONS: { value: Channel; label: string }[] = [
-  { value: 'live', label: '실시간문의' },
-  { value: 'phone', label: '전화문의' },
-];
+type SortKey = 'idx' | 'sno' | 'site' | 'date' | 'subject' | 'company' | 'name' | 'email' | 'phone' | 'rep' | 'category' | 'source';
+export type QuoteChannel = 'live' | 'phone';
 
 const MONTH_OPTIONS = [
   { value: 'ALL', label: '월 전체' },
@@ -50,6 +46,7 @@ const MONTH_OPTIONS = [
 
 /** 아이티켓 원장 행은 site 가 비어 있다 */
 const siteOf = (q: QuoteRawRow): string => q.site || 'itket';
+const siteLabelOf = (q: QuoteRawRow): string => QUOTE_SITES.find((s) => s.id === siteOf(q))?.label || siteOf(q);
 
 /** '2026-10-23 14:51:00' → '10.23 14:51' */
 const shortAt = (at: string) => {
@@ -79,6 +76,7 @@ const CategoryTrace: React.FC<{ quote: QuoteRawRow; original?: string }> = ({ qu
 
 export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   quotes: liveQuotes,
+  channel = 'live',
   phoneQuotes = [],
   loading = false,
   originals,
@@ -89,12 +87,13 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   saving,
   saveMsg,
 }) => {
-  const [channel, setChannel] = useState<Channel>('live');
   const isPhone = channel === 'phone';
   // 아래 필터·건수·정렬은 모두 고른 문의 종류의 행을 기준으로 한다
   const quotes = isPhone ? phoneQuotes : liveQuotes;
   const [search, setSearch] = useState('');
   const [selectedSite, setSelectedSite] = useState('ALL');
+  // 전체 탭은 사이트가 섞이고 sno 도 겹칠 수 있어 사이트 열을 함께 보여 준다
+  const showSiteCol = selectedSite === 'ALL' && !isPhone;
   const [selectedCat, setSelectedCat] = useState('ALL');
   const [selectedSource, setSelectedSource] = useState('ALL');
   // 처음에는 이번 달만 보여 준다
@@ -127,12 +126,11 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
   };
 
   // 카테고리·경로 값이 문의 종류마다 달라 옮길 때 두 필터를 풀어 준다
-  const handleChannel = (next: Channel) => {
-    setChannel(next);
+  useEffect(() => {
     setSelectedCat('ALL');
     setSelectedSource('ALL');
     setPage(1);
-  };
+  }, [channel]);
 
   const handleSort = (key: SortKey) => {
     toggleSort(key);
@@ -191,6 +189,8 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
           diff = a.originalIndex - b.originalIndex;
         } else if (sortKey === 'sno') {
           diff = Number(a.q.sno || 0) - Number(b.q.sno || 0);
+        } else if (sortKey === 'site') {
+          diff = siteLabelOf(a.q).localeCompare(siteLabelOf(b.q));
         } else if (sortKey === 'date') {
           diff = (a.q.date || '').localeCompare(b.q.date || '');
         } else if (sortKey === 'subject') {
@@ -240,7 +240,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       `"${q.source || ''}"`,
       `"${q.sourceDetail.replace(/"/g, '""')}"`,
       `"${q.category || ''}"`,
-      `"${QUOTE_SITES.find((s) => s.id === siteOf(q))?.label || siteOf(q)}"`,
+      `"${siteLabelOf(q)}"`,
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -331,10 +331,6 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
       {/* 필터 바 */}
       <div className="qr-filter">
         <div className="qr-filter-item">
-          <SegmentedControl<Channel> id="seg-quote-channel" options={CHANNEL_OPTIONS} value={channel} onChange={handleChannel} />
-        </div>
-
-        <div className="qr-filter-item">
           <Dropdown
             ariaLabel="연도 선택"
             value={selectedYear}
@@ -398,6 +394,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
         <table className="tbl tw stk qr-table">
           <thead>
             <tr>
+              {showSiteCol && <SortableTh sortKey="site" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-site">사이트</SortableTh>}
               <SortableTh sortKey="sno" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-sno">{isPhone ? '번호' : 'SNO'}</SortableTh>
               <SortableTh sortKey="date" activeKey={sortKey} order={sortOrder} onSort={handleSort} className={isPhone ? 'col-datetime' : 'col-date'}>{isPhone ? '접수일시' : '접수날짜'}</SortableTh>
               <SortableTh sortKey="subject" activeKey={sortKey} order={sortOrder} onSort={handleSort} className="col-subject">{isPhone ? '메모' : '제목 (문의 내용)'}</SortableTh>
@@ -415,10 +412,10 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
           </thead>
           <tbody>
             {pageItems.length === 0 && loading ? (
-              <SkelRows rows={8} widths={['3rem', '5rem', '60%', '50%', '4rem', '70%', '5rem', '5rem', ...(isPhone ? ['5rem'] : [])]} />
+              <SkelRows rows={8} widths={[...(showSiteCol ? ['4rem'] : []), '3rem', '5rem', '60%', '50%', '4rem', '70%', '5rem', '5rem', ...(isPhone ? ['5rem'] : [])]} />
             ) : pageItems.length === 0 ? (
               <tr>
-                <td colSpan={isPhone ? 9 : 8} className="qr-empty">
+                <td colSpan={isPhone || showSiteCol ? 9 : 8} className="qr-empty">
                   {isPhone
                     ? phoneQuotes.length === 0
                       ? '전화문의가 아직 수집되지 않았습니다.'
@@ -434,13 +431,8 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
 
                 return (
                   <tr key={rowKey}>
-                    <td className="qr-sno">
-                      {q.sno || '–'}
-                      {/* 전체 탭에서는 sno 가 사이트마다 겹칠 수 있어 어느 사이트인지 함께 적는다 */}
-                      {selectedSite === 'ALL' && !isPhone && (
-                        <span className="qr-site">{QUOTE_SITES.find((s) => s.id === siteOf(q))?.label || siteOf(q)}</span>
-                      )}
-                    </td>
+                    {showSiteCol && <td className="qr-site">{siteLabelOf(q)}</td>}
+                    <td className="qr-sno">{q.sno || '–'}</td>
                     <td className="qr-date">
                       {q.date || '–'}
                     </td>
@@ -459,7 +451,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                         <span className="cell-wrap">{q.name || '–'}</span>
                       </Tooltip>
                     </td>
-                    <td className="qr-email">{(isPhone ? q.phone : q.email) || '–'}</td>
+                    <td className="qr-email" title={(isPhone ? q.phone : q.email) || undefined}>{(isPhone ? q.phone : q.email) || '–'}</td>
                     {isPhone ? (
                       <td>
                         <Tooltip content={q.category}>
@@ -502,7 +494,7 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                     {isPhone && (
                       <td className="qr-rep">
                         {q.salesRep || '–'}
-                        {q.receiver && <span className="qr-site">수신 {q.receiver}</span>}
+                        {q.receiver && <span className="qr-receiver"> · {q.receiver}</span>}
                       </td>
                     )}
                   </tr>
