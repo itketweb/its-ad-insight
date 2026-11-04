@@ -120,10 +120,10 @@ export const App: React.FC = () => {
     document.title = `${VIEW_TITLES[currentView]} · 아이티캣 광고 인사이트`;
   }, [currentView]);
 
-  // 어드민 관리는 로그인한 관리자만. 로그아웃하면 종합 요약으로, 로그인 없이 주소(#admin)로 들어오면 종합 요약 + 로그인 모달
+  // 설정·연동(데이터 연결·어드민 관리)은 로그인한 관리자만. 로그아웃하면 종합 요약으로, 로그인 없이 주소(#data·#admin)로 들어오면 종합 요약 + 로그인 모달
   useEffect(() => {
     if (authLoading) return;
-    if (currentView === 'admin' && !isLoggedIn) {
+    if ((currentView === 'data' || currentView === 'admin') && !isLoggedIn) {
       handleNavigate('overview');
       if (!wasLoggedIn.current) setLoginOpen(true);
     }
@@ -260,7 +260,8 @@ export const App: React.FC = () => {
                   selectedMonth={selectedMonth}
                 />
               )}
-              {currentView === 'data' && (
+              {currentView === 'data' && authLoading && <SkeletonView title={VIEW_TITLES.data} variant="table" />}
+              {currentView === 'data' && isLoggedIn && (
                 <DataView loading={!hasData && (status === 'init' || isSyncing)} data={data} categoryMap={categoryMap} status={status} />
               )}
               {/* 로그인 세션을 확인하는 동안은 표 자리표시, 로그인한 경우에만 어드민 화면 */}
