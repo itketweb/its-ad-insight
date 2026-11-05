@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import type { CategoryMap, DashboardData, QuoteRow, SyncStatus } from '../types/dashboard';
+import type { CategoryMap, DashboardData, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
   buildSourceShareData,
@@ -144,6 +144,22 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const yearQuoteMonths = new Set(stats.quotes.filter(inMonths(months)).map((r) => r.month)).size;
   const quoteMonthCount = new Set(stats.quotes.map((r) => r.month)).size;
 
+  // 사이트별 견적 건수 breakdown — quotesExtra(어드민)가 있을 때만 의미 있다
+  const hasMultiSite = stats.quotesRaw.some((r) => r.site);
+  const siteBreak = (rows: QuoteRawRow[]): string | null => {
+    if (!hasMultiSite || !rows.length) return null;
+    const counts: Record<string, number> = {};
+    rows.forEach((r) => {
+      const k = r.inquiryType ? '전화' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
+    return parts.length > 1 ? parts.join(' · ') : null;
+  };
+  const curSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
+  const ytdSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 4) === yr));
+  const allSiteDetail = siteBreak(stats.quotesRaw);
+
   const spendAxis = allPeriod ? spendYears : months;
   const spendSeries = SERIES_DEFS.map((s) => ({
     ...s,
@@ -223,7 +239,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               value={`${fmt(allSpend)}원`}
               sub={`구글 ${dotYm(starts.google)}~ · 네이버 ${dotYm(starts.naver)}~${starts.meta ? ` · 메타 ${dotYm(starts.meta)}~` : ''}`}
             />
-            <KpiCard label="전체 누적 견적" value={`${fmt(allQuotes)}건`} sub={`${dotYm(quotesFrom)}~`} />
+            <KpiCard label="전체 누적 견적" value={`${fmt(allQuotes)}건`} sub={`${dotYm(quotesFrom)}~`} detail={allSiteDetail} />
             <KpiCard
               label={
                 <>
@@ -264,6 +280,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cur={ytdQuotes}
               prev={quotesIn(lastYrMonths)}
               cmpLabel="전년 동기"
+              detail={ytdSiteDetail}
             />
             <KpiCard
               label={
@@ -307,6 +324,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cur={curQuotesTot}
           prev={pvQuotesTot}
           cmpLabel="전월"
+          detail={curSiteDetail}
         />
         <KpiCard
           label={
