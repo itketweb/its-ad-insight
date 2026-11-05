@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import type { CategoryMap, DashboardData, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
+import type { CategoryMap, DashboardData, QuoteRawRow, QuoteRow, SpendRow, SyncStatus } from '../types/dashboard';
 import {
   buildCategoryBarItems,
   buildSourceShareData,
@@ -98,6 +98,27 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
   const atSpend = (mo: string) => data.spend.filter((r) => r.month === mo);
   const totSpend = (mo: string) => sumBy(atSpend(mo), (r) => r.cost);
+
+  // 광고비 카드 하단: 매체별 breakdown (1개만 있으면 null)
+  const spendMediaDetail = (rows: SpendRow[]) => {
+    const pairs: [string, number][] = [
+      ['네이버', sumBy(rows.filter((r) => r.media === 'Naver'), (r) => r.cost)],
+      ['구글', sumBy(rows.filter((r) => r.media === 'Google'), (r) => r.cost)],
+      ['메타', sumBy(rows.filter((r) => r.media === 'Meta'), (r) => r.cost)],
+    ];
+    const parts = pairs.filter(([, v]) => v > 0);
+    if (parts.length <= 1) return null;
+    return (
+      <>
+        {parts.map(([k, v], i) => (
+          <React.Fragment key={k}>
+            {i > 0 && <i>|</i>}
+            <p>{k} <b>{fmtWon(v)}</b></p>
+          </React.Fragment>
+        ))}
+      </>
+    );
+  };
   const curSpendTot = totSpend(curM);
   const pvSpendTot = totSpend(pv);
 
@@ -145,8 +166,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const ytdValidMonths = months.filter((mo) => mo >= starts.cpaFrom);
   const ytdCpaSpend = sumBy(data.spend.filter(inMonths(ytdValidMonths)), (r) => r.cost);
   const ytdAdQuotes = sumBy(data.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count);
-  const yearQuoteMonths = new Set(stats.quotes.filter(inMonths(months)).map((r) => r.month)).size;
-  const quoteMonthCount = new Set(stats.quotes.map((r) => r.month)).size;
 
   // 사이트별 견적 건수 breakdown — quotesExtra(어드민)가 있을 때만 의미 있다
   const hasMultiSite = stats.quotesRaw.some((r) => r.site);
@@ -191,6 +210,26 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const catsMap = (mo: string) => catSum(categoryMap, atSpend(mo), (r) => r.cost);
   const spendIn = (list: string[]) => catSum(categoryMap, data.spend.filter(inMonths(list)), (r) => r.cost);
   const catSpendCur = allPeriod ? catSum(categoryMap, data.spend, (r) => r.cost) : yearTotal ? spendIn(months) : catsMap(curM);
+
+  // 최다 소진 카테고리 KPI
+  const topSpendEntries = Object.entries(catSpendCur)
+    .filter(([k, v]) => k !== '기타' && v > 0)
+    .sort(([, a], [, b]) => b - a);
+  const topSpendCat = topSpendEntries[0];
+  const totalCatSpend = Object.values(catSpendCur).reduce((a, v) => a + v, 0);
+  const topSpendPct = topSpendCat && totalCatSpend > 0
+    ? ((topSpendCat[1] / totalCatSpend) * 100).toFixed(1)
+    : '0';
+  const topSpendCatDetail = topSpendEntries.length > 1 ? (
+    <>
+      {topSpendEntries.slice(1, 3).map(([k, v], i) => (
+        <React.Fragment key={k}>
+          {i > 0 && <i>|</i>}
+          <p>{k} <b>{fmtWon(v)}</b></p>
+        </React.Fragment>
+      ))}
+    </>
+  ) : null;
   // quoteCountFor 는 한 달 치 기준이라, 전체 기간은 달별로 계산해 더한다 (월별 화면의 합과 맞도록)
   const quoteMonths = allPeriod
     ? [...new Set(data.quotes.map((r) => r.month))].filter((mo) => mo >= starts.cpaFrom)
@@ -243,6 +282,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               label="전체 누적 광고비"
               value={`${fmt(allSpend)}원`}
               sub={`구글 ${dotYm(starts.google)}~ · 네이버 ${dotYm(starts.naver)}~${starts.meta ? ` · 메타 ${dotYm(starts.meta)}~` : ''}`}
+              detail={spendMediaDetail(data.spend)}
             />
             <KpiCard label="전체 누적 견적" value={`${fmt(allQuotes)}건`} sub={`${dotYm(quotesFrom)}~`} detail={allSiteDetail} />
             <KpiCard
@@ -256,9 +296,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotes)}건</b></p></> : null}
             />
             <KpiCard
-              label="월평균 견적"
-              value={`${fmt(quoteMonthCount ? Math.round(allQuotes / quoteMonthCount) : 0)}건`}
-              sub={`${fmt(quoteMonthCount)}개월 기준`}
+              label="전체 최다 소진 카테고리"
+              value={topSpendCat?.[0] || '–'}
+              sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)` : undefined}
+              detail={topSpendCatDetail}
             />
           </>
         ) : yearTotal ? (
@@ -279,6 +320,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cur={ytdSpend}
               prev={lastYrSpend}
               cmpLabel="전년 동기"
+              detail={spendMediaDetail(data.spend.filter((r) => r.month >= ym(yr, 1) && r.month <= curM))}
             />
             <KpiCard
               label={`${yearLabel} 접수 견적`}
@@ -301,9 +343,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               detail={ytdCpa ? <><p>광고비 <b>{fmtWon(ytdCpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(ytdAdQuotes)}건</b></p></> : null}
             />
             <KpiCard
-              label="월평균 견적"
-              value={`${fmt(yearQuoteMonths ? Math.round(ytdQuotes / yearQuoteMonths) : 0)}건`}
-              sub={`${fmt(yearQuoteMonths)}개월 기준`}
+              label={`${yearLabel} 최다 소진 카테고리`}
+              value={topSpendCat?.[0] || '–'}
+              sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)` : undefined}
+              detail={topSpendCatDetail}
             />
           </>
         ) : (
@@ -324,6 +367,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cur={curSpendTot}
           prev={pvSpendTot}
           cmpLabel="전월"
+          detail={spendMediaDetail(atSpend(curM))}
         />
         <KpiCard
           label={`${mLabel(curM)} 접수 견적`}
@@ -346,11 +390,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           detail={curCpa > 0 ? <><p>광고비 <b>{fmtWon(curSpendTot)}</b></p><i>|</i><p>견적 <b>{fmt(curAdQuotes)}건</b></p></> : null}
         />
         <KpiCard
-          label={`${yr}년 누적 광고비 (1~${mm}월)`}
-          value={`${fmt(ytdSpend)}원`}
-          cur={ytdSpend}
-          prev={lastYrSpend}
-          cmpLabel="전년 동기"
+          label={`${mLabel(curM)} 최다 소진 카테고리`}
+          value={topSpendCat?.[0] || '–'}
+          sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)` : undefined}
+          detail={topSpendCatDetail}
         />
           </>
         )}
