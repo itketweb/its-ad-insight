@@ -134,6 +134,23 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     ? { k: topCatKey, c: sumBy(yrQuotes.filter((r) => cat1Of(r.category) === topCatKey), (r) => r.count) }
     : undefined;
 
+  // 2~3위 유입 매체
+  const srcRunnerUps =
+    Object.entries(bySrcAll)
+      .filter(([k]) => k !== topSrcKey)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 2)
+      .map(([k, n]) => `${k} ${fmt(n)}`)
+      .join(' · ') || null;
+
+  // 2~3위 견적 카테고리 (기타 제외)
+  const catRunnerUps =
+    quoteCat1Order(yrQuotes)
+      .filter((c) => c !== '기타' && c !== topCatKey)
+      .slice(0, 2)
+      .map((k) => `${k} ${fmt(sumBy(yrQuotes.filter((r) => cat1Of(r.category) === k), (r) => r.count))}`)
+      .join(' · ') || null;
+
   // 추이 차트: 건수 상위 6개 1차 카테고리 + 그 외
   const chartCats = quoteChartCats(yrQuotes);
   const series = chartCats.keys
@@ -176,11 +193,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
               label="전체 최다 유입 매체"
               value={topSrcKey}
               sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
+              detail={srcRunnerUps}
             />
             <KpiCard
               label="전체 최다 견적 카테고리"
               value={topCat?.k || '–'}
               sub={`${fmt(topCat?.c || 0)}건 (${allTotal > 0 ? (((topCat?.c || 0) / allTotal) * 100).toFixed(1) : 0}%)`}
+              detail={catRunnerUps}
             />
           </>
         ) : (
@@ -214,11 +233,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           label={`${yr}년 최다 유입 매체`}
           value={topSrcKey}
           sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
+          detail={srcRunnerUps}
         />
         <KpiCard
           label={`${yr}년 최다 견적 카테고리`}
           value={topCat?.k || '–'}
           sub={`${fmt(topCat?.c || 0)}건 (${ytdQuotes > 0 ? (((topCat?.c || 0) / ytdQuotes) * 100).toFixed(1) : 0}%)`}
+          detail={catRunnerUps}
         />
           </>
         )}
