@@ -42,7 +42,8 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   const barH2 = 0.5 * r;
   const barGap = 0.25 * r;
   const barsH = barH1 + barGap + barH2;
-  const barsOff = (rowH - barsH) / 2;
+  const activeBarsH = hidePrev ? barH1 : barsH;
+  const barsOff = (rowH - activeBarsH) / 2;
   const maxLabelW = Math.max(...list.map((c) => measureSvgText(c.k, r)));
   const L = maxLabelW + r;
   const R = hasQ ? 4.5 * r : 0;

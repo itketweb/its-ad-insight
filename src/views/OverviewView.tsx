@@ -314,7 +314,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               {mLabel(curM)} 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small>
             </>
           }
-          value={`${fmt(curCpa)}원`}
+          value={curCpa > 0 ? `${fmt(curCpa)}원` : '–'}
           cur={curCpa}
           prev={pvCpa}
           cmpLabel="전월"

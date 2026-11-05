@@ -502,7 +502,7 @@ span.seg,
     font-size: 0.875rem;
     font-weight: 700;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: var(--accbg);
     }
   }

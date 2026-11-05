@@ -388,7 +388,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                     </td>
                   ))}
                   <td className="n">
-                    <b>{fmt(sumBy(months, (mo) => cntGroup(mo, c)))}</b>
+                    <b>{fmt(sumBy(allMonths, (mo) => cntGroup(mo, c)))}</b>
                   </td>
                 </tr>
               ))}
@@ -400,7 +400,7 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
                   </td>
                 ))}
                 <td className="n">
-                  <b>{fmt(sumBy(months, totGroupMonth))}</b>
+                  <b>{fmt(sumBy(allMonths, totGroupMonth))}</b>
                 </td>
               </tr>
               {!allPeriod && (

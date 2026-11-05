@@ -160,7 +160,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
             <KpiCard
               label="전체 최다 유입 매체"
               value={topSrcKey}
-              sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '집계 중'}
+              sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
             />
             <KpiCard
               label="전체 최다 견적 카테고리"
@@ -196,7 +196,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
         <KpiCard
           label={`${yr}년 최다 유입 매체`}
           value={topSrcKey}
-          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '집계 중'}
+          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
         />
         <KpiCard
           label={`${yr}년 최다 견적 카테고리`}

@@ -397,6 +397,13 @@
   }
 }
 
+/* 1024px 초과 1200px 이하: 2열 그리드에서 카드가 좁아져 1fr 막대가 사라지는 구간 — 이름 열을 줄여 막대 공간을 확보 */
+@media (min-width: 1025px) and (max-width: 1200px) {
+  .cpa-row {
+    grid-template-columns: 6rem 1fr 10rem;
+  }
+}
+
 @media (max-width: 600px) {
   .cpa-row {
     grid-template-columns: 5rem 1fr 9.5rem;
