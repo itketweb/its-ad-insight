@@ -3,7 +3,7 @@ import type { CategoryMap, DashboardData, QuoteRawRow, QuoteRow, SyncStatus } fr
 import { cat1Of, fmt, mLabel, QUOTE_COLORS, quoteChartCats, SERIES_DEFS, sumBy } from '../utils/format';
 import { dotYm, monthsUpTo, periodStartsOf, yearRangeLabel, yearsOf } from '../utils/allPeriod';
 import { searchDashboard, type SearchTab } from '../utils/search';
-import { displayAdTitle } from '../utils/creativeImage';
+import { adDisplayTitle } from '../utils/creativeImage';
 import { ViewHeader } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
@@ -142,9 +142,16 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
   // 추이 차트의 가로축 — 전체 기간은 연도, 그 밖에는 그 해 1월~기준월
   const chartSpend = chartResult?.spendRows || [];
-  const chartQuotes: QuoteRow[] = (chartResult?.quotes || []).map((r) => ({
+  const rawQuotes = chartResult?.quotes || [];
+  const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  // 카테고리명에 검색어가 포함된 경우만 직접 매칭으로 본다
+  const isCatMatch = (r: QuoteRawRow) => queryTokens.some((t) => (r.category || '').toLowerCase().includes(t));
+  const catMatchCount = rawQuotes.filter(isCatMatch).length;
+  // 직접 매칭이 20% 미만이면 브랜드·고객 검색으로 보고 모든 카테고리를 그대로 표시
+  const useCatFilter = catMatchCount >= rawQuotes.length * 0.2;
+  const chartQuotes: QuoteRow[] = rawQuotes.map((r) => ({
     month: r.date.slice(0, 7),
-    category: r.category,
+    category: useCatFilter && !isCatMatch(r) ? '기타' : r.category,
     source: r.source,
     count: 1,
   }));
@@ -326,7 +333,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 {[...result.ads].sort((a, b) => (aOrd === 'asc' ? 1 : -1) * ((a.stat?.[aKey] ?? 0) - (b.stat?.[aKey] ?? 0))).slice(0, limit).map(({ ad, stat }) => (
                   <tr key={`${ad.media}|${ad.adId}`}>
                     <td>
-                      <span className="s-media-row"><MediaPill media={ad.media} iconOnly size={12} />{displayAdTitle(ad.title) || ad.adgroup}</span>
+                      <span className="s-media-row"><MediaPill media={ad.media} iconOnly size={12} />{adDisplayTitle(ad)}</span>
                     </td>
                     <td className="search-sub">
                       {ad.campaign} › {ad.adgroup}

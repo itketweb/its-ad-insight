@@ -174,7 +174,7 @@ export function searchDashboard(
   const quotes = quoteRowsOf(data)
     .filter((r) => {
       if (!tokens.length || !r.date || !inPeriod(r.date.slice(0, 7))) return false;
-      const plain = [r.subject, r.category, r.sourceDetail, r.salesRep, r.sno, r.company, r.name, r.email, r.phone, r.receiver];
+      const plain = [r.subject, r.category, r.sourceDetail, r.salesRep, r.sno, r.company, r.name, r.receiver];
       if (matches(tokens, plain)) return true;
       const channel = matches(tokens, [...plain, r.source, r.inquiryType, siteNameOf(r)]);
       if (channel) channelSearch = true;
