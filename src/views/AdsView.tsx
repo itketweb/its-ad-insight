@@ -14,7 +14,7 @@ import {
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { SegmentedControl } from '../components/common/SegmentedControl';
-import { KpiCard, KpiSection } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SpendDetailTable } from '../components/ads/SpendDetailTable';
 import { Card } from '../components/common/Card';
@@ -116,12 +116,6 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
       ? selectedMonth
       : monthsOfY[monthsOfY.length - 1];
   const pv = prevM(curM);
-  const upTo = +curM.slice(5);
-  const ytd = (y: number) =>
-    sumBy(
-      data.spend.filter((r) => r.month >= ym(y, 1) && r.month <= ym(y, upTo)),
-      (r) => r.cost
-    );
   const cpa = (mo: string) => {
     const c = sumBy(at(mo), (r) => r.conv);
     return c ? tot(mo) / c : 0;
@@ -149,6 +143,17 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
     return c ? costIn(list) / c : 0;
   };
   const spendMonths = yearMonths.filter((mo) => tot(mo) > 0).length;
+  const upTo = +curM.slice(5);
+  const ytd = (y: number) =>
+    sumBy(
+      data.spend.filter((r) => r.month >= ym(y, 1) && r.month <= ym(y, upTo)),
+      (r) => r.cost
+    );
+  const curConv       = sumBy(at(curM), (r) => r.conv);
+  const curGoogleCost = sumBy(at(curM).filter((r) => r.media === 'Google'), (r) => r.cost);
+  const curNaverCost  = sumBy(at(curM).filter((r) => r.media === 'Naver'),  (r) => r.cost);
+  const curMetaCost   = sumBy(at(curM).filter((r) => r.media === 'Meta'),   (r) => r.cost);
+  const mdfRatioPct   = tot(curM) > 0 ? ((mdfCost(curM) / tot(curM)) * 100).toFixed(1) : null;
 
   return (
     <div className="view on" data-view="ads" data-title="월별 광고비">
@@ -251,6 +256,13 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           cur={tot(curM)}
           prev={tot(pv)}
           cmpLabel="전월"
+          detail={(() => {
+            const items: [string, number][] = [];
+            if (curGoogleCost > 0) items.push(['Google', curGoogleCost]);
+            if (curNaverCost  > 0) items.push(['Naver',  curNaverCost]);
+            if (curMetaCost   > 0) items.push(['Meta',   curMetaCost]);
+            return items.length ? <KpiDetailItems items={items} /> : undefined;
+          })()}
         />
         <KpiCard
           label={`${Y}년 누적 (1~${upTo}월)`}
@@ -265,6 +277,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           cur={mdfCost(curM)}
           prev={mdfCost(pv)}
           cmpLabel="전월"
+          detail={mdfRatioPct ? <p>광고비 대비 <b>{mdfRatioPct}%</b></p> : undefined}
         />
         <KpiCard
           label={`${mLabel(curM)} 전환 1건당 광고비`}
@@ -272,6 +285,8 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           cur={cpa(curM)}
           prev={cpa(pv)}
           cmpLabel="전월"
+          invertDelta
+          detail={<KpiDetailItems items={[['전환수', curConv]]} />}
         />
           </>
         )}
