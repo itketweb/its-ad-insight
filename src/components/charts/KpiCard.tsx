@@ -13,13 +13,13 @@ interface KpiCardProps {
 }
 
 /** 카드 하단 보조 줄의 항목 목록 — "이름 값 | 이름 값" */
-export const KpiDetailItems: React.FC<{ items: [string, number][] }> = ({ items }) => (
+export const KpiDetailItems: React.FC<{ items: [string, number | string][] }> = ({ items }) => (
   <>
     {items.map(([label, value], i) => (
       <React.Fragment key={label}>
         {i > 0 && <i>|</i>}
         <p>
-          {label} <b>{fmt(value)}</b>
+          {label} <b>{typeof value === 'number' ? fmt(value) : value}</b>
         </p>
       </React.Fragment>
     ))}

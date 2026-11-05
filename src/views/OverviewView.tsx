@@ -99,25 +99,22 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const atSpend = (mo: string) => data.spend.filter((r) => r.month === mo);
   const totSpend = (mo: string) => sumBy(atSpend(mo), (r) => r.cost);
 
-  // 광고비 카드 하단: 매체별 breakdown (1개만 있으면 null)
+  // 광고비 카드 하단: 매체별 breakdown. 그 매체의 마지막 수집 달보다 뒤인 기간은 0원이 아니라 미수집으로 보여 준다
+  const lastSpendMonth = (media: string) =>
+    data.spend.reduce((last, r) => (r.media === media && r.month > last ? r.month : last), '');
   const spendMediaDetail = (rows: SpendRow[]) => {
-    const pairs: [string, number][] = [
-      ['네이버', sumBy(rows.filter((r) => r.media === 'Naver'), (r) => r.cost)],
-      ['구글', sumBy(rows.filter((r) => r.media === 'Google'), (r) => r.cost)],
-      ['메타', sumBy(rows.filter((r) => r.media === 'Meta'), (r) => r.cost)],
+    if (!rows.length) return null;
+    const newest = rows.reduce((last, r) => (r.month > last ? r.month : last), '');
+    const amountOf = (media: string): string => {
+      const list = rows.filter((r) => r.media === media);
+      return !list.length && newest > lastSpendMonth(media) ? '미수집' : fmtWon(sumBy(list, (r) => r.cost));
+    };
+    const items: [string, string][] = [
+      ['네이버', amountOf('Naver')],
+      ['구글', amountOf('Google')],
     ];
-    const parts = pairs.filter(([, v]) => v > 0);
-    if (parts.length <= 1) return null;
-    return (
-      <>
-        {parts.map(([k, v], i) => (
-          <React.Fragment key={k}>
-            {i > 0 && <i>|</i>}
-            <p>{k} <b>{fmtWon(v)}</b></p>
-          </React.Fragment>
-        ))}
-      </>
-    );
+    if (rows.some((r) => r.media === 'Meta')) items.push(['메타', amountOf('Meta')]);
+    return <KpiDetailItems items={items} />;
   };
   const curSpendTot = totSpend(curM);
   const pvSpendTot = totSpend(pv);
