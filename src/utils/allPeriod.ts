@@ -57,6 +57,31 @@ export const yearsOf = (months: string[]): string[] =>
 
 export const firstMonth = (months: string[]): string => months.filter(Boolean).sort()[0] || '';
 
+/** 기간에 행이 없고 마지막 수집 달도 기간 끝보다 앞인 매체 — 필터로 빠졌거나 집행이 없는 경우(0원)와 구분한다 */
+export function uncollectedMedia(
+  spend: { media: string; month: string }[],
+  months: string[],
+  medias: string[] = ['Naver', 'Google']
+): string[] {
+  if (!months.length) return [];
+  const end = months.reduce((last, mo) => (mo > last ? mo : last), '');
+  const period = inMonths(months);
+  return medias.filter((media) => {
+    const list = spend.filter((r) => r.media === media);
+    return !list.some(period) && list.every((r) => r.month < end);
+  });
+}
+
+const MEDIA_LABELS: Record<string, string> = { Naver: '네이버', Google: '구글' };
+
+/** KPI 카드 하단에 덧붙이는 항목 — 합계가 미수집 매체를 뺀 값임을 밝힌다 */
+export const uncollectedItems = (
+  spend: { media: string; month: string }[],
+  months: string[],
+  medias?: string[]
+): [string, string][] =>
+  uncollectedMedia(spend, months, medias).map((media) => [MEDIA_LABELS[media] ?? media, '미수집']);
+
 export interface PeriodStarts {
   /** 아이티켓 견적의 첫 달 — 다른 사이트·전화문의를 합친 건수의 시작 달은 그 데이터에서 따로 구한다 */
   quotes: string;

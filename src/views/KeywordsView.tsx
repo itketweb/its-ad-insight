@@ -23,7 +23,7 @@ import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
+import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, uncollectedItems, yearRangeLabel } from '../utils/allPeriod';
 import { campaignBuckets, groupKeywordRows } from '../utils/keywordGroups';
 
 interface KeywordsViewProps {
@@ -128,9 +128,11 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const mediaDetail = naverCost > 0 && googleCost > 0
     ? <KpiDetailItems items={[['네이버', fmtWon(naverCost)], ['구글', fmtWon(googleCost)]]} />
     : null;
+  const missing = uncollectedItems(data.spend, allPeriod ? [] : periodMonths, media === 'all' ? undefined : [media]);
   const cpcItems: [string, number | string][] = [];
   if (naverCpc  > 0) cpcItems.push(['네이버', `${fmt(naverCpc)}원`]);
   if (googleCpc > 0) cpcItems.push(['구글',   `${fmt(googleCpc)}원`]);
+  if (cpcItems.length) cpcItems.push(...missing);
   const cpcDetail = cpcItems.length > 0 ? <KpiDetailItems items={cpcItems} /> : null;
 
   const cost = catSum(categoryMap, rows, (r) => r.cost);
