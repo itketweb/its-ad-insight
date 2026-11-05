@@ -7,7 +7,7 @@ import {
   fmt,
   mLabel,
   prevM,
-  QUOTE_COLORS,
+  quoteSeriesColor,
   quoteChartCats,
   quoteCountFor,
   SERIES_DEFS,
@@ -150,10 +150,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     if (!hasMultiSite || !rows.length) return null;
     const counts: Record<string, number> = {};
     rows.forEach((r) => {
-      const k = r.inquiryType ? '전화' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
+      const k = r.inquiryType ? '전화/톡플러스' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
       counts[k] = (counts[k] || 0) + 1;
     });
-    const parts = ['itket', 'zbyhp', 'cadkorea', '전화'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
     return parts.length > 1 ? parts.join(' · ') : null;
   };
   const curSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
@@ -175,7 +175,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const quoteSeries = quoteCats.keys
     .map((k, ci) => ({
       k,
-      c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
+      c: quoteSeriesColor(k, ci),
       v: quoteAxis.map((key) =>
         yrQuoteRows.filter((r) => r.month.startsWith(key) && quoteCats.keyOf(r.category) === k).reduce((a, r) => a + r.count, 0)
       ),

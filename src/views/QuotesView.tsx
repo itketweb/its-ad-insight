@@ -6,7 +6,7 @@ import {
   mLabel,
   prevM,
   cat1Of,
-  QUOTE_COLORS,
+  quoteSeriesColor,
   quoteCat1Order,
   quoteChartCats,
   sumBy,
@@ -109,10 +109,10 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     if (!hasMultiSite || !rows.length) return null;
     const counts: Record<string, number> = {};
     rows.forEach((r) => {
-      const k = r.inquiryType ? '전화' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
+      const k = r.inquiryType ? '전화/톡플러스' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
       counts[k] = (counts[k] || 0) + 1;
     });
-    const parts = ['itket', 'zbyhp', 'cadkorea', '전화'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
     return parts.length > 1 ? parts.join(' · ') : null;
   };
   const curSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
@@ -156,7 +156,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const series = chartCats.keys
     .map((k, ci) => ({
       k,
-      c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
+      c: quoteSeriesColor(k, ci),
       v: axisKeys.map((key) =>
         sumBy(
           yrQuotes.filter((r) => r.month.startsWith(key) && chartCats.keyOf(r.category) === k),
