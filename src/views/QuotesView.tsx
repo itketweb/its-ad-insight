@@ -15,7 +15,7 @@ import {
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
-import { KpiCard } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
@@ -124,9 +124,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     });
     const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => k === 'cadkorea' || k === 'zbyhp' || counts[k]);
     if (parts.length <= 1) return null;
-    return parts.map((k, i) => (
-      <React.Fragment key={k}>{i > 0 && <i>|</i>}<p>{k} <b>{counts[k] ?? 0}</b></p></React.Fragment>
-    ));
+    return <KpiDetailItems items={parts.map((k): [string, number] => [k, counts[k] ?? 0])} />;
   };
   const curSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
   const allSiteDetail = siteBreak(quotesRaw);
@@ -147,21 +145,53 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     : undefined;
 
   // 2~3위 유입 매체
-  const srcRunnerUps =
-    Object.entries(bySrcAll)
-      .filter(([k]) => k !== topSrcKey)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 2)
-      .map(([k, n]) => `${k} ${fmt(n)}`)
-      .join(' · ') || null;
+  const srcRunnerUpItems = Object.entries(bySrcAll)
+    .filter(([k]) => k !== topSrcKey)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 2);
+  const srcRunnerUps = srcRunnerUpItems.length ? <KpiDetailItems items={srcRunnerUpItems} /> : null;
 
   // 2~3위 견적 카테고리 (기타 제외)
-  const catRunnerUps =
-    quoteCat1Order(yrQuotes)
-      .filter((c) => c !== '기타' && c !== topCatKey)
-      .slice(0, 2)
-      .map((k) => `${k} ${fmt(sumBy(yrQuotes.filter((r) => cat1Of(r.category) === k), (r) => r.count))}`)
-      .join(' · ') || null;
+  const catRunnerUpItems = quoteCat1Order(yrQuotes)
+    .filter((c) => c !== '기타' && c !== topCatKey)
+    .slice(0, 2)
+    .map((k): [string, number] => [k, sumBy(yrQuotes.filter((r) => cat1Of(r.category) === k), (r) => r.count)]);
+  const catRunnerUps = catRunnerUpItems.length ? <KpiDetailItems items={catRunnerUpItems} /> : null;
+
+  // KPI 카드 범위: 월 선택 → 당월, 연도 전체 → 연간 (차트는 항상 yrQuotes 사용)
+  const kpiQuotes = yearTotal
+    ? quotes.filter((r) => r.month.startsWith(yr) && r.month <= curM)
+    : quotes.filter((r) => r.month === curM);
+  const kpiPrefix = yearTotal ? yr : curM;
+  const kpiLabel = yearTotal ? `${yr}년` : mLabel(curM);
+  const kpiTotal = sumBy(kpiQuotes, (r) => r.count);
+
+  const { bySource: kpiBySrc, topSourceKey: kpiTopSrc } = buildSourceShareData(quotesRaw, kpiPrefix, quotes, curM);
+  const kpiTopCatKey = quoteCat1Order(kpiQuotes).find((c) => c !== '기타');
+  const kpiTopCat = kpiTopCatKey
+    ? { k: kpiTopCatKey, c: sumBy(kpiQuotes.filter((r) => cat1Of(r.category) === kpiTopCatKey), (r) => r.count) }
+    : undefined;
+  const kpiSrcRunnerUpItems = Object.entries(kpiBySrc)
+    .filter(([k]) => k !== kpiTopSrc)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 2) as [string, number][];
+  const kpiSrcRunnerUps = kpiSrcRunnerUpItems.length ? <KpiDetailItems items={kpiSrcRunnerUpItems} /> : null;
+  const kpiCatRunnerUpItems = quoteCat1Order(kpiQuotes)
+    .filter((c) => c !== '기타' && c !== kpiTopCatKey)
+    .slice(0, 2)
+    .map((k): [string, number] => [k, sumBy(kpiQuotes.filter((r) => cat1Of(r.category) === k), (r) => r.count)]);
+  const kpiCatRunnerUps = kpiCatRunnerUpItems.length ? <KpiDetailItems items={kpiCatRunnerUpItems} /> : null;
+
+  // KPI CPA: 월 선택 → 당월 / 전월 비교, 연도 전체 → 연간 / 전년 동기 비교
+  const curSpendTot = sumBy(data.spend.filter((r) => r.month === curM), (r) => r.cost);
+  const curAdQuotes = sumBy(data.quotes.filter((r) => r.month === curM), (r) => r.count);
+  const pvSpendTot = sumBy(data.spend.filter((r) => r.month === pv), (r) => r.cost);
+  const pvAdQuotes = sumBy(data.quotes.filter((r) => r.month === pv), (r) => r.count);
+  const curCpa = curM >= starts.cpaFrom && curAdQuotes > 0 ? curSpendTot / curAdQuotes : 0;
+  const pvCpa = pv >= starts.cpaFrom && pvAdQuotes > 0 ? pvSpendTot / pvAdQuotes : 0;
+  const kpiCpa = yearTotal ? ytdCpa : curCpa;
+  const kpiPrevCpa = yearTotal ? (lastYrMonths[0] >= starts.cpaFrom ? lastYrCpa : null) : (pvCpa || null);
+  const kpiCpaCompLabel = yearTotal ? '전년 동기' : '전월';
 
   // 추이 차트: 건수 상위 6개 1차 카테고리 + 그 외
   const chartCats = quoteChartCats(yrQuotes);
@@ -237,23 +267,23 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           />
         )}
         <KpiCard
-          label={<>{yr}년 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
-          value={ytdCpa ? `${fmt(ytdCpa)}원` : '–'}
-          cur={ytdCpa || null}
-          prev={lastYrMonths[0] >= starts.cpaFrom ? lastYrCpa : null}
-          cmpLabel="전년 동기"
+          label={<>{kpiLabel} 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
+          value={kpiCpa ? `${fmt(kpiCpa)}원` : '–'}
+          cur={kpiCpa || null}
+          prev={kpiPrevCpa}
+          cmpLabel={kpiCpaCompLabel}
         />
         <KpiCard
-          label={`${yr}년 최다 유입 매체`}
-          value={topSrcKey}
-          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
-          detail={srcRunnerUps}
+          label={`${kpiLabel} 최다 유입 매체`}
+          value={kpiTopSrc}
+          sub={kpiBySrc[kpiTopSrc] ? `${fmt(kpiBySrc[kpiTopSrc])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
+          detail={kpiSrcRunnerUps}
         />
         <KpiCard
-          label={`${yr}년 최다 견적 카테고리`}
-          value={topCat?.k || '–'}
-          sub={`${fmt(topCat?.c || 0)}건 (${ytdQuotes > 0 ? (((topCat?.c || 0) / ytdQuotes) * 100).toFixed(1) : 0}%)`}
-          detail={catRunnerUps}
+          label={`${kpiLabel} 최다 견적 카테고리`}
+          value={kpiTopCat?.k || '–'}
+          sub={`${fmt(kpiTopCat?.c || 0)}건 (${kpiTotal > 0 ? (((kpiTopCat?.c || 0) / kpiTotal) * 100).toFixed(1) : 0}%)`}
+          detail={kpiCatRunnerUps}
         />
           </>
         )}
