@@ -115,11 +115,21 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const pvCpc  = pvClk > 0 ? Math.round(pvCost / pvClk) : 0;
   const cmpLabel = allPeriod ? undefined : yearTotal ? '전년 동기' : '전월';
 
-  // 광고비 매체별 breakdown
-  const naverCost = rows.filter((r) => r.media === 'Naver').reduce((s, r) => s + r.cost, 0);
-  const googleCost = rows.filter((r) => r.media === 'Google').reduce((s, r) => s + r.cost, 0);
+  // 매체별 집계
+  const naverRows  = rows.filter((r) => r.media === 'Naver');
+  const googleRows = rows.filter((r) => r.media === 'Google');
+  const naverCost  = naverRows.reduce((s, r) => s + r.cost, 0);
+  const googleCost = googleRows.reduce((s, r) => s + r.cost, 0);
+  const naverClk   = naverRows.reduce((s, r) => s + r.clk, 0);
+  const googleClk  = googleRows.reduce((s, r) => s + r.clk, 0);
+  const naverCpc   = naverClk  > 0 ? Math.round(naverCost  / naverClk)  : 0;
+  const googleCpc  = googleClk > 0 ? Math.round(googleCost / googleClk) : 0;
+  // 광고비 비교 모드 detail: 클릭·전환 / allPeriod detail: 매체별 비용
   const mediaDetail = naverCost > 0 && googleCost > 0
     ? <KpiDetailItems items={[['네이버', fmtWon(naverCost)], ['구글', fmtWon(googleCost)]]} />
+    : null;
+  const cpcDetail = naverCpc > 0 && googleCpc > 0
+    ? <KpiDetailItems items={[['네이버', `${fmt(naverCpc)}원`], ['구글', `${fmt(googleCpc)}원`]]} />
     : null;
 
   const cost = catSum(categoryMap, rows, (r) => r.cost);
@@ -203,7 +213,9 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           prev={hasPvData ? pvCost : null}
           cmpLabel={cmpLabel}
           sub={`클릭 ${fmt(totalClk)} · 전환 ${fmt(totalConv)}`}
-          detail={mediaDetail}
+          detail={cmpLabel
+            ? <KpiDetailItems items={[['클릭', totalClk], ['전환', totalConv]]} />
+            : mediaDetail}
         />
         <KpiCard
           label="클릭수"
@@ -221,6 +233,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           prev={hasPvData && pvCpc ? pvCpc : null}
           cmpLabel={cmpLabel}
           sub={`${fmt(totalClk)}클릭 기준`}
+          detail={cpcDetail}
         />
         <KpiCard
           label="광고 전환수"
