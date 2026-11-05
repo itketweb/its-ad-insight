@@ -62,7 +62,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
       title={on ? '즐겨찾기 해제' : '즐겨찾기'}
       onClick={() => onToggleFavorite(r)}
     >
-      <Star size={14} aria-hidden="true" />
+      <Star size="0.875rem" aria-hidden="true" />
     </button>
   );
   const hasHistory = favorites.length > 0 || shownRecents.length > 0;
@@ -100,7 +100,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
             if (q) onSubmit(q);
           }}
         >
-          <Search size={18} aria-hidden="true" />
+          <Search size="1.125rem" aria-hidden="true" />
           <TextInput
             className="sd-input"
             type="search"
@@ -111,7 +111,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
             autoFocus
           />
           <button type="button" className="sd-close btn-search-close" data-btn="search-close" aria-label="닫기" onClick={onClose}>
-            <X size={16} aria-hidden="true" />
+            <X size="1rem" aria-hidden="true" />
           </button>
         </form>
 
@@ -186,7 +186,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
                     {favorites.map((r) => (
                       <div className="sd-recent-row" key={r}>
                         <button type="button" className="sd-row btn-search-favorite" data-btn="search-favorite" onClick={() => onSubmit(r)}>
-                          <Search size={14} aria-hidden="true" />
+                          <Search size="0.875rem" aria-hidden="true" />
                           <span className="sd-name">{r}</span>
                         </button>
                         <span className="sd-recent-acts">{starButton(r, true)}</span>
@@ -210,7 +210,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
                   {shownRecents.map((r) => (
                     <div className="sd-recent-row" key={r}>
                       <button type="button" className="sd-row btn-search-recent" data-btn="search-recent" onClick={() => onSubmit(r)}>
-                        <Clock size={14} aria-hidden="true" />
+                        <Clock size="0.875rem" aria-hidden="true" />
                         <span className="sd-name">{r}</span>
                       </button>
                       <span className="sd-recent-acts">
@@ -222,7 +222,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
                           aria-label={`최근 검색어 ${r} 삭제`}
                           onClick={() => setRecents(removeRecentSearch(r, isLoggedIn))}
                         >
-                          <X size={14} aria-hidden="true" />
+                          <X size="0.875rem" aria-hidden="true" />
                         </button>
                       </span>
                     </div>
@@ -236,7 +236,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
         {q && !empty && (
           <button type="button" className="sd-more btn-search-submit" data-btn="search-submit" onClick={() => onSubmit(q)}>
             <span>Enter로 전체 요약 보기</span>
-            <ArrowRight size={14} aria-hidden="true" />
+            <ArrowRight size="0.875rem" aria-hidden="true" />
           </button>
         )}
       </div>

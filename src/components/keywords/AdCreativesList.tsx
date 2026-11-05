@@ -324,7 +324,7 @@ const SORT_VALUE: Record<Exclude<SortKey, 'name'>, (r: GroupRow) => number> = {
 
 const groupName = (g: AdGroupCreatives) => `${g.media} ${g.type} · ${g.campaign} › ${g.adgroup}`;
 
-const MEDIA_LOGO: Record<string, React.FC<{ size?: number }>> = { Google: GoogleLogo, Naver: NaverLogo };
+const MEDIA_LOGO: Record<string, React.FC<{ size?: string }>> = { Google: GoogleLogo, Naver: NaverLogo };
 
 /** 매체 로고 (로고가 없는 매체는 이름표). 광고 유형(SA·DA)은 화면 필터로 이미 골라져 있어 따로 쓰지 않는다 */
 const MediaMark: React.FC<{ media: string }> = ({ media }) => {
@@ -332,7 +332,7 @@ const MediaMark: React.FC<{ media: string }> = ({ media }) => {
   if (!Logo) return <span className="cr-n">{media}</span>;
   return (
     <span className="cr-media" role="img" aria-label={media} data-tip={media}>
-      <Logo size={14} />
+      <Logo size="0.875rem" />
     </span>
   );
 };
@@ -392,7 +392,7 @@ const CreativeItem: React.FC<{
         <td className="c">
           {imageCount > 0 ? (
             <span className="cr-count" title={`이미지 ${imageCount}장`}>
-              <Images size={12} aria-hidden="true" />
+              <Images size="0.75rem" aria-hidden="true" />
               {imageCount}
             </span>
           ) : (

@@ -63,7 +63,7 @@ export const TableFootnote: React.FC<TableFootnoteProps> = ({
           className="tbl-src-action"
         >
           {action.text}
-          <ArrowUpRight size={12} aria-hidden="true" />
+          <ArrowUpRight size="0.75rem" aria-hidden="true" />
         </a>
       )}
       {/* 단위는 차트 범례와 같이 우측 하단에 둔다 */}

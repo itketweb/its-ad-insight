@@ -13,7 +13,7 @@ export const Notice: React.FC<NoticeProps> = ({ tone, className, children }) => 
   const Icon = tone === 'ok' ? CircleCheck : TriangleAlert;
   return (
     <div className={`notice ${tone}${className ? ` ${className}` : ''}`} role={tone === 'ok' ? 'status' : 'alert'}>
-      <Icon size={16} aria-hidden="true" />
+      <Icon size="1rem" aria-hidden="true" />
       <span>{children}</span>
     </div>
   );

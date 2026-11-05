@@ -259,7 +259,7 @@ export const App: React.FC = () => {
                   title={queryIsFavorite ? '즐겨찾기 해제' : '즐겨찾기'}
                   onClick={() => toggleFavorite(searchQuery)}
                 >
-                  <Star size={16} aria-hidden="true" />
+                  <Star size="1rem" aria-hidden="true" />
                 </button>
               ) : undefined
             }

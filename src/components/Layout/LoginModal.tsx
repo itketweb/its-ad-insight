@@ -49,10 +49,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ open, onClose }) => {
     <div className="login-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="card login-modal" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
         <button type="button" className="login-close" aria-label="닫기" onClick={onClose}>
-          <X size={16} aria-hidden="true" />
+          <X size="1rem" aria-hidden="true" />
         </button>
         <div className="gate-icon">
-          <Lock size={20} aria-hidden="true" />
+          <Lock size="1.25rem" aria-hidden="true" />
         </div>
         <h2 id="login-modal-title">관리자 로그인</h2>
         <p>지정된 관리자 계정으로 접속하면 견적 원본 데이터를 편집·저장할 수 있습니다.</p>
@@ -78,7 +78,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ open, onClose }) => {
           />
           {error && (
             <div className="gate-error" role="alert">
-              <TriangleAlert size={12} aria-hidden="true" />
+              <TriangleAlert size="0.75rem" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
@@ -98,7 +98,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ open, onClose }) => {
               onClose();
             }}
           >
-            <Zap size={12} aria-hidden="true" />
+            <Zap size="0.75rem" aria-hidden="true" />
             <span>테스트용 관리자로 바로 시작</span>
           </button>
         )}

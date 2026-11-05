@@ -5,10 +5,11 @@ interface MediaPillProps {
   variant?: 'g' | 'n' | 'm' | 'it' | 'etc' | '';
   id?: string;
   iconOnly?: boolean;
-  size?: number;
+  /** CSS 길이 (예: 0.875rem) — 글자 크기를 따라가도록 rem으로 준다 */
+  size?: string;
 }
 
-export const GoogleLogo: React.FC<{ size?: number }> = ({ size = 14 }) => (
+export const GoogleLogo: React.FC<{ size?: string }> = ({ size = '0.875rem' }) => (
   <svg
     viewBox="0 0 24 24"
     width={size}
@@ -35,7 +36,7 @@ export const GoogleLogo: React.FC<{ size?: number }> = ({ size = 14 }) => (
   </svg>
 );
 
-export const NaverLogo: React.FC<{ size?: number }> = ({ size = 14 }) => (
+export const NaverLogo: React.FC<{ size?: string }> = ({ size = '0.875rem' }) => (
   <svg
     viewBox="0 0 24 24"
     width={size}
@@ -63,7 +64,7 @@ export const MediaPill: React.FC<MediaPillProps> = ({ media, variant, id, iconOn
   const cls = variant !== undefined ? variant : resolveVariant(media);
 
   if (iconOnly) {
-    const s = size || 14;
+    const s = size || '0.875rem';
     let icon = null;
     if (cls === 'g') icon = <GoogleLogo size={s} />;
     else if (cls === 'n') icon = <NaverLogo size={s} />;
