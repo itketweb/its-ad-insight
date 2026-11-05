@@ -19,7 +19,7 @@ import {
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
-import { KpiCard, KpiDetailItems } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
@@ -68,13 +68,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           description="광고비 집행 현황과 견적 유입 성과를 한눈에 파악하는 통합 대시보드"
           status={status}
         />
-        <div className="kpis" id="kpiOverview">
+        <KpiSection id="kpiOverview">
           <div className="kpi">
             <div className="l">데이터 상태</div>
             <div className="v">연결 대기</div>
             <div className="d flat">상단 [연결 설정]을 완료해 주세요</div>
           </div>
-        </div>
+        </KpiSection>
         <SecSrc sources={OVERVIEW_SOURCES} />
       </div>
     );
@@ -272,7 +272,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </p>
       )}
 
-      <div className="kpis" id="kpiOverview">
+      <KpiSection id="kpiOverview">
         {allPeriod ? (
           <>
             <KpiCard
@@ -394,7 +394,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         />
           </>
         )}
-      </div>
+      </KpiSection>
 
       <div className="grid">
         <MultiChart

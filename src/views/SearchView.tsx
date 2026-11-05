@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import type { CategoryMap, DashboardData, KeywordRow, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
-import { cat1Of, fmt, mLabel, QUOTE_COLORS, quoteChartCats, SERIES_DEFS, sumBy } from '../utils/format';
+import { cat1Of, fmt, mLabel, quoteSeriesColor, quoteChartCats, SERIES_DEFS, sumBy } from '../utils/format';
 import { dotYm, monthsUpTo, periodStartsOf, yearRangeLabel, yearsOf } from '../utils/allPeriod';
 import { resultAdGroups, searchDashboard, type SearchTab } from '../utils/search';
 import { campaignBuckets } from '../utils/keywordGroups';
 import { adStatKey, groupAdsByAdgroup, type AdStat } from '../utils/creativeImage';
 import { ViewHeader } from '../components/common/ViewHeader';
-import { KpiCard } from '../components/charts/KpiCard';
+import { KpiCard, KpiSection } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -224,7 +224,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const quoteSeries = quoteCats.keys
     .map((k, i) => ({
       k,
-      c: QUOTE_COLORS[i % QUOTE_COLORS.length],
+      c: quoteSeriesColor(k, i),
       v: axis.map((key) =>
         sumBy(chartQuotes.filter((r) => r.month.startsWith(key) && quoteCats.keyOf(r.category) === k), (r) => r.count)
       ),
@@ -250,7 +250,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
           ※ {periodLabel} 기준입니다. 광고비는 이름·카테고리·매체가 일치한 광고그룹과 일치한 키워드의 합계이고, 견적은 제목·카테고리·유입 매체 일치 건입니다(유입 매체는 2026년 10월부터 추적). 서로 직접 연결된 값이 아니어서 CPA는 추정치입니다.
       </p>
 
-      <div className="kpis" id="kpiSearch">
+      <KpiSection id="kpiSearch">
         <KpiCard
           label="광고비"
           value={`${fmt(result.cost)}원`}
@@ -271,7 +271,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
           value={result.cpa ? `${fmt(result.cpa)}원` : '–'}
           sub={result.cpaHidden ? '매체·유입 경로 검색은 추적 기간이 달라 계산하지 않습니다' : `${dotYm(cpaFrom)} 이후 기준`}
         />
-      </div>
+      </KpiSection>
 
       <div className="grid">
         <MultiChart
@@ -356,7 +356,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                       <tr key={`${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`}>
                         <td>
                           <span className="s-media-row">
-                            <MediaPill media={k.media} iconOnly size={14} />
+                            <MediaPill media={k.media} iconOnly size="0.875rem" />
                             <b>{k.keyword}</b>
                           </span>
                           <small className="search-sub search-sub-line" title={`${k.campaign} › ${k.adgroup}`}>

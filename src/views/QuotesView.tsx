@@ -16,7 +16,7 @@ import {
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
-import { KpiCard, KpiDetailItems } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
@@ -56,13 +56,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           description="아이티켓·zbyhp·cadkorea 견적과 전화문의의 월별·카테고리별 유입 추이"
           status={status}
         />
-        <div className="kpis" id="kpiQuotes">
+        <KpiSection id="kpiQuotes">
           <div className="kpi">
             <div className="l">견적 데이터</div>
             <div className="v">–</div>
             <div className="d flat">데이터 연결 필요</div>
           </div>
-        </div>
+        </KpiSection>
         <Card name="empty" id="quotes-empty">
           <EmptyState message="취합된 실제 견적 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요." />
         </Card>
@@ -249,7 +249,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
         </p>
       )}
 
-      <div className="kpis" id="kpiQuotes">
+      <KpiSection id="kpiQuotes">
         {allPeriod ? (
           <>
             <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} detail={allSiteDetail} />
@@ -312,7 +312,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
         />
           </>
         )}
-      </div>
+      </KpiSection>
 
       <div className="grid grid-2-1">
         <MultiChart

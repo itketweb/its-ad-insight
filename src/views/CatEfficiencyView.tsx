@@ -14,7 +14,7 @@ import {
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
-import { KpiCard } from '../components/charts/KpiCard';
+import { KpiCard, KpiSection } from '../components/charts/KpiCard';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import {
   CategoryFilter,
@@ -69,13 +69,13 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓 기준)"
           status={status}
         />
-        <div className="kpis" id="kpiCatEff">
+        <KpiSection id="kpiCatEff">
           <div className="kpi">
             <div className="l">카테고리 데이터</div>
             <div className="v">–</div>
             <div className="d flat">데이터 연결 필요</div>
           </div>
-        </div>
+        </KpiSection>
         <Card name="empty" id="cat-empty">
           <EmptyState message="취합된 데이터가 없습니다." />
         </Card>
@@ -228,7 +228,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         </p>
       )}
 
-      <div className="kpis" id="kpiCatEff">
+      <KpiSection id="kpiCatEff">
         <KpiCard
           label="최다 집행 카테고리"
           value={topSpendCat?.k || '–'}
@@ -249,7 +249,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           value={avgCpa ? `${fmt(avgCpa)}원` : '–'}
           sub={`광고비 ${fmt(totSpend)}원 / ${totQuotes}건`}
         />
-      </div>
+      </KpiSection>
 
       <div className="grid">
         <Card name="cat-spend" id="cat-spend">
