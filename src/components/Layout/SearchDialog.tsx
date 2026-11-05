@@ -1,9 +1,10 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Search, X } from 'lucide-react';
+import { ArrowRight, Clock, Search, Star, X } from 'lucide-react';
 import type { CategoryMap, DashboardData } from '../../types/dashboard';
 import { fmt } from '../../utils/format';
-import { displayAdTitle } from '../../utils/creativeImage';
+import { adDisplayTitle } from '../../utils/creativeImage';
 import { searchDashboard, type SearchTab } from '../../utils/search';
+import { clearRecentSearches, loadRecentSearches, removeRecentSearch, sameSearch } from '../../utils/recentSearches';
 import { TextInput } from '../common/TextInput';
 
 interface SearchDialogProps {
@@ -11,6 +12,8 @@ interface SearchDialogProps {
   categoryMap: CategoryMap;
   initialQuery: string;
   isLoggedIn: boolean;
+  favorites: string[];
+  onToggleFavorite: (query: string) => void;
   onClose: () => void;
   onSubmit: (query: string, tab?: SearchTab) => void;
 }
@@ -25,10 +28,13 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   categoryMap,
   initialQuery,
   isLoggedIn,
+  favorites,
+  onToggleFavorite,
   onClose,
   onSubmit,
 }) => {
   const [query, setQuery] = useState(initialQuery);
+  const [recents, setRecents] = useState(() => loadRecentSearches(isLoggedIn));
   // 데이터가 많아도 입력이 끊기지 않게 계산은 늦춘다
   const deferred = useDeferredValue(query.trim());
   const result = useMemo(
@@ -43,6 +49,23 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   }, [onClose]);
 
   const q = query.trim();
+  // 즐겨찾기에 있는 검색어는 최근 검색어에 다시 보여 주지 않는다
+  const shownRecents = recents.filter((r) => !favorites.some((f) => sameSearch(f, r)));
+
+  const starButton = (r: string, on: boolean) => (
+    <button
+      type="button"
+      className={`sd-star btn-search-star${on ? ' on' : ''}`}
+      data-btn="search-star"
+      aria-pressed={on}
+      aria-label={on ? `즐겨찾기에서 ${r} 빼기` : `즐겨찾기에 ${r} 추가`}
+      title={on ? '즐겨찾기 해제' : '즐겨찾기'}
+      onClick={() => onToggleFavorite(r)}
+    >
+      <Star size={14} aria-hidden="true" />
+    </button>
+  );
+  const hasHistory = favorites.length > 0 || shownRecents.length > 0;
   const empty =
     !!result && !result.groups.length && !result.keywords.length && !result.ads.length && !result.quotes.length;
 
@@ -68,7 +91,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
 
   return (
     <div className="login-backdrop search-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="card search-dialog" role="dialog" aria-modal="true" aria-label="검색">
+      <div className={`card search-dialog${hasHistory ? ' has-history' : ''}`} role="dialog" aria-modal="true" aria-label="검색">
         <form
           className="sd-form"
           role="search"
@@ -92,64 +115,123 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
           </button>
         </form>
 
-        {!q ? (
-          <p className="sd-hint">
-            관련된 광고와 견적을 전체 기간에서 찾습니다. 예: HPE, 워크스테이션, 네이버, cadkorea
-            {isLoggedIn ? ', 고객사 이름' : ''}
-          </p>
-        ) : !result ? null : empty ? (
-          <p className="sd-hint">{PERIOD_LABEL}에 &quot;{q}&quot;와 일치하는 결과가 없습니다.</p>
-        ) : (
-          <>
-            <p className="sd-summary">
-              {PERIOD_LABEL} · 광고비 <b>{fmt(result.cost)}원</b> · 견적 <b>{fmt(result.quotes.length)}건</b>
-            </p>
-            <div className="sd-results">
-              {section(
-                'groups',
-                '캠페인·광고그룹',
-                result.groups.length,
-                result.groups.slice(0, PREVIEW_LIMIT).map((g) => ({
-                  key: `${g.media}|${g.type}|${g.campaign}|${g.adgroup}`,
-                  name: `${g.campaign} › ${g.adgroup}`,
-                  meta: `${fmt(g.cost)}원`,
-                }))
-              )}
-              {section(
-                'keywords',
-                '키워드',
-                result.keywords.length,
-                result.keywords.slice(0, PREVIEW_LIMIT).map((k) => ({
-                  key: `${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`,
-                  name: `${k.keyword} · ${k.campaign}`,
-                  meta: `클릭 ${fmt(k.clk)}`,
-                }))
-              )}
-              {section(
-                'ads',
-                '소재',
-                result.ads.length,
-                result.ads.slice(0, PREVIEW_LIMIT).map(({ ad, stat }) => ({
-                  key: `${ad.media}|${ad.adId}`,
-                  name: displayAdTitle(ad.title) || ad.adgroup,
-                  meta: stat ? `${fmt(stat.cost)}원` : '실적 없음',
-                }))
-              )}
-              {section(
-                'quotes',
-                '견적',
-                result.quotes.length,
-                isLoggedIn
-                  ? result.quotes.slice(0, PREVIEW_LIMIT).map((r, i) => ({
-                      key: `${r.id || i}`,
-                      name: r.subject || r.category || '제목 없음',
-                      meta: r.date.slice(0, 10),
+        <div className="sd-body">
+          <div className="sd-main">
+            {!q ? (
+              <p className="sd-hint">
+                관련된 광고와 견적을 전체 기간에서 찾습니다. 예: HPE, 워크스테이션, 네이버, cadkorea
+                {isLoggedIn ? ', 고객사 이름' : ''}
+              </p>
+            ) : !result ? null : empty ? (
+              <p className="sd-hint">{PERIOD_LABEL}에 &quot;{q}&quot;와 일치하는 결과가 없습니다.</p>
+            ) : (
+              <>
+                <p className="sd-summary">
+                  {PERIOD_LABEL} · 광고비 <b>{fmt(result.cost)}원</b> · 견적 <b>{fmt(result.quotes.length)}건</b>
+                </p>
+                <div className="sd-results">
+                  {section(
+                    'groups',
+                    '캠페인·광고그룹',
+                    result.groups.length,
+                    result.groups.slice(0, PREVIEW_LIMIT).map((g) => ({
+                      key: `${g.media}|${g.type}|${g.campaign}|${g.adgroup}`,
+                      name: `${g.campaign} › ${g.adgroup}`,
+                      meta: `${fmt(g.cost)}원`,
                     }))
-                  : [{ key: 'login', name: `${fmt(result.quotes.length)}건 · 제목은 로그인 후 표시`, meta: '' }]
-              )}
-            </div>
-          </>
-        )}
+                  )}
+                  {section(
+                    'keywords',
+                    '키워드',
+                    result.keywords.length,
+                    result.keywords.slice(0, PREVIEW_LIMIT).map((k) => ({
+                      key: `${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`,
+                      name: `${k.keyword} · ${k.campaign}`,
+                      meta: `클릭 ${fmt(k.clk)}`,
+                    }))
+                  )}
+                  {section(
+                    'ads',
+                    '소재',
+                    result.ads.length,
+                    result.ads.slice(0, PREVIEW_LIMIT).map(({ ad, stat }) => ({
+                      key: `${ad.media}|${ad.adId}`,
+                      name: adDisplayTitle(ad),
+                      meta: stat ? `${fmt(stat.cost)}원` : '실적 없음',
+                    }))
+                  )}
+                  {section(
+                    'quotes',
+                    '견적',
+                    result.quotes.length,
+                    isLoggedIn
+                      ? result.quotes.slice(0, PREVIEW_LIMIT).map((r, i) => ({
+                          key: `${r.id || i}`,
+                          name: r.subject || r.category || '제목 없음',
+                          meta: r.date.slice(0, 10),
+                        }))
+                      : [{ key: 'login', name: `${fmt(result.quotes.length)}건 · 제목은 로그인 후 표시`, meta: '' }]
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 즐겨찾기·최근 검색어는 입력 중에도 그대로 둔다 — 자리가 움직이지 않게 항상 같은 곳에 */}
+          {hasHistory && (
+              <aside className="sd-history" aria-label="즐겨찾기와 최근 검색어">
+                {favorites.length > 0 && (
+                  <section className="sd-group sd-recent" id="sd-favorites">
+                    <h3>즐겨찾기</h3>
+                    {favorites.map((r) => (
+                      <div className="sd-recent-row" key={r}>
+                        <button type="button" className="sd-row btn-search-favorite" data-btn="search-favorite" onClick={() => onSubmit(r)}>
+                          <Search size={14} aria-hidden="true" />
+                          <span className="sd-name">{r}</span>
+                        </button>
+                        <span className="sd-recent-acts">{starButton(r, true)}</span>
+                      </div>
+                    ))}
+                  </section>
+                )}
+                {shownRecents.length > 0 && (
+                <section className="sd-group sd-recent" id="sd-recents">
+                  <h3>
+                    최근 검색어
+                    <button
+                      type="button"
+                      className="sd-recent-clear btn-search-recent-clear"
+                      data-btn="search-recent-clear"
+                      onClick={() => setRecents(clearRecentSearches(isLoggedIn))}
+                    >
+                      전체 삭제
+                    </button>
+                  </h3>
+                  {shownRecents.map((r) => (
+                    <div className="sd-recent-row" key={r}>
+                      <button type="button" className="sd-row btn-search-recent" data-btn="search-recent" onClick={() => onSubmit(r)}>
+                        <Clock size={14} aria-hidden="true" />
+                        <span className="sd-name">{r}</span>
+                      </button>
+                      <span className="sd-recent-acts">
+                        {starButton(r, false)}
+                        <button
+                          type="button"
+                          className="sd-recent-del btn-search-recent-del"
+                          data-btn="search-recent-del"
+                          aria-label={`최근 검색어 ${r} 삭제`}
+                          onClick={() => setRecents(removeRecentSearch(r, isLoggedIn))}
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </section>
+                )}
+              </aside>
+          )}
+        </div>
 
         {q && !empty && (
           <button type="button" className="sd-more btn-search-submit" data-btn="search-submit" onClick={() => onSubmit(q)}>

@@ -1817,7 +1817,35 @@ tr.kw-more-row td {
     }
   }
 
+  &.has-history {
+    max-width: 56rem;
+  }
+
+  .sd-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  .sd-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .sd-history {
+    width: 16rem;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 0.25rem 0 0.5rem;
+    border-left: 1px solid var(--line);
+  }
+
   .sd-results {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 0.25rem 0 0.5rem;
   }
@@ -1905,19 +1933,101 @@ tr.kw-more-row td {
   gap: 0.375rem;
 }
 
-#tbSearchGroups,
-#tbSearchKeywords,
-#tbSearchAds {
+// 검색 결과 안의 표 컴포넌트는 자기 카드를 쓰므로, 바깥 카드와 겹치지 않게 틀만 없앤다
+#search-list .card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#tbSearchKeywords {
   table-layout: fixed;
   width: 100%;
+  min-width: 52rem;
 
-  th.sortable {
+  .col-skw-val {
     width: 6rem;
+  }
 
-    &:last-child {
-      width: 8rem; // 광고비: 최대 7자리 + "원"
+  .col-skw-cost {
+    width: 8rem; // 광고비: 최대 7자리 + "원"
+  }
+
+  .search-sub-line {
+    display: block;
+    margin-top: 0.125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+#tbSearchQuotes {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 52rem;
+
+  .col-sq-date {
+    width: 8rem;
+  }
+
+  .col-sq-customer {
+    width: 12rem;
+  }
+
+  .col-sq-text {
+    width: 8.5rem;
+  }
+
+  .search-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .search-q-row {
+    cursor: pointer;
+  }
+
+  .search-q-detail td {
+    background: var(--bg);
+    white-space: normal;
+  }
+
+  .search-q-subject {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  dl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.5rem;
+    margin: 0;
+    font-size: 0.8125rem;
+
+    div {
+      display: flex;
+      gap: 0.375rem;
+    }
+
+    dt {
+      color: var(--sub);
+    }
+
+    dd {
+      margin: 0;
+      color: var(--ink);
     }
   }
+}
+
+.kw-detail {
+  margin-left: 0.5rem;
 }
 
 .search-nowrap {
@@ -1936,11 +2046,23 @@ tr.kw-more-row td {
   .card.search-dialog {
     max-width: none;
     max-height: none;
-    min-height: 100%;
+    height: 100%; // 내용이 많아도 창 안에서 스크롤해 아래 버튼이 잘리지 않게 한다
     margin: 0;
 
-    .sd-results {
-      flex: 1;
+    // 좁은 화면은 목록을 결과 위에 둔다 — 결과 자리를 지키도록 높이를 제한한다
+    .sd-body {
+      flex-direction: column;
+    }
+
+    .sd-main {
+      order: 1;
+    }
+
+    .sd-history {
+      width: auto;
+      max-height: 11rem;
+      border-left: 0;
+      border-bottom: 1px solid var(--line);
     }
   }
 }
@@ -2000,4 +2122,82 @@ tr.kw-more-row td {
   .top .crumb-detail {
     max-width: 8rem;
   }
+}
+
+// 검색창 — 최근 검색어
+.card.search-dialog .sd-recent {
+  h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sd-recent-clear {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--sub);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .sd-recent-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .sd-row {
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding-right: 2.5rem;
+
+    svg {
+      flex-shrink: 0;
+      color: var(--sub);
+    }
+  }
+
+  .sd-row {
+    padding-right: 4rem;
+  }
+
+  .sd-recent-acts {
+    position: absolute;
+    right: 0.75rem;
+    display: inline-flex;
+    gap: 0.125rem;
+  }
+
+  .sd-recent-del,
+  .sd-star {
+    display: inline-flex;
+    padding: 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--sub);
+    cursor: pointer;
+  }
+}
+
+// 검색어 즐겨찾기 별 — 켜지면 채운다
+.card.search-dialog .sd-recent .btn-search-star.on,
+.top .crumb-star.btn-search-star.on {
+  color: var(--star);
+
+  svg {
+    fill: currentColor;
+  }
+}
+
+.top .crumb-star {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
 }

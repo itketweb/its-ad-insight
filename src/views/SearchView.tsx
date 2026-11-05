@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import type { CategoryMap, DashboardData, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
+import type { CategoryMap, DashboardData, KeywordRow, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
 import { cat1Of, fmt, mLabel, QUOTE_COLORS, quoteChartCats, SERIES_DEFS, sumBy } from '../utils/format';
 import { dotYm, monthsUpTo, periodStartsOf, yearRangeLabel, yearsOf } from '../utils/allPeriod';
-import { searchDashboard, type SearchTab } from '../utils/search';
-import { adDisplayTitle } from '../utils/creativeImage';
+import { resultAdGroups, searchDashboard, type SearchTab } from '../utils/search';
+import { campaignBuckets } from '../utils/keywordGroups';
+import { adStatKey, groupAdsByAdgroup, type AdStat } from '../utils/creativeImage';
 import { ViewHeader } from '../components/common/ViewHeader';
 import { KpiCard } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
@@ -14,6 +15,10 @@ import { TabButton } from '../components/common/TabButton';
 import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { MediaPill } from '../components/common/MediaPill';
 import { useSort } from '../hooks/useSort';
+import { ChevronRight } from 'lucide-react';
+import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTable';
+import { AdCreativesList } from '../components/keywords/AdCreativesList';
+import { TableFootnote } from '../components/common/TableFootnote';
 import { SortableTh } from '../components/common/SortableTh';
 
 interface SearchViewProps {
@@ -50,6 +55,33 @@ function breakdownOf(rows: QuoteRawRow[], keyOf: (r: QuoteRawRow) => string, emp
 
 const ctr = (clk: number, imp: number) => (imp > 0 ? `${((clk / imp) * 100).toFixed(2)}%` : '–');
 
+type KeywordSort = 'bid' | 'quality' | 'imp' | 'clk' | 'ctr' | 'conv' | 'cost';
+const KEYWORD_COLS: { key: KeywordSort; label: string }[] = [
+  { key: 'bid', label: '입찰가' },
+  { key: 'quality', label: '품질지수' },
+  { key: 'imp', label: '노출' },
+  { key: 'clk', label: '클릭' },
+  { key: 'ctr', label: 'CTR' },
+  { key: 'conv', label: '전환' },
+  { key: 'cost', label: '광고비' },
+];
+const keywordMetric = (k: KeywordRow, key: KeywordSort): number =>
+  key === 'ctr' ? (k.imp > 0 ? k.clk / k.imp : 0) : k[key];
+
+/** 견적 상세 펼침의 항목 — 값이 있는 것만 */
+const quoteDetails = (r: QuoteRawRow): [string, string][] =>
+  (
+    [
+      ['번호', String(r.sno ?? '')],
+      ['사이트', !r.site ? '아이티켓' : r.site === 'phone' ? '전화문의' : r.site],
+      ['유입 경로', [r.source, r.sourceDetail].filter(Boolean).join(' - ')],
+      ['문의 유형', r.inquiryType || INQUIRY_WEB],
+      ['이메일', r.email || ''],
+      ['전화번호', r.phone || ''],
+      ['접수자', r.receiver || ''],
+    ] as [string, string][]
+  ).filter(([, v]) => v);
+
 export const SearchView: React.FC<SearchViewProps> = ({
   data,
   categoryMap,
@@ -80,9 +112,27 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [tab, setTab] = useState<SearchTab | null>(initialTab || null);
   const [showAll, setShowAll] = useState(false);
 
-  const { sortKey: gKey, sortOrder: gOrd, toggleSort: gSort } = useSort<'imp' | 'clk' | 'conv' | 'cost'>('cost');
-  const { sortKey: kKey, sortOrder: kOrd, toggleSort: kSort } = useSort<'bid' | 'quality' | 'imp' | 'clk' | 'conv' | 'cost'>('cost');
-  const { sortKey: aKey, sortOrder: aOrd, toggleSort: aSort } = useSort<'imp' | 'clk' | 'cost'>('cost');
+  const { sortKey: kKey, sortOrder: kOrd, toggleSort: kSort } = useSort<KeywordSort>('cost');
+  const { sortKey: qKey, sortOrder: qOrd, toggleSort: qSort } = useSort<'date'>('date');
+  const [campTab, setCampTab] = useState(0);
+  const [openQuotes, setOpenQuotes] = useState<Set<string>>(new Set());
+  const toggleQuote = (key: string) =>
+    setOpenQuotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const adGroups = useMemo(() => (result ? resultAdGroups(result) : []), [result]);
+  const campaigns = useMemo(() => campaignBuckets(adGroups), [adGroups]);
+  const adCreatives = useMemo(() => groupAdsByAdgroup((result?.ads || []).map((a) => a.ad)), [result]);
+  const adStats = useMemo(() => {
+    const out: Record<string, AdStat> = {};
+    (result?.ads || []).forEach(({ ad, stat }) => {
+      if (stat) out[adStatKey(ad.media, ad.adId)] = stat;
+    });
+    return out;
+  }, [result]);
 
   const periodLabel = allPeriod
     ? '전체 기간'
@@ -102,7 +152,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   }
 
   const counts: Record<SearchTab, number> = {
-    groups: result.groups.length,
+    groups: adGroups.length,
     keywords: result.keywords.length,
     ads: result.ads.length,
     quotes: result.quotes.length,
@@ -137,6 +187,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const changeTab = (t: SearchTab) => {
     setTab(t);
     setShowAll(false);
+    setCampTab(0);
   };
   const limit = showAll ? undefined : LIST_LIMIT;
 
@@ -203,7 +254,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         <KpiCard
           label="광고비"
           value={`${fmt(result.cost)}원`}
-          sub={`광고그룹 ${fmt(counts.groups)}개${result.keywordOnlyGroups ? ` · 키워드만 일치 ${fmt(result.keywordOnlyGroups)}개 그룹` : ''}`}
+          sub={`광고그룹 ${fmt(result.groups.length)}개${result.keywordOnlyGroups ? ` · 키워드만 일치 ${fmt(result.keywordOnlyGroups)}개 그룹` : ''}`}
         />
         <KpiCard label="클릭" value={fmt(result.clk)} sub={`노출 ${fmt(result.imp)} · CTR ${ctr(result.clk, result.imp)} · 전환 ${fmt(result.conv)}`} />
         <KpiCard
@@ -258,99 +309,83 @@ export const SearchView: React.FC<SearchViewProps> = ({
           ))}
         </div>
 
-        <div className="tw">
-          {activeTab === 'groups' && (
-            <table className="stk" id="tbSearchGroups">
-              <thead>
-                <tr>
-                  <th>캠페인 › 광고그룹</th>
-                  <SortableTh className="n" sortKey="imp" activeKey={gKey} order={gOrd} onSort={gSort}>노출</SortableTh>
-                  <SortableTh className="n" sortKey="clk" activeKey={gKey} order={gOrd} onSort={gSort}>클릭</SortableTh>
-                  <SortableTh className="n" sortKey="conv" activeKey={gKey} order={gOrd} onSort={gSort}>전환</SortableTh>
-                  <SortableTh className="n" sortKey="cost" activeKey={gKey} order={gOrd} onSort={gSort}>광고비</SortableTh>
-                </tr>
-              </thead>
-              <tbody>
-                {[...result.groups].sort((a, b) => (gOrd === 'asc' ? 1 : -1) * (a[gKey] - b[gKey])).slice(0, limit).map((g) => (
-                  <tr key={`${g.media}|${g.type}|${g.campaign}|${g.adgroup}`}>
-                    <td>
-                      <span className="s-media-row"><MediaPill media={g.media} iconOnly size={14} />{g.campaign} › {g.adgroup} <small className="muted">{g.type}</small></span>
-                    </td>
-                    <td className="n">{fmt(g.imp)}</td>
-                    <td className="n">{fmt(g.clk)}</td>
-                    <td className="n">{fmt(g.conv)}</td>
-                    <td className="n">{fmt(g.cost)}원</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        {activeTab === 'groups' && (
+          <KeywordAccordionTable
+            title="캠페인·광고그룹"
+            detailed
+            topGroups={adGroups}
+            campaigns={campaigns}
+            month={selectedMonth}
+            periodLabel={periodLabel}
+            media="all"
+            type="SA"
+            kwTabIdx={campTab}
+            onChangeTab={setCampTab}
+          />
+        )}
 
-          {activeTab === 'keywords' && (
-            <table className="stk" id="tbSearchKeywords">
-              <thead>
-                <tr>
-                  <th>키워드</th>
-                  <th>캠페인 › 광고그룹</th>
-                  <SortableTh className="n" sortKey="bid" activeKey={kKey} order={kOrd} onSort={kSort}>입찰가</SortableTh>
-                  <SortableTh className="n" sortKey="quality" activeKey={kKey} order={kOrd} onSort={kSort}>품질지수</SortableTh>
-                  <SortableTh className="n" sortKey="imp" activeKey={kKey} order={kOrd} onSort={kSort}>노출</SortableTh>
-                  <SortableTh className="n" sortKey="clk" activeKey={kKey} order={kOrd} onSort={kSort}>클릭</SortableTh>
-                  <SortableTh className="n" sortKey="conv" activeKey={kKey} order={kOrd} onSort={kSort}>전환</SortableTh>
-                  <SortableTh className="n" sortKey="cost" activeKey={kKey} order={kOrd} onSort={kSort}>광고비</SortableTh>
-                </tr>
-              </thead>
-              <tbody>
-                {[...result.keywords].sort((a, b) => (kOrd === 'asc' ? 1 : -1) * (a[kKey] - b[kKey])).slice(0, limit).map((k) => (
-                  <tr key={`${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`}>
-                    <td>
-                      <span className="s-media-row"><MediaPill media={k.media} iconOnly size={14} /><b>{k.keyword}</b></span>
-                    </td>
-                    <td className="search-sub">
-                      {k.campaign} › {k.adgroup}
-                    </td>
-                    <td className="n">{k.bid ? `${fmt(k.bid)}원` : '–'}</td>
-                    <td className="n">{k.quality || '–'}</td>
-                    <td className="n">{fmt(k.imp)}</td>
-                    <td className="n">{fmt(k.clk)}</td>
-                    <td className="n">{fmt(k.conv)}</td>
-                    <td className="n">{fmt(k.cost)}원</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        {activeTab === 'ads' && (
+          <AdCreativesList groups={adCreatives} stats={adStats} loading={false} periodLabel={periodLabel} media="all" type="SA" />
+        )}
 
-          {activeTab === 'ads' && (
-            <table className="stk" id="tbSearchAds">
-              <thead>
-                <tr>
-                  <th>소재</th>
-                  <th>캠페인 › 광고그룹</th>
-                  <SortableTh className="n" sortKey="imp" activeKey={aKey} order={aOrd} onSort={aSort}>노출</SortableTh>
-                  <SortableTh className="n" sortKey="clk" activeKey={aKey} order={aOrd} onSort={aSort}>클릭</SortableTh>
-                  <SortableTh className="n" sortKey="cost" activeKey={aKey} order={aOrd} onSort={aSort}>광고비</SortableTh>
-                </tr>
-              </thead>
-              <tbody>
-                {[...result.ads].sort((a, b) => (aOrd === 'asc' ? 1 : -1) * ((a.stat?.[aKey] ?? 0) - (b.stat?.[aKey] ?? 0))).slice(0, limit).map(({ ad, stat }) => (
-                  <tr key={`${ad.media}|${ad.adId}`}>
-                    <td>
-                      <span className="s-media-row"><MediaPill media={ad.media} iconOnly size={14} />{adDisplayTitle(ad)}</span>
-                    </td>
-                    <td className="search-sub">
-                      {ad.campaign} › {ad.adgroup}
-                    </td>
-                    <td className="n">{stat ? fmt(stat.imp) : '–'}</td>
-                    <td className="n">{stat ? fmt(stat.clk) : '–'}</td>
-                    <td className="n">{stat ? `${fmt(stat.cost)}원` : '–'}</td>
+        {activeTab === 'keywords' && (
+          <>
+            <div className="tw">
+              <table className="stk" id="tbSearchKeywords">
+                <colgroup>
+                  <col className="col-skw-name" />
+                  {KEYWORD_COLS.map((c) => (
+                    <col key={c.key} className={c.key === 'cost' ? 'col-skw-cost' : 'col-skw-val'} />
+                  ))}
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>키워드</th>
+                    {KEYWORD_COLS.map((c) => (
+                      <SortableTh key={c.key} className="n" sortKey={c.key} activeKey={kKey} order={kOrd} onSort={kSort}>
+                        {c.label}
+                      </SortableTh>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {[...result.keywords]
+                    .sort((a, b) => (kOrd === 'asc' ? 1 : -1) * (keywordMetric(a, kKey) - keywordMetric(b, kKey)))
+                    .slice(0, limit)
+                    .map((k) => (
+                      <tr key={`${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`}>
+                        <td>
+                          <span className="s-media-row">
+                            <MediaPill media={k.media} iconOnly size={14} />
+                            <b>{k.keyword}</b>
+                          </span>
+                          <small className="search-sub search-sub-line" title={`${k.campaign} › ${k.adgroup}`}>
+                            {k.campaign} › {k.adgroup}
+                          </small>
+                        </td>
+                        <td className="n">{k.bid ? `${fmt(k.bid)}원` : '–'}</td>
+                        <td className="n">{k.quality || '–'}</td>
+                        <td className="n">{fmt(k.imp)}</td>
+                        <td className="n">{fmt(k.clk)}</td>
+                        <td className="n">{ctr(k.clk, k.imp)}</td>
+                        <td className="n">{fmt(k.conv)}</td>
+                        <td className="n">{fmt(k.cost)}원</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            <ShowMoreButton noun="키워드" total={counts.keywords} expanded={showAll} onToggle={() => setShowAll((v) => !v)} />
+            <TableFootnote
+              unit="원·회"
+              basis={`산출 근거: ${periodLabel} 실적 합계 · 입찰가·품질지수는 가장 최근 달 값 · CTR = 클릭 ÷ 노출`}
+              sources={['Google Ads · 네이버 검색광고 API 자동 수집']}
+            />
+          </>
+        )}
 
-          {activeTab === 'quotes' && (
+        {activeTab === 'quotes' && (
+          <>
             <div className="search-breakdown" id="searchBreakdown">
               {breakdowns.map((b) => (
                 <div key={b.title} className="search-breakdown-col">
@@ -365,34 +400,77 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 </div>
               ))}
             </div>
-          )}
 
-          {activeTab === 'quotes' &&
-            (isLoggedIn ? (
-              <table className="stk" id="tbSearchQuotes">
-                <thead>
-                  <tr>
-                    <th>접수일</th>
-                    <th>제목</th>
-                    <th>고객</th>
-                    <th>카테고리</th>
-                    <th>유입</th>
-                    <th>담당자</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.quotes.slice(0, limit).map((r, i) => (
-                    <tr key={r.id || i}>
-                      <td className="search-nowrap">{r.date.slice(0, 10)}</td>
-                      <td>{r.subject || CUSTOMER_FALLBACK}</td>
-                      <td>{[r.company, r.name].filter(Boolean).join(' · ') || CUSTOMER_FALLBACK}</td>
-                      <td>{r.category || CUSTOMER_FALLBACK}</td>
-                      <td>{r.inquiryType || r.source || CUSTOMER_FALLBACK}</td>
-                      <td>{r.salesRep || CUSTOMER_FALLBACK}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {isLoggedIn ? (
+              <>
+                <div className="tw">
+                  <table className="stk" id="tbSearchQuotes">
+                    <colgroup>
+                      <col className="col-sq-date" />
+                      <col className="col-sq-subject" />
+                      <col className="col-sq-customer" />
+                      <col className="col-sq-text" />
+                      <col className="col-sq-text" />
+                      <col className="col-sq-text" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <SortableTh sortKey="date" activeKey={qKey} order={qOrd} onSort={qSort}>
+                          접수일
+                        </SortableTh>
+                        <th>제목</th>
+                        <th>고객</th>
+                        <th>카테고리</th>
+                        <th>유입</th>
+                        <th>담당자</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(qOrd === 'asc' ? [...result.quotes].reverse() : result.quotes).slice(0, limit).map((r, i) => {
+                        const key = String(r.id || i);
+                        const isOpen = openQuotes.has(key);
+                        const details = quoteDetails(r);
+                        return (
+                          <React.Fragment key={key}>
+                            <tr
+                              className="search-q-row"
+                              aria-expanded={isOpen}
+                              title={isOpen ? '클릭하여 상세 접기' : '클릭하여 상세 펼치기'}
+                              onClick={() => toggleQuote(key)}
+                            >
+                              <td className="search-nowrap">
+                                <ChevronRight className={`grp-acc-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} aria-hidden="true" />
+                                {r.date.slice(0, 10)}
+                              </td>
+                              <td className="search-ellipsis" title={r.subject}>{r.subject || CUSTOMER_FALLBACK}</td>
+                              <td className="search-ellipsis">{[r.company, r.name].filter(Boolean).join(' · ') || CUSTOMER_FALLBACK}</td>
+                              <td className="search-ellipsis">{r.category || CUSTOMER_FALLBACK}</td>
+                              <td className="search-ellipsis">{r.inquiryType || r.source || CUSTOMER_FALLBACK}</td>
+                              <td className="search-ellipsis">{r.salesRep || CUSTOMER_FALLBACK}</td>
+                            </tr>
+                            {isOpen && (
+                              <tr className="search-q-detail">
+                                <td colSpan={6}>
+                                  {r.subject && <p className="search-q-subject">{r.subject}</p>}
+                                  <dl>
+                                    {details.map(([label, value]) => (
+                                      <div key={label}>
+                                        <dt>{label}</dt>
+                                        <dd>{value}</dd>
+                                      </div>
+                                    ))}
+                                  </dl>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <ShowMoreButton noun="견적" total={counts.quotes} expanded={showAll} onToggle={() => setShowAll((v) => !v)} />
+              </>
             ) : (
               <p className="leg-note search-login-note">
                 견적 제목과 고객 정보는 로그인 후 볼 수 있습니다.{' '}
@@ -400,15 +478,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   로그인
                 </Button>
               </p>
-            ))}
-        </div>
-
-        <ShowMoreButton
-          noun={TABS.find((t) => t.id === activeTab)?.label}
-          total={counts[activeTab]}
-          expanded={showAll}
-          onToggle={() => setShowAll((v) => !v)}
-        />
+            )}
+            <TableFootnote
+              unit="건"
+              basis="산출 근거: 제목·카테고리·유입 매체·담당자 일치 건 · 유입 매체는 2026년 10월부터 추적"
+              sources={['견적 접수 원본 시트 · collectQuotes 자동 동기화']}
+            />
+          </>
+        )}
       </Card>
     </div>
   );

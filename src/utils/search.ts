@@ -1,4 +1,4 @@
-import type { AdRow, CategoryMap, DashboardData, KeywordRow, QuoteRawRow, SpendRow } from '../types/dashboard';
+import type { AdRow, CategoryMap, DashboardData, KeywordGroup, KeywordRow, QuoteRawRow, SpendRow } from '../types/dashboard';
 import { mergeKeywordMonths, periodStartsOf } from './allPeriod';
 import { adStatKey, type AdStat } from './creativeImage';
 import { catsOf } from './format';
@@ -33,6 +33,26 @@ export interface SearchResult {
   cpa: number;
   /** 매체·유입 경로로 찾은 결과라 CPA 를 계산하지 않았다 (견적의 유입 추적이 광고비보다 늦게 시작해 기간이 맞지 않는다) */
   cpaHidden: boolean;
+}
+
+/** 검색 결과를 광고그룹 표로 — 합계에 들어간 실적 그대로 묶어, 표의 합이 위쪽 광고비 카드와 같다. 펼치면 그 그룹의 키워드가 나온다 */
+export function resultAdGroups(result: SearchResult): KeywordGroup[] {
+  const map = new Map<string, KeywordGroup & { totals: { imp: number; clk: number; conv: number } }>();
+  const keyOf = (r: { media: string; campaign: string; adgroup: string }) => [r.media, r.campaign, r.adgroup].join('\u0001');
+  result.spendRows.forEach((r) => {
+    const k = keyOf(r);
+    let g = map.get(k);
+    if (!g) {
+      g = { media: r.media, campaign: r.campaign, adgroup: r.adgroup, cost: 0, list: [], totals: { imp: 0, clk: 0, conv: 0 } };
+      map.set(k, g);
+    }
+    g.cost += r.cost;
+    g.totals.imp += r.imp;
+    g.totals.clk += r.clk;
+    g.totals.conv += r.conv;
+  });
+  result.keywords.forEach((kw) => map.get(keyOf(kw))?.list.push(kw));
+  return [...map.values()].sort((a, b) => b.cost - a.cost);
 }
 
 /** 매체 코드의 한글 이름 — "네이버" 로 찾아도 Naver 광고가 나오게 한다 */

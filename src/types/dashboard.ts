@@ -98,6 +98,8 @@ export interface KeywordGroup {
   adgroup: string;
   cost: number;
   list: KeywordRow[];
+  /** 키워드 합계와 다른 그룹 실적을 보여 줄 때 (검색 결과는 광고그룹 전체 실적을 쓴다) */
+  totals?: { imp: number; clk: number; conv: number };
 }
 
 export interface CampaignKeywordBucket {

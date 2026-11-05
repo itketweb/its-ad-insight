@@ -7,6 +7,8 @@ interface HeaderProps {
   title: string;
   /** 제목 오른쪽에 함께 보여 줄 값 (예: 검색어) */
   titleDetail?: string;
+  /** 제목 오른쪽 값 옆에 둘 버튼 (예: 검색어 즐겨찾기) */
+  titleAction?: React.ReactNode;
   drawerOpen: boolean;
   isDark: boolean;
   onOpenDrawer: () => void;
@@ -20,6 +22,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   title,
   titleDetail,
+  titleAction,
   drawerOpen,
   isDark,
   onOpenDrawer,
@@ -49,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
               &quot;{titleDetail}&quot;
             </span>
           )}
+          {titleAction}
         </span>
       </h1>
       <span className="sp" />

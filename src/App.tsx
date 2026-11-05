@@ -9,6 +9,8 @@ import { Tooltip } from './components/Layout/Tooltip';
 import { PeriodNav } from './components/common/PeriodNav';
 import { lastMonthOfYear, TOTAL_PERIOD_VIEWS } from './utils/allPeriod';
 import type { SearchTab } from './utils/search';
+import { addRecentSearch, clearRecentSearches, loadFavoriteSearches, sameSearch, toggleFavoriteSearch } from './utils/recentSearches';
+import { Star } from 'lucide-react';
 import { SkeletonView } from './components/common/SkeletonView';
 import { OverviewView } from './views/OverviewView';
 import { AdsView } from './views/AdsView';
@@ -55,6 +57,11 @@ export const App: React.FC = () => {
   const { isLoggedIn, loading: authLoading } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
   const wasLoggedIn = useRef(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  // 로그인 상태마다 목록이 따로라 바뀌면 다시 읽는다
+  useEffect(() => setFavorites(loadFavoriteSearches(isLoggedIn)), [isLoggedIn]);
+  const toggleFavorite = (query: string) => setFavorites(toggleFavoriteSearch(query, isLoggedIn));
+  const queryIsFavorite = favorites.some((q) => sameSearch(q, searchQuery));
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [isDark, setIsDark] = useState<boolean>(getInitialDark);
 
@@ -139,6 +146,7 @@ export const App: React.FC = () => {
   };
 
   const goSearch = (query: string, tab?: SearchTab) => {
+    addRecentSearch(query, isLoggedIn);
     setSearchQuery(query);
     setSearchTab(tab);
     setSearchOpen(false);
@@ -160,6 +168,8 @@ export const App: React.FC = () => {
       handleNavigate('overview');
       if (!wasLoggedIn.current) setLoginOpen(true);
     }
+    // 관리자가 찾은 고객사 이름이 로그아웃 상태 화면에 남지 않게 한다
+    if (wasLoggedIn.current && !isLoggedIn) clearRecentSearches(true);
     wasLoggedIn.current = isLoggedIn;
   }, [authLoading, isLoggedIn, currentView]);
 
@@ -237,6 +247,22 @@ export const App: React.FC = () => {
           <Header
             title={VIEW_TITLES[currentView]}
             titleDetail={isSearchView ? searchQuery : undefined}
+            titleAction={
+              isSearchView && searchQuery ? (
+                <button
+                  type="button"
+                  className={`crumb-star btn-search-star${queryIsFavorite ? ' on' : ''}`}
+                  id="btn-search-favorite"
+                  data-btn="search-favorite-toggle"
+                  aria-pressed={queryIsFavorite}
+                  aria-label={queryIsFavorite ? '검색어 즐겨찾기 해제' : '검색어 즐겨찾기'}
+                  title={queryIsFavorite ? '즐겨찾기 해제' : '즐겨찾기'}
+                  onClick={() => toggleFavorite(searchQuery)}
+                >
+                  <Star size={16} aria-hidden="true" />
+                </button>
+              ) : undefined
+            }
             drawerOpen={drawerOpen}
             isDark={isDark}
             onOpenDrawer={handleOpenDrawer}
@@ -379,6 +405,8 @@ export const App: React.FC = () => {
         <SearchDialog
           data={data}
           categoryMap={categoryMap}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
           initialQuery={currentView === 'search' ? searchQuery : ''}
           isLoggedIn={isLoggedIn}
           onClose={() => setSearchOpen(false)}

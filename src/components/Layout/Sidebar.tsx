@@ -142,17 +142,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="sfoot">
           <span className={`upd${live ? ' live' : ''}`}>
             {live ? (
-              <>
-                {updated || '취합본'} 수집
-                {isSyncing && <>{' · '}<span className="sync-pulse">동기화 중...</span></>}
-              </>
+              <span className="upd-body">
+                <span>{updated || '취합본'} 수집</span>
+                {isSyncing && <span className="sync-pulse">동기화 중...</span>}
+              </span>
             ) : (
-              <>
-                {status === 'error' ? '연동 지연 (자동 재시도 중)' : '실데이터 자동 연결 중...'}{' '}
+              <span className="upd-body">
+                <span>{status === 'error' ? '연동 지연 (자동 재시도 중)' : '실데이터 자동 연결 중...'}</span>
                 <Button variant="link" className="btn-reload" id="btn-reload" data-btn="reload" onClick={onReload}>
                   지금 새로고침
                 </Button>
-              </>
+              </span>
             )}
           </span>
           <span className="sfoot-ver">

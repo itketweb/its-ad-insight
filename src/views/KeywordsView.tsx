@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import type {
   AdRow,
-  CampaignKeywordBucket,
   CategoryMap,
   DashboardData,
-  KeywordGroup,
-  KeywordRow,
   SyncStatus,
 } from '../types/dashboard';
 import { catSum, catsOf, mLabel, THIS_M } from '../utils/format';
@@ -26,6 +23,7 @@ import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
 import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
+import { campaignBuckets, groupKeywordRows } from '../utils/keywordGroups';
 
 interface KeywordsViewProps {
   data: DashboardData;
@@ -107,26 +105,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
     .filter(pass)
     .map((k) => k.month)
     .sort()[0];
-  const groups: Record<string, KeywordGroup> = {};
-  const sumClk = (list: KeywordRow[]) => list.reduce((a, k) => a + k.clk, 0);
-  ks.forEach((k) => {
-    const g = [k.media, k.campaign, k.adgroup].join('\u0001');
-    if (!groups[g]) {
-      groups[g] = {
-        media: k.media,
-        campaign: k.campaign,
-        adgroup: k.adgroup,
-        cost: 0,
-        list: [],
-      };
-    }
-    groups[g].list.push(k);
-    groups[g].cost += k.cost;
-  });
-
-  const allGroups = Object.values(groups).sort(
-    (a, b) => b.cost - a.cost || sumClk(b.list) - sumClk(a.list)
-  );
+  const allGroups = groupKeywordRows(ks);
 
   // 카테고리 필터 — 광고그룹의 매핑 카테고리로 판단해 키워드 그룹과 주요 · 확장 소재에 똑같이 적용
   const inCategory = (g: { media: string; campaign: string; adgroup: string }) =>
@@ -140,21 +119,8 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const topGroups = activeGroups;
 
   // 캠페인 탭: 캠페인명 단위로 묶고(같은 이름은 Google·Naver 합산) 광고비 상위 10개 캠페인
-  const campMap: Record<string, CampaignKeywordBucket> = {};
-  activeGroups.forEach((g) => {
-    const key = g.campaign.trim();
-    if (!campMap[key]) {
-      campMap[key] = { medias: [], campaign: key, cost: 0, groups: [] };
-    }
-    if (!campMap[key].medias.includes(g.media)) {
-      campMap[key].medias.push(g.media);
-      campMap[key].medias.sort();
-    }
-    campMap[key].groups.push(g);
-    campMap[key].cost += g.cost;
-  });
   // 전부 넘기고, 상위 10개만 탭으로 보이며 나머지는 '더보기' 목록에 둔다
-  const campaigns = Object.values(campMap).sort((a, b) => b.cost - a.cost);
+  const campaigns = campaignBuckets(activeGroups);
 
   // 주요 소재: 기준월 광고비가 큰 캠페인의 소재부터
   const campCost: Record<string, number> = {};
