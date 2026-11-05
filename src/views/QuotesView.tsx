@@ -22,7 +22,7 @@ import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, inMonths, periodStartsOf, sameMonthsLastYear, yearsOf } from '../utils/allPeriod';
+import { dotYm, inMonths, periodStartsOf, sameMonthsLastYear, uncollectedItems, yearsOf } from '../utils/allPeriod';
 
 interface QuotesViewProps {
   data: DashboardData;
@@ -224,11 +224,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
     ? sumBy(data.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count)
     : curM >= starts.cpaFrom ? curAdQuotes : 0;
   const kpiCpaDetail = kpiCpa ? (
-    <>
-      <p>광고비 <b>{fmtWon(kpiSpend)}</b></p>
-      <i>|</i>
-      <p>견적 <b>{fmt(kpiAdQuotes)}건</b></p>
-    </>
+    <KpiDetailItems
+      items={[
+        ['광고비', fmtWon(kpiSpend)],
+        ['견적', `${fmt(kpiAdQuotes)}건`],
+        ...uncollectedItems(data.spend, yearTotal ? cpaMonths : [curM]),
+      ]}
+    />
   ) : null;
 
   // 추이 차트: 건수 상위 6개 1차 카테고리 + 그 외

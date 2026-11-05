@@ -23,7 +23,7 @@ import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
+import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, uncollectedItems, yearRangeLabel } from '../utils/allPeriod';
 import { campaignBuckets, groupKeywordRows } from '../utils/keywordGroups';
 
 interface KeywordsViewProps {
@@ -128,10 +128,14 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const mediaDetail = naverCost > 0 && googleCost > 0
     ? <KpiDetailItems items={[['네이버', fmtWon(naverCost)], ['구글', fmtWon(googleCost)]]} />
     : null;
+  const missing = uncollectedItems(data.spend, allPeriod ? [] : periodMonths, media === 'all' ? undefined : [media]);
   const cpcItems: [string, number | string][] = [];
-  cpcItems.push(['네이버', naverCpc  > 0 ? `${fmt(naverCpc)}원`  : naverRows.length  === 0 ? '미수집' : '–']);
-  cpcItems.push(['구글',   googleCpc > 0 ? `${fmt(googleCpc)}원` : googleRows.length === 0 ? '미수집' : '–']);
+  if (naverCpc  > 0) cpcItems.push(['네이버', `${fmt(naverCpc)}원`]);
+  if (googleCpc > 0) cpcItems.push(['구글',   `${fmt(googleCpc)}원`]);
+  cpcItems.push(...missing);
   const cpcDetail = cpcItems.length > 0 ? <KpiDetailItems items={cpcItems} /> : null;
+  const convItems: [string, number | string][] = kpiAdCpa ? [['건당', `${fmt(kpiAdCpa)}원`]] : [];
+  convItems.push(...missing);
 
   const cost = catSum(categoryMap, rows, (r) => r.cost);
   const clk = catSum(categoryMap, rows, (r) => r.clk);
@@ -215,7 +219,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           cmpLabel={cmpLabel}
           sub={`클릭 ${fmt(totalClk)} · 전환 ${fmt(totalConv)}`}
           detail={cmpLabel
-            ? <KpiDetailItems items={[['클릭', totalClk], ['전환', totalConv]]} />
+            ? <KpiDetailItems items={[['클릭', totalClk], ['전환', totalConv], ...missing]} />
             : mediaDetail}
         />
         <KpiCard
@@ -225,7 +229,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           prev={hasPvData ? pvClk : null}
           cmpLabel={cmpLabel}
           sub={`노출 ${fmt(totalImp)} · CTR ${kpiCtr}`}
-          detail={cmpLabel ? <KpiDetailItems items={[['노출', totalImp], ['CTR', kpiCtr]]} /> : null}
+          detail={cmpLabel ? <KpiDetailItems items={[['노출', totalImp], ['CTR', kpiCtr], ...missing]} /> : null}
         />
         <KpiCard
           label="클릭당 비용 (CPC)"
@@ -244,7 +248,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           prev={hasPvData ? pvConv : null}
           cmpLabel={cmpLabel}
           sub={kpiAdCpa ? `건당 ${fmt(kpiAdCpa)}원` : '견적 CPA는 카테고리 효율 참고'}
-          detail={cmpLabel && kpiAdCpa ? <KpiDetailItems items={[['건당', `${fmt(kpiAdCpa)}원`]]} /> : null}
+          detail={cmpLabel && convItems.length ? <KpiDetailItems items={convItems} /> : null}
         />
       </KpiSection>
 

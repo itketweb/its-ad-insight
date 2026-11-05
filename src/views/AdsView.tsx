@@ -19,7 +19,7 @@ import { MultiChart } from '../components/charts/MultiChart';
 import { SpendDetailTable } from '../components/ads/SpendDetailTable';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, monthsUpTo, periodStartsOf, sameMonthsLastYear, yearRangeLabel } from '../utils/allPeriod';
+import { dotYm, monthsUpTo, periodStartsOf, sameMonthsLastYear, uncollectedMedia, yearRangeLabel } from '../utils/allPeriod';
 
 interface AdsViewProps {
   data: DashboardData;
@@ -154,6 +154,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
   const curNaverCost  = sumBy(at(curM).filter((r) => r.media === 'Naver'),  (r) => r.cost);
   const curMetaCost   = sumBy(at(curM).filter((r) => r.media === 'Meta'),   (r) => r.cost);
   const mdfRatioPct   = tot(curM) > 0 ? ((mdfCost(curM) / tot(curM)) * 100).toFixed(1) : null;
+  const missing = uncollectedMedia(data.spend, [curM]).map((m): [string, string] => [m, '미수집']);
 
   return (
     <div className="view on" data-view="ads" data-title="월별 광고비">
@@ -258,10 +259,11 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           prev={tot(pv)}
           cmpLabel="전월"
           detail={(() => {
-            const items: [string, number][] = [];
+            const items: [string, number | string][] = [];
             if (curGoogleCost > 0) items.push(['Google', curGoogleCost]);
             if (curNaverCost  > 0) items.push(['Naver',  curNaverCost]);
             if (curMetaCost   > 0) items.push(['Meta',   curMetaCost]);
+            items.push(...missing);
             return items.length ? <KpiDetailItems items={items} /> : undefined;
           })()}
         />
@@ -287,7 +289,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           prev={cpa(pv)}
           cmpLabel="전월"
           invertDelta
-          detail={<KpiDetailItems items={[['전환수', curConv]]} />}
+          detail={<KpiDetailItems items={[['전환수', curConv], ...missing]} />}
         />
           </>
         )}
