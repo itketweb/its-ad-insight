@@ -263,7 +263,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
             if (curGoogleCost > 0) items.push(['Google', curGoogleCost]);
             if (curNaverCost  > 0) items.push(['Naver',  curNaverCost]);
             if (curMetaCost   > 0) items.push(['Meta',   curMetaCost]);
-            items.push(...missing);
+            if (items.length) items.push(...missing);
             return items.length ? <KpiDetailItems items={items} /> : undefined;
           })()}
         />
@@ -289,7 +289,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           prev={cpa(pv)}
           cmpLabel="전월"
           invertDelta
-          detail={<KpiDetailItems items={[['전환수', curConv], ...missing]} />}
+          detail={<KpiDetailItems items={[['전환수', curConv]]} />}
         />
           </>
         )}

@@ -30,7 +30,7 @@ import { CatEfficiencyTable } from '../components/cat-efficiency/CatEfficiencyTa
 import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, inMonths, monthsUpTo, periodStartsOf, sameMonthsLastYear, uncollectedItems, yearRangeLabel } from '../utils/allPeriod';
+import { dotYm, inMonths, monthsUpTo, periodStartsOf, sameMonthsLastYear, yearRangeLabel } from '../utils/allPeriod';
 
 interface CatEfficiencyViewProps {
   data: DashboardData;
@@ -201,7 +201,6 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   const totQuotesPrev = isFiltered ? sumBy(catKeys, qPrevOf) : sumBy(prevInputs.flatMap((m) => m.rows), (r) => r.count);
   const sharePct = (n: number, total: number) => `${(total > 0 ? (n / total) * 100 : 0).toFixed(1)}%`;
   const noCompareSub = allPeriod ? periodLabel : undefined;
-  const missing = uncollectedItems(data.spend, allPeriod ? [] : curMonths);
 
   const fullList = buildCategoryBarItems(
     filterByCategory(catSpendCur, catFilter.cat1, catFilter.cat2),
@@ -254,7 +253,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           prev={topSpendCat?.prevCost}
           cmpLabel={cmpLabel}
           sub={noCompareSub}
-          detail={topSpendCat ? <KpiDetailItems items={[['광고비', fmtWon(topSpendCat.cost)], ['비중', sharePct(topSpendCat.cost, totSpend)], ...missing]} /> : null}
+          detail={topSpendCat ? <KpiDetailItems items={[['광고비', fmtWon(topSpendCat.cost)], ['비중', sharePct(topSpendCat.cost, totSpend)]]} /> : null}
         />
         <KpiCard
           label="최다 견적 카테고리"
@@ -273,7 +272,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           cmpLabel={cmpLabel}
           invertDelta
           sub={noCompareSub}
-          detail={bestCpaCat ? <KpiDetailItems items={[['건당', `${fmt(bestCpaCat.cpa)}원`], ['견적', `${fmt(bestCpaCat.quotes)}건`], ...missing]} /> : null}
+          detail={bestCpaCat ? <KpiDetailItems items={[['건당', `${fmt(bestCpaCat.cpa)}원`], ['견적', `${fmt(bestCpaCat.quotes)}건`]]} /> : null}
         />
         <KpiCard
           label={`${periodLabel} 전체 평균 CPA`}
@@ -283,7 +282,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           cmpLabel={cmpLabel}
           invertDelta
           sub={noCompareSub}
-          detail={<KpiDetailItems items={[['광고비', fmtWon(totSpend)], ['견적', `${fmt(totQuotes)}건`], ...missing]} />}
+          detail={<KpiDetailItems items={[['광고비', fmtWon(totSpend)], ['견적', `${fmt(totQuotes)}건`]]} />}
         />
       </KpiSection>
 

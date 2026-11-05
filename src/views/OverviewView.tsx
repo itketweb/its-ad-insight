@@ -25,7 +25,7 @@ import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { Card } from '../components/common/Card';
-import { dotYm, firstMonth, inMonths, periodStartsOf, sameMonthsLastYear, uncollectedItems, yearRangeLabel, yearsOf } from '../utils/allPeriod';
+import { dotYm, firstMonth, inMonths, periodStartsOf, sameMonthsLastYear, yearRangeLabel, yearsOf } from '../utils/allPeriod';
 
 interface OverviewViewProps {
   data: DashboardData;
@@ -223,12 +223,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const topCatDeltaNode = topCatDelta !== null && topCatDelta !== 0
     ? <span style={{ color: topCatDelta > 0 ? 'var(--up)' : 'var(--down)' }}>{' · '}{topCatDelta > 0 ? '▲' : '▼'} {fmtWon(Math.abs(topCatDelta))} 전월</span>
     : null;
-  const missing = uncollectedItems(data.spend, allPeriod ? [] : yearTotal ? months : [curM]);
-  const topSpendCatItems: [string, string][] = [
-    ...topSpendEntries.slice(1, 3).map(([k, v]): [string, string] => [k, fmtWon(v)]),
-    ...missing,
-  ];
-  const topSpendCatDetail = topSpendCatItems.length ? <KpiDetailItems items={topSpendCatItems} /> : null;
+  const topSpendCatDetail = topSpendEntries.length > 1 ? (
+    <>
+      {topSpendEntries.slice(1, 3).map(([k, v], i) => (
+        <React.Fragment key={k}>
+          {i > 0 && <i>|</i>}
+          <p>{k} <b>{fmtWon(v)}</b></p>
+        </React.Fragment>
+      ))}
+    </>
+  ) : null;
   // quoteCountFor 는 한 달 치 기준이라, 전체 기간은 달별로 계산해 더한다 (월별 화면의 합과 맞도록)
   const quoteMonths = allPeriod
     ? [...new Set(data.quotes.map((r) => r.month))].filter((mo) => mo >= starts.cpaFrom)
@@ -388,7 +392,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           prev={pvCpa}
           cmpLabel="전월"
           invertDelta
-          detail={curCpa > 0 ? <KpiDetailItems items={[['광고비', fmtWon(curSpendTot)], ['견적', `${fmt(curAdQuotes)}건`], ...missing]} /> : null}
+          detail={curCpa > 0 ? <><p>광고비 <b>{fmtWon(curSpendTot)}</b></p><i>|</i><p>견적 <b>{fmt(curAdQuotes)}건</b></p></> : null}
         />
         <KpiCard
           label={`${mLabel(curM)} 최다 소진 카테고리`}
