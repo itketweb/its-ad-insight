@@ -226,6 +226,16 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
             detail={curSiteDetail}
           />
         )}
+        {yearTotal && (
+          <KpiCard
+            label={<>{yr}년 누적 견적 (1~{mm}월)</>}
+            value={`${fmt(ytdQuotes)}건`}
+            cur={ytdQuotes}
+            prev={sumBy(quotes.filter((r) => r.month >= ym(+yr - 1, 1) && r.month <= ym(+yr - 1, mm)), (r) => r.count)}
+            cmpLabel="전년 동기"
+            detail={siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 4) === yr))}
+          />
+        )}
         <KpiCard
           label={<>{yr}년 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
           value={ytdCpa ? `${fmt(ytdCpa)}원` : '–'}
