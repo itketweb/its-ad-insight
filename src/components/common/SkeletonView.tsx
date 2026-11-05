@@ -1,4 +1,5 @@
 import React from 'react';
+import { KpiSection } from '../charts/KpiCard';
 
 interface SkeletonViewProps {
   /** 화면 제목은 데이터 없이도 알 수 있으므로 그대로 보여 준다 */
@@ -83,7 +84,7 @@ export const SkeletonView: React.FC<SkeletonViewProps> = ({ title, variant = 'da
     <div aria-hidden="true">
       {variant === 'dashboard' && (
         <>
-          <div className="kpis">
+          <KpiSection>
             {Array.from({ length: 4 }, (_, i) => (
               <div key={i} className="kpi">
                 <Bar w="55%" h="0.75rem" />
@@ -91,7 +92,7 @@ export const SkeletonView: React.FC<SkeletonViewProps> = ({ title, variant = 'da
                 <Bar w="40%" h="0.75rem" />
               </div>
             ))}
-          </div>
+          </KpiSection>
           <div className="grid">
             {Array.from({ length: 2 }, (_, i) => (
               <div key={i} className="card skel-card">

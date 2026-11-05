@@ -60,6 +60,13 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   );
 };
 
+/** KPI 카드 묶음 컨테이너 — className="kpis" 를 단일 출처로 관리 */
+export const KpiSection: React.FC<{ id?: string; children: React.ReactNode }> = ({ id, children }) => (
+  <div className="kpis" id={id}>
+    {children}
+  </div>
+);
+
 export const DeltaSpan: React.FC<{ a?: number | null; b?: number | null }> = ({ a, b }) => {
   const p = pct(a, b);
   if (!p) return <>–</>;

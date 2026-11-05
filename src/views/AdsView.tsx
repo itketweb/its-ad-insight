@@ -14,7 +14,7 @@ import {
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { SegmentedControl } from '../components/common/SegmentedControl';
-import { KpiCard } from '../components/charts/KpiCard';
+import { KpiCard, KpiSection } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { SpendDetailTable } from '../components/ads/SpendDetailTable';
 import { Card } from '../components/common/Card';
@@ -58,13 +58,13 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           description="매체별·구분별 월간 광고비 집행 추이 및 소진 내역"
           status={status}
         />
-        <div className="kpis" id="kpiAds">
+        <KpiSection id="kpiAds">
           <div className="kpi">
             <div className="l">실제 광고비 데이터</div>
             <div className="v">–</div>
             <div className="d flat">데이터 연결 필요</div>
           </div>
-        </div>
+        </KpiSection>
         <Card name="empty" id="ads-empty">
           <EmptyState message="취합된 실제 광고비 데이터가 없습니다. 상단 [연결 설정] 버튼에서 데이터 연결을 완료해 주세요." />
         </Card>
@@ -178,7 +178,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
         </p>
       )}
 
-      <div className="kpis" id="kpiAds">
+      <KpiSection id="kpiAds">
         {allPeriod ? (
           <>
             <KpiCard
@@ -275,7 +275,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
         />
           </>
         )}
-      </div>
+      </KpiSection>
 
       {mode === 'chart' && (
         <MultiChart

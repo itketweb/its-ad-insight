@@ -20,7 +20,7 @@ import { PeriodNavSlot } from '../components/common/PeriodNav';
 import { KeywordCategoryTable } from '../components/keywords/KeywordCategoryTable';
 import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTable';
 import { AdCreativesList } from '../components/keywords/AdCreativesList';
-import { KpiCard } from '../components/charts/KpiCard';
+import { KpiCard, KpiSection } from '../components/charts/KpiCard';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
 import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
@@ -170,7 +170,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
         status={status}
       />
 
-      <div className="kpis" id="kpiKeywords">
+      <KpiSection id="kpiKeywords">
         <KpiCard
           label="광고비"
           value={`${fmt(totalCost)}원`}
@@ -191,7 +191,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           value={fmt(totalConv)}
           sub={kpiAdCpa ? `건당 ${fmt(kpiAdCpa)}원` : '견적 CPA는 카테고리 효율 참고'}
         />
-      </div>
+      </KpiSection>
 
       {allPeriod && (
         <p className="leg-note quote-src-note">
