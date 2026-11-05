@@ -149,12 +149,15 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const catMatchCount = rawQuotes.filter(isCatMatch).length;
   // 직접 매칭이 20% 미만이면 브랜드·고객 검색으로 보고 모든 카테고리를 그대로 표시
   const useCatFilter = catMatchCount >= rawQuotes.length * 0.2;
+  const CAT_OTHER = '기타 카테고리';
   const chartQuotes: QuoteRow[] = rawQuotes.map((r) => ({
     month: r.date.slice(0, 7),
-    category: useCatFilter && !isCatMatch(r) ? '기타' : r.category,
+    category: useCatFilter && !isCatMatch(r) ? CAT_OTHER : r.category,
     source: r.source,
     count: 1,
   }));
+  // breakdown 카테고리도 차트와 동일한 필터 적용
+  const listCatFilter = result.quotes.filter(isCatMatch).length >= result.quotes.length * 0.2;
   const axis = allPeriod
     ? yearsOf([...chartSpend.map((r) => r.month), ...chartQuotes.map((r) => r.month)])
     : monthsUpTo(selectedMonth);
@@ -182,7 +185,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
   // 견적 구성 — 제목·고객 정보 없이 건수만이라 로그아웃 상태에서도 보여 준다
   const breakdowns = [
-    { title: '카테고리', rows: breakdownOf(result.quotes, (r) => cat1Of(r.category || '기타'), '기타') },
+    { title: '카테고리', rows: breakdownOf(result.quotes, (r) => listCatFilter && !isCatMatch(r) ? CAT_OTHER : cat1Of(r.category || '기타'), '기타') },
     { title: '유입 매체', rows: breakdownOf(result.quotes.filter((r) => !r.inquiryType), (r) => (r.source === '미수집' ? '' : r.source), '미수집') },
     { title: '문의 유형', rows: breakdownOf(result.quotes, (r) => r.inquiryType || INQUIRY_WEB, '기타') },
     { title: '담당자', rows: breakdownOf(result.quotes, (r) => r.salesRep || '', '미지정') },
@@ -271,7 +274,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 {[...result.groups].sort((a, b) => (gOrd === 'asc' ? 1 : -1) * (a[gKey] - b[gKey])).slice(0, limit).map((g) => (
                   <tr key={`${g.media}|${g.type}|${g.campaign}|${g.adgroup}`}>
                     <td>
-                      <span className="s-media-row"><MediaPill media={g.media} iconOnly size={12} />{g.campaign} › {g.adgroup} <small className="muted">{g.type}</small></span>
+                      <span className="s-media-row"><MediaPill media={g.media} iconOnly size={14} />{g.campaign} › {g.adgroup} <small className="muted">{g.type}</small></span>
                     </td>
                     <td className="n">{fmt(g.imp)}</td>
                     <td className="n">{fmt(g.clk)}</td>
@@ -301,7 +304,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 {[...result.keywords].sort((a, b) => (kOrd === 'asc' ? 1 : -1) * (a[kKey] - b[kKey])).slice(0, limit).map((k) => (
                   <tr key={`${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`}>
                     <td>
-                      <span className="s-media-row"><MediaPill media={k.media} iconOnly size={12} /><b>{k.keyword}</b></span>
+                      <span className="s-media-row"><MediaPill media={k.media} iconOnly size={14} /><b>{k.keyword}</b></span>
                     </td>
                     <td className="search-sub">
                       {k.campaign} › {k.adgroup}
@@ -333,7 +336,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 {[...result.ads].sort((a, b) => (aOrd === 'asc' ? 1 : -1) * ((a.stat?.[aKey] ?? 0) - (b.stat?.[aKey] ?? 0))).slice(0, limit).map(({ ad, stat }) => (
                   <tr key={`${ad.media}|${ad.adId}`}>
                     <td>
-                      <span className="s-media-row"><MediaPill media={ad.media} iconOnly size={12} />{adDisplayTitle(ad)}</span>
+                      <span className="s-media-row"><MediaPill media={ad.media} iconOnly size={14} />{adDisplayTitle(ad)}</span>
                     </td>
                     <td className="search-sub">
                       {ad.campaign} › {ad.adgroup}
@@ -401,6 +404,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
 
         <ShowMoreButton
+          noun={TABS.find((t) => t.id === activeTab)?.label}
           total={counts[activeTab]}
           expanded={showAll}
           onToggle={() => setShowAll((v) => !v)}
