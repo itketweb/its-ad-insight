@@ -5,6 +5,7 @@ import {
   buildSourceShareData,
   catSum,
   fmt,
+  fmtWon,
   mLabel,
   prevM,
   quoteSeriesColor,
@@ -18,7 +19,7 @@ import {
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
-import { KpiCard } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
@@ -141,6 +142,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   };
   const ytdQuotes = quotesIn(months);
   const ytdCpa = cpaIn(months);
+  const ytdValidMonths = months.filter((mo) => mo >= starts.cpaFrom);
+  const ytdCpaSpend = sumBy(data.spend.filter(inMonths(ytdValidMonths)), (r) => r.cost);
+  const ytdAdQuotes = sumBy(data.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count);
   const yearQuoteMonths = new Set(stats.quotes.filter(inMonths(months)).map((r) => r.month)).size;
   const quoteMonthCount = new Set(stats.quotes.map((r) => r.month)).size;
 
@@ -155,9 +159,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     });
     const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => k === 'cadkorea' || k === 'zbyhp' || counts[k]);
     if (parts.length <= 1) return null;
-    return parts.map((k, i) => (
-      <React.Fragment key={k}>{i > 0 && <i>|</i>}<p>{k} <b>{counts[k] ?? 0}</b></p></React.Fragment>
-    ));
+    return <KpiDetailItems items={parts.map((k): [string, number] => [k, counts[k] ?? 0])} />;
   };
   const curSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
   const ytdSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 4) === yr));
@@ -251,6 +253,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               }
               value={`${fmt(allCpa)}원`}
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
+              detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotes)}건</b></p></> : null}
             />
             <KpiCard
               label="월평균 견적"
@@ -295,6 +298,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cur={ytdCpa || null}
               prev={lastYrMonths[0] >= starts.cpaFrom ? cpaIn(lastYrMonths) : null}
               cmpLabel="전년 동기"
+              detail={ytdCpa ? <><p>광고비 <b>{fmtWon(ytdCpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(ytdAdQuotes)}건</b></p></> : null}
             />
             <KpiCard
               label="월평균 견적"
@@ -339,6 +343,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cur={curCpa}
           prev={pvCpa}
           cmpLabel="전월"
+          detail={curCpa > 0 ? <><p>광고비 <b>{fmtWon(curSpendTot)}</b></p><i>|</i><p>견적 <b>{fmt(curAdQuotes)}건</b></p></> : null}
         />
         <KpiCard
           label={`${yr}년 누적 광고비 (1~${mm}월)`}

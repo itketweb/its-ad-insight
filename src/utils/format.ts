@@ -12,6 +12,10 @@ import { categoryFromAdNames } from './categoryText';
 
 export const fmt = (n: number): string => Math.round(n).toLocaleString('ko-KR');
 
+/** 만원 단위 약식 표기 (1만 미만은 원 단위) */
+export const fmtWon = (n: number): string =>
+  n >= 10000 ? `${fmt(Math.round(n / 10000))}만원` : `${fmt(n)}원`;
+
 export const rem = (): number =>
   parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
@@ -96,7 +100,7 @@ const LEGACY_CATS = new Set(['서버', '워크스테이션', '스토리지', '�
  */
 export const LEGACY_ONLY_CATS = new Set(['서버', '워크스테이션', '스토리지', 'PC', 'PC·노트북', '노트북']);
 /** 상위 카테고리 색 (건수 순). 이보다 많으면 색이 서로 비슷해져 나머지는 회색(--c-rest)으로 둔다 */
-export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-n', '--c-pink', '--c-blue'];
+export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-n', '--c-pink'];
 /** 차트에서 상위 카테고리 밖을 묶는 이름 */
 export const QUOTE_OTHER = '그 외';
 /** 견적 추이 차트의 계열 색 — '그 외'는 회색 */
