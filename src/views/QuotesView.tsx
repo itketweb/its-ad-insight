@@ -115,6 +115,32 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const cpaQuotesCount = sumBy(data.quotes.filter((r) => r.month >= starts.cpaFrom), (r) => r.count);
   const allCpa = cpaQuotesCount > 0 ? cpaSpend / cpaQuotesCount : 0;
 
+  /** 최다 접수 담당자 카드 — 미지정은 순위·평균에서 빼고, 하단 줄에는 담당 현황만 보여 준다 */
+  const repCard = (label: string, rows: QuoteRawRow[], withAverage = true) => {
+    const counts = new Map<string, number>();
+    rows.forEach((r) => {
+      if (r.salesRep) counts.set(r.salesRep, (counts.get(r.salesRep) || 0) + 1);
+    });
+    const ranked = [...counts.entries()].sort(([a, x], [b, y]) => y - x || a.localeCompare(b, 'ko'));
+    const top = ranked[0];
+    const assigned = sumBy(ranked, ([, n]) => n);
+    const average = assigned / ranked.length;
+    const unassigned = rows.length - assigned;
+    const items: [string, string][] = [
+      ['담당자', `${fmt(ranked.length)}명`],
+      ...(withAverage ? ([['1인 평균', `${average < 10 ? average.toFixed(1) : fmt(average)}건`]] as [string, string][]) : []),
+      ...(unassigned ? ([['미지정', `${fmt(unassigned)}건`]] as [string, string][]) : []),
+    ];
+    return (
+      <KpiCard
+        label={label}
+        value={top?.[0] || '–'}
+        sub={top ? `${fmt(top[1])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
+        detail={top ? <KpiDetailItems items={items} /> : null}
+      />
+    );
+  };
+
   const hasMultiSite = quotesRaw.some((r) => r.site);
   const siteBreak = (rows: QuoteRawRow[]): React.ReactNode => {
     if (!hasMultiSite || !rows.length) return null;
@@ -130,7 +156,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const curSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
   const allSiteDetail = siteBreak(quotesRaw);
 
-  const { bySource: bySrcAll, topSourceKey: topSrcKey, items: srcItems } = buildSourceShareData(
+  const { items: srcItems } = buildSourceShareData(
     quotesRaw,
     yr,
     quotes,
@@ -145,13 +171,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     ? { k: topCatKey, c: sumBy(yrQuotes.filter((r) => cat1Of(r.category) === topCatKey), (r) => r.count) }
     : undefined;
 
-  // 2~3위 유입 매체
-  const srcRunnerUpItems = Object.entries(bySrcAll)
-    .filter(([k]) => k !== topSrcKey)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 2);
-  const srcRunnerUps = srcRunnerUpItems.length ? <KpiDetailItems items={srcRunnerUpItems} /> : null;
-
   // 2~3위 견적 카테고리 (기타 제외)
   const catRunnerUpItems = quoteCat1Order(yrQuotes)
     .filter((c) => c !== '기타' && c !== topCatKey)
@@ -163,20 +182,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const kpiQuotes = yearTotal
     ? quotes.filter((r) => r.month.startsWith(yr) && r.month <= curM)
     : quotes.filter((r) => r.month === curM);
-  const kpiPrefix = yearTotal ? yr : curM;
   const kpiLabel = yearTotal ? `${yr}년` : mLabel(curM);
   const kpiTotal = sumBy(kpiQuotes, (r) => r.count);
 
-  const { bySource: kpiBySrc, topSourceKey: kpiTopSrc } = buildSourceShareData(quotesRaw, kpiPrefix, quotes, curM);
   const kpiTopCatKey = quoteCat1Order(kpiQuotes).find((c) => c !== '기타');
   const kpiTopCat = kpiTopCatKey
     ? { k: kpiTopCatKey, c: sumBy(kpiQuotes.filter((r) => cat1Of(r.category) === kpiTopCatKey), (r) => r.count) }
     : undefined;
-  const kpiSrcRunnerUpItems = Object.entries(kpiBySrc)
-    .filter(([k]) => k !== kpiTopSrc)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 2) as [string, number][];
-  const kpiSrcRunnerUps = kpiSrcRunnerUpItems.length ? <KpiDetailItems items={kpiSrcRunnerUpItems} /> : null;
   const kpiCatRunnerUpItems = quoteCat1Order(kpiQuotes)
     .filter((c) => c !== '기타' && c !== kpiTopCatKey)
     .slice(0, 2)
@@ -247,12 +259,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
               detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotesCount)}건</b></p></> : null}
             />
-            <KpiCard
-              label="전체 최다 유입 매체"
-              value={topSrcKey}
-              sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
-              detail={srcRunnerUps}
-            />
+            {repCard('전체 최다 접수 담당자', quotesRaw, false)}
             <KpiCard
               label="전체 최다 견적 카테고리"
               value={topCat?.k || '–'}
@@ -290,12 +297,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           cmpLabel={kpiCpaCompLabel}
           detail={kpiCpaDetail}
         />
-        <KpiCard
-          label={`${kpiLabel} 최다 유입 매체`}
-          value={kpiTopSrc}
-          sub={kpiBySrc[kpiTopSrc] ? `${fmt(kpiBySrc[kpiTopSrc])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
-          detail={kpiSrcRunnerUps}
-        />
+        {repCard(
+          `${kpiLabel} 최다 접수 담당자`,
+          quotesRaw.filter((r) => {
+            const mo = r.date?.slice(0, 7) ?? '';
+            return yearTotal ? mo.startsWith(yr) && mo <= curM : mo === curM;
+          }),
+        )}
         <KpiCard
           label={`${kpiLabel} 최다 견적 카테고리`}
           value={kpiTopCat?.k || '–'}

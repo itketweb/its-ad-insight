@@ -5,7 +5,7 @@ import type {
   DashboardData,
   SyncStatus,
 } from '../types/dashboard';
-import { catSum, catsOf, mLabel, THIS_M } from '../utils/format';
+import { catSum, catsOf, fmt, mLabel, THIS_M } from '../utils/format';
 import { adStatKey, groupAdsByAdgroup, selectRoundRobinAds, type AdStat } from '../utils/creativeImage';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
@@ -20,6 +20,7 @@ import { PeriodNavSlot } from '../components/common/PeriodNav';
 import { KeywordCategoryTable } from '../components/keywords/KeywordCategoryTable';
 import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTable';
 import { AdCreativesList } from '../components/keywords/AdCreativesList';
+import { KpiCard } from '../components/charts/KpiCard';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
 import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
@@ -88,6 +89,14 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const periodMonths = yearTotal ? monthsUpTo(mo) : [mo];
   const inPeriod = allPeriod ? () => true : inMonths(periodMonths);
   const rows = data.spend.filter((r) => inPeriod(r) && pass(r));
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const totalClk  = rows.reduce((s, r) => s + r.clk, 0);
+  const totalImp  = rows.reduce((s, r) => s + r.imp, 0);
+  const totalConv = rows.reduce((s, r) => s + r.conv, 0);
+  const kpiCtr = totalImp > 0 ? `${((totalClk / totalImp) * 100).toFixed(2)}%` : '–';
+  const kpiCpc = totalClk > 0 ? Math.round(totalCost / totalClk) : 0;
+  const kpiAdCpa = totalConv > 0 ? Math.round(totalCost / totalConv) : 0;
+
   const cost = catSum(categoryMap, rows, (r) => r.cost);
   const clk = catSum(categoryMap, rows, (r) => r.clk);
   const conv = catSum(categoryMap, rows, (r) => r.conv);
@@ -160,6 +169,29 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
         description="광고그룹별 검색 키워드 입찰/품질/전환 지표 및 배너·확장 소재 현황"
         status={status}
       />
+
+      <div className="kpis" id="kpiKeywords">
+        <KpiCard
+          label="광고비"
+          value={`${fmt(totalCost)}원`}
+          sub={`클릭 ${fmt(totalClk)} · 전환 ${fmt(totalConv)}`}
+        />
+        <KpiCard
+          label="클릭수"
+          value={fmt(totalClk)}
+          sub={`노출 ${fmt(totalImp)} · CTR ${kpiCtr}`}
+        />
+        <KpiCard
+          label="클릭당 비용 (CPC)"
+          value={kpiCpc ? `${fmt(kpiCpc)}원` : '–'}
+          sub={`${fmt(totalClk)}클릭 기준`}
+        />
+        <KpiCard
+          label="광고 전환수"
+          value={fmt(totalConv)}
+          sub={kpiAdCpa ? `건당 ${fmt(kpiAdCpa)}원` : '견적 CPA는 카테고리 효율 참고'}
+        />
+      </div>
 
       {allPeriod && (
         <p className="leg-note quote-src-note">
