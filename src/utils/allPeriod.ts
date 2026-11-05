@@ -1,8 +1,26 @@
-import type { DashboardData } from '../types/dashboard';
+import type { DashboardData, KeywordRow } from '../types/dashboard';
 import { ym } from './format';
 
 /** 기간 선택의 '전체' 를 쓸 수 있는 화면 — 연도 '전체' 는 전 기간, 월 '전체' 는 선택 연도 합계 */
 export const TOTAL_PERIOD_VIEWS = ['overview', 'ads', 'cat-efficiency', 'keywords', 'quotes'];
+
+/** 여러 달의 같은 키워드를 한 줄로 합친다. 실적은 더하고 입찰가·품질지수는 가장 최근 달 값을 쓴다 */
+export function mergeKeywordMonths(rows: KeywordRow[]): KeywordRow[] {
+  const merged = new Map<string, KeywordRow>();
+  [...rows]
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .forEach((k) => {
+      const key = [k.media, k.campaign, k.adgroup, k.keyword, k.match || ''].join('\u0001');
+      const prev = merged.get(key);
+      merged.set(
+        key,
+        prev
+          ? { ...k, cost: prev.cost + k.cost, imp: prev.imp + k.imp, clk: prev.clk + k.clk, conv: prev.conv + k.conv }
+          : k
+      );
+    });
+  return [...merged.values()];
+}
 
 /** 그 연도에서 합계를 낼 마지막 달 — 올해는 데이터가 있는 최신 달, 지난해는 12월 */
 export const lastMonthOfYear = (month: string, max: string): string => {

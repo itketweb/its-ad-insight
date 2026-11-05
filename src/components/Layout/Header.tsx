@@ -1,39 +1,29 @@
 import React from 'react';
-import type { SyncStatus, ViewId } from '../../types/dashboard';
 import { HeaderProfileMenu } from './HeaderProfileMenu';
-import { Menu, Moon, Sun } from 'lucide-react';
+import { Menu, Moon, Search, Sun } from 'lucide-react';
 import { Button } from '../common/Button';
 
 interface HeaderProps {
   title: string;
-  status: SyncStatus;
-  updated: string;
-  isSyncing: boolean;
   drawerOpen: boolean;
   isDark: boolean;
   onOpenDrawer: () => void;
   onToggleTheme: () => void;
-  onReload: () => void;
-  onNavigate?: (view: ViewId) => void;
   /** 헤더 로그인 버튼 → 로그인 모달 */
   onLogin: () => void;
+  /** 헤더 검색 버튼 → 검색창 */
+  onSearch: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   title,
-  status,
-  updated,
-  isSyncing,
   drawerOpen,
   isDark,
   onOpenDrawer,
   onToggleTheme,
-  onReload,
-  onNavigate,
   onLogin,
+  onSearch,
 }) => {
-  const live = status === 'live';
-
   return (
     <header className="top">
       <Button
@@ -54,27 +44,18 @@ export const Header: React.FC<HeaderProps> = ({
         </span>
       </h1>
       <span className="sp" />
-      <span className={`upd${live ? ' live' : ''}`}>
-        {live ? (
-          <>
-            실제 데이터 · {updated || '취합본'} 수집
-            {isSyncing && (
-              <>
-                {' · '}
-                <span className="sync-pulse">동기화 중...</span>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            {status === 'error' ? '연동 지연 (자동 재시도 중)' : '실데이터 자동 연결 중...'}{' '}
-            <Button variant="link" className="btn-reload" id="btn-reload" data-btn="reload" onClick={onReload}>
-              지금 새로고침
-            </Button>
-          </>
-        )}
-      </span>
       <div className="acts">
+        <Button
+          iconOnly
+          icon={Search}
+          className="btn-search"
+          id="btn-search"
+          data-btn="search"
+          aria-label="검색"
+          title="검색 (Ctrl+K)"
+          onClick={onSearch}
+        />
+
         {/* 헤더 프로필 & 로그인 유도 버튼 */}
         <HeaderProfileMenu onLogin={onLogin} />
 

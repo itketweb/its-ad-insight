@@ -8,20 +8,26 @@ import { Header } from './components/Layout/Header';
 import { Tooltip } from './components/Layout/Tooltip';
 import { PeriodNav } from './components/common/PeriodNav';
 import { lastMonthOfYear, TOTAL_PERIOD_VIEWS } from './utils/allPeriod';
+import type { SearchTab } from './utils/search';
 import { SkeletonView } from './components/common/SkeletonView';
 import { OverviewView } from './views/OverviewView';
 import { AdsView } from './views/AdsView';
 import { CatEfficiencyView } from './views/CatEfficiencyView';
 import { KeywordsView } from './views/KeywordsView';
 import { QuotesView } from './views/QuotesView';
+import { SearchView } from './views/SearchView';
 import { DataView } from './views/DataView';
 import { AdminView } from './views/AdminView';
 import { LoginModal } from './components/Layout/LoginModal';
+import { SearchDialog } from './components/Layout/SearchDialog';
 import { useAuth } from './context/AuthContext';
 
-function getInitialView(): ViewId {
-  const hash = window.location.hash.slice(1) as ViewId;
-  return VALID_VIEWS.includes(hash) ? hash : 'overview';
+/** 주소의 해시 → 화면과 검색어 (#keywords, #search?q=HPE) */
+function parseHash(): { view: ViewId; query: string } {
+  const [name, params = ''] = window.location.hash.slice(1).split('?');
+  const view = name as ViewId;
+  if (!VALID_VIEWS.includes(view)) return { view: 'overview', query: '' };
+  return { view, query: view === 'search' ? (new URLSearchParams(params).get('q') || '').trim() : '' };
 }
 
 function getInitialDark(): boolean {
@@ -42,7 +48,10 @@ function getInitialDark(): boolean {
 
 export const App: React.FC = () => {
   const { data, categoryMap, status, isSyncing, load, updateQuotesRaw, updateQuotesSites } = useDashboardData();
-  const [currentView, setCurrentView] = useState<ViewId>(getInitialView);
+  const [currentView, setCurrentView] = useState<ViewId>(() => parseHash().view);
+  const [searchQuery, setSearchQuery] = useState(() => parseHash().query);
+  const [searchTab, setSearchTab] = useState<SearchTab | undefined>();
+  const [searchOpen, setSearchOpen] = useState(false);
   const { isLoggedIn, loading: authLoading } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
   const wasLoggedIn = useRef(false);
@@ -99,6 +108,10 @@ export const App: React.FC = () => {
   const [yearTotalOn, setYearTotalOn] = useState(false);
   const yearTotal = yearTotalOn && supportsTotal && !allPeriod;
   const viewMonth = yearTotal ? lastMonthOfYear(selectedMonth, maxAvailableMonth) : selectedMonth;
+  // 검색 결과의 기간 — 보던 화면의 기간과 분리한다. 새 검색은 전체 기간에서 시작하고, 여기서 좁혀도 다른 화면은 그대로다
+  const isSearchView = currentView === 'search';
+  const [searchPeriod, setSearchPeriod] = useState<{ mode: 'all' | 'year' | 'month'; month: string }>({ mode: 'all', month: '' });
+  const searchMonth = searchPeriod.month || maxAvailableMonth;
 
   useEffect(() => {
     if (maxAvailableMonth) {
@@ -125,9 +138,20 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0 });
   };
 
+  const goSearch = (query: string, tab?: SearchTab) => {
+    setSearchQuery(query);
+    setSearchTab(tab);
+    setSearchOpen(false);
+    setSearchPeriod({ mode: 'all', month: '' });
+    setCurrentView('search');
+    closeDrawer();
+    window.history.pushState(null, '', `#search?q=${encodeURIComponent(query)}`);
+    window.scrollTo({ top: 0 });
+  };
+
   useEffect(() => {
-    document.title = `${VIEW_TITLES[currentView]} · 아이티캣 광고 인사이트`;
-  }, [currentView]);
+    document.title = `${currentView === 'search' && searchQuery ? `"${searchQuery}" ` : ''}${VIEW_TITLES[currentView]} · 아이티캣 광고 인사이트`;
+  }, [currentView, searchQuery]);
 
   // 설정·연동(데이터 연결·어드민 관리)은 로그인한 관리자만. 로그아웃하면 종합 요약으로, 로그인 없이 주소(#data·#admin)로 들어오면 종합 요약 + 로그인 모달
   useEffect(() => {
@@ -141,11 +165,20 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const onHashChange = () => {
-      const h = window.location.hash.slice(1) as ViewId;
-      setCurrentView(VALID_VIEWS.includes(h) ? h : 'overview');
+      const { view, query } = parseHash();
+      setCurrentView(view);
+      if (view === 'search') {
+        setSearchQuery(query);
+        setSearchPeriod({ mode: 'all', month: '' });
+      }
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeDrawer();
+      // 한글 입력 상태에서도 되도록 글자 대신 키 위치로 판단한다
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyK') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
     };
     const onResize = () => {
       if (window.innerWidth > 768) closeDrawer();
@@ -193,54 +226,62 @@ export const App: React.FC = () => {
         <Sidebar
           currentView={currentView}
           drawerOpen={drawerOpen}
+          status={status}
+          updated={data.updated}
+          isSyncing={isSyncing}
           onNavigate={handleNavigate}
           onCloseDrawer={closeDrawer}
+          onReload={load}
         />
         <div className="wrap">
           <Header
             title={VIEW_TITLES[currentView]}
-            status={status}
-            updated={data.updated}
-            isSyncing={isSyncing}
             drawerOpen={drawerOpen}
             isDark={isDark}
             onOpenDrawer={handleOpenDrawer}
             onToggleTheme={handleToggleTheme}
-            onReload={load}
-            onNavigate={handleNavigate}
             onLogin={() => setLoginOpen(true)}
+            onSearch={() => setSearchOpen(true)}
           />
           {currentView !== 'data' && (
             <PeriodNav
               years={availableYears}
               selectedYear={selectedYear}
-              selectedMonth={selectedMonth}
+              selectedMonth={isSearchView ? searchMonth : selectedMonth}
               minAvailableMonth={minAvailableMonth}
               maxAvailableMonth={maxAvailableMonth}
               onSelectYear={setSelectedYear}
               onSelectMonth={(m) => {
+                if (isSearchView) {
+                  setSearchPeriod({ mode: 'month', month: m });
+                  return;
+                }
                 setAllPeriodOn(false);
                 setYearTotalOn(false);
                 setSelectedMonth(m);
               }}
-              allPeriod={allPeriod}
+              allPeriod={isSearchView ? searchPeriod.mode === 'all' : allPeriod}
               onSelectAll={
-                supportsTotal
-                  ? () => {
-                      setAllPeriodOn(true);
-                      setYearTotalOn(false);
-                    }
-                  : undefined
+                isSearchView
+                  ? () => setSearchPeriod((p) => ({ ...p, mode: 'all' }))
+                  : supportsTotal
+                    ? () => {
+                        setAllPeriodOn(true);
+                        setYearTotalOn(false);
+                      }
+                    : undefined
               }
-              yearTotal={yearTotal}
+              yearTotal={isSearchView ? searchPeriod.mode === 'year' : yearTotal}
               onSelectYearTotal={
-                supportsTotal
-                  ? (m) => {
-                      setAllPeriodOn(false);
-                      setYearTotalOn(true);
-                      setSelectedMonth(m);
-                    }
-                  : undefined
+                isSearchView
+                  ? (m) => setSearchPeriod({ mode: 'year', month: m })
+                  : supportsTotal
+                    ? (m) => {
+                        setAllPeriodOn(false);
+                        setYearTotalOn(true);
+                        setSelectedMonth(m);
+                      }
+                    : undefined
               }
             />
           )}
@@ -302,6 +343,23 @@ export const App: React.FC = () => {
                   yearTotal={yearTotal}
                 />
               )}
+              {!isLoading && currentView === 'search' && (
+                <SearchView
+                  key={`${searchQuery}|${searchTab || ''}`}
+                  data={data}
+                  categoryMap={categoryMap}
+                  status={status}
+                  query={searchQuery}
+                  initialTab={searchTab}
+                  selectedMonth={searchPeriod.mode === 'year' ? lastMonthOfYear(searchMonth, maxAvailableMonth) : searchMonth}
+                  allPeriod={searchPeriod.mode === 'all'}
+                  yearTotal={searchPeriod.mode === 'year'}
+                  isLoggedIn={isLoggedIn}
+                  onOpenSearch={() => setSearchOpen(true)}
+                  onLogin={() => setLoginOpen(true)}
+                  onSelectAllPeriod={() => setSearchPeriod((p) => ({ ...p, mode: 'all' }))}
+                />
+              )}
               {currentView === 'data' && authLoading && <SkeletonView title={VIEW_TITLES.data} variant="table" />}
               {currentView === 'data' && isLoggedIn && (
                 <DataView loading={!hasData && (status === 'init' || isSyncing)} data={data} categoryMap={categoryMap} status={status} />
@@ -317,6 +375,16 @@ export const App: React.FC = () => {
       </div>
       <Tooltip />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      {searchOpen && (
+        <SearchDialog
+          data={data}
+          categoryMap={categoryMap}
+          initialQuery={currentView === 'search' ? searchQuery : ''}
+          isLoggedIn={isLoggedIn}
+          onClose={() => setSearchOpen(false)}
+          onSubmit={goSearch}
+        />
+      )}
     </>
   );
 };

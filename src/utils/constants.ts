@@ -44,6 +44,7 @@ export const VALID_VIEWS: ViewId[] = [
   'cat-efficiency',
   'keywords',
   'quotes',
+  'search',
   'data',
   'admin',
 ];
@@ -54,6 +55,7 @@ export const VIEW_TITLES: Record<ViewId, string> = {
   'cat-efficiency': '카테고리 효율',
   keywords: '키워드 · 소재',
   quotes: '견적 상세',
+  search: '검색 결과',
   data: '데이터 연결',
   admin: '어드민 관리',
 };

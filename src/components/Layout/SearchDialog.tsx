@@ -1,0 +1,163 @@
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Search, X } from 'lucide-react';
+import type { CategoryMap, DashboardData } from '../../types/dashboard';
+import { fmt } from '../../utils/format';
+import { displayAdTitle } from '../../utils/creativeImage';
+import { searchDashboard, type SearchTab } from '../../utils/search';
+import { TextInput } from '../common/TextInput';
+
+interface SearchDialogProps {
+  data: DashboardData;
+  categoryMap: CategoryMap;
+  initialQuery: string;
+  isLoggedIn: boolean;
+  onClose: () => void;
+  onSubmit: (query: string, tab?: SearchTab) => void;
+}
+
+const PREVIEW_LIMIT = 3;
+/** 새 검색은 전체 기간에서 찾는다 — 결과 페이지에서 기간을 좁힐 수 있다 */
+const PERIOD_LABEL = '전체 기간';
+
+/** 헤더 검색 — 입력하는 동안 묶음별 상위 결과와 합계를 보여 주고, Enter 로 요약 페이지에 간다. 바탕을 누르거나 Esc 로 닫는다 */
+export const SearchDialog: React.FC<SearchDialogProps> = ({
+  data,
+  categoryMap,
+  initialQuery,
+  isLoggedIn,
+  onClose,
+  onSubmit,
+}) => {
+  const [query, setQuery] = useState(initialQuery);
+  // 데이터가 많아도 입력이 끊기지 않게 계산은 늦춘다
+  const deferred = useDeferredValue(query.trim());
+  const result = useMemo(
+    () => (deferred ? searchDashboard(data, categoryMap, deferred, null) : null),
+    [data, categoryMap, deferred]
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const q = query.trim();
+  const empty =
+    !!result && !result.groups.length && !result.keywords.length && !result.ads.length && !result.quotes.length;
+
+  const section = (
+    tab: SearchTab,
+    title: string,
+    total: number,
+    rows: { key: string; name: string; meta: string }[]
+  ) =>
+    total > 0 && (
+      <section className="sd-group" key={tab}>
+        <h3>
+          {title} <span>{fmt(total)}</span>
+        </h3>
+        {rows.slice(0, PREVIEW_LIMIT).map((r) => (
+          <button type="button" key={r.key} className="sd-row btn-search-row" data-btn="search-row" onClick={() => onSubmit(q, tab)}>
+            <span className="sd-name">{r.name}</span>
+            <span className="sd-meta">{r.meta}</span>
+          </button>
+        ))}
+      </section>
+    );
+
+  return (
+    <div className="login-backdrop search-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="card search-dialog" role="dialog" aria-modal="true" aria-label="검색">
+        <form
+          className="sd-form"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (q) onSubmit(q);
+          }}
+        >
+          <Search size={18} aria-hidden="true" />
+          <TextInput
+            className="sd-input"
+            type="search"
+            placeholder="제품, 카테고리, 매체, 키워드 검색"
+            aria-label="검색어"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+          <button type="button" className="sd-close btn-search-close" data-btn="search-close" aria-label="닫기" onClick={onClose}>
+            <X size={16} aria-hidden="true" />
+          </button>
+        </form>
+
+        {!q ? (
+          <p className="sd-hint">
+            관련된 광고와 견적을 전체 기간에서 찾습니다. 예: HPE, 워크스테이션, 네이버
+            {isLoggedIn ? ', 고객사 이름' : ''}
+          </p>
+        ) : !result ? null : empty ? (
+          <p className="sd-hint">{PERIOD_LABEL}에 &quot;{q}&quot;와 일치하는 결과가 없습니다.</p>
+        ) : (
+          <>
+            <p className="sd-summary">
+              {PERIOD_LABEL} · 광고비 <b>{fmt(result.cost)}원</b> · 견적 <b>{fmt(result.quotes.length)}건</b>
+            </p>
+            <div className="sd-results">
+              {section(
+                'groups',
+                '캠페인·광고그룹',
+                result.groups.length,
+                result.groups.slice(0, PREVIEW_LIMIT).map((g) => ({
+                  key: `${g.media}|${g.type}|${g.campaign}|${g.adgroup}`,
+                  name: `${g.campaign} › ${g.adgroup}`,
+                  meta: `${fmt(g.cost)}원`,
+                }))
+              )}
+              {section(
+                'keywords',
+                '키워드',
+                result.keywords.length,
+                result.keywords.slice(0, PREVIEW_LIMIT).map((k) => ({
+                  key: `${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`,
+                  name: `${k.keyword} · ${k.campaign}`,
+                  meta: `클릭 ${fmt(k.clk)}`,
+                }))
+              )}
+              {section(
+                'ads',
+                '소재',
+                result.ads.length,
+                result.ads.slice(0, PREVIEW_LIMIT).map(({ ad, stat }) => ({
+                  key: `${ad.media}|${ad.adId}`,
+                  name: displayAdTitle(ad.title) || ad.adgroup,
+                  meta: stat ? `${fmt(stat.cost)}원` : '실적 없음',
+                }))
+              )}
+              {section(
+                'quotes',
+                '견적',
+                result.quotes.length,
+                isLoggedIn
+                  ? result.quotes.slice(0, PREVIEW_LIMIT).map((r, i) => ({
+                      key: `${r.id || i}`,
+                      name: r.subject || r.category || '제목 없음',
+                      meta: r.date.slice(0, 10),
+                    }))
+                  : [{ key: 'login', name: `${fmt(result.quotes.length)}건 · 제목은 로그인 후 표시`, meta: '' }]
+              )}
+            </div>
+          </>
+        )}
+
+        {q && !empty && (
+          <button type="button" className="sd-more btn-search-submit" data-btn="search-submit" onClick={() => onSubmit(q)}>
+            <span>Enter로 전체 요약 보기</span>
+            <ArrowRight size={14} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};

@@ -1,4 +1,4 @@
-export type ViewId = 'overview' | 'ads' | 'cat-efficiency' | 'keywords' | 'quotes' | 'data' | 'admin';
+export type ViewId = 'overview' | 'ads' | 'cat-efficiency' | 'keywords' | 'quotes' | 'search' | 'data' | 'admin';
 
 export type ChartType = 'line' | 'grouped' | 'donut';
 

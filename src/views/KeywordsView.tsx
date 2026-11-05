@@ -25,7 +25,7 @@ import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTa
 import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, inMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
+import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
 
 interface KeywordsViewProps {
   data: DashboardData;
@@ -38,24 +38,6 @@ interface KeywordsViewProps {
   allPeriod?: boolean;
   /** 월 선택이 '전체' — selectedMonth 는 그 연도의 마지막 달이다 */
   yearTotal?: boolean;
-}
-
-/** 여러 달의 같은 키워드를 한 줄로 합친다. 실적은 더하고 입찰가·품질지수는 가장 최근 달 값을 쓴다 */
-function mergeKeywordMonths(rows: KeywordRow[]): KeywordRow[] {
-  const merged = new Map<string, KeywordRow>();
-  [...rows]
-    .sort((a, b) => a.month.localeCompare(b.month))
-    .forEach((k) => {
-      const key = [k.media, k.campaign, k.adgroup, k.keyword, k.match || ''].join('\u0001');
-      const prev = merged.get(key);
-      merged.set(
-        key,
-        prev
-          ? { ...k, cost: prev.cost + k.cost, imp: prev.imp + k.imp, clk: prev.clk + k.clk, conv: prev.conv + k.conv }
-          : k
-      );
-    });
-  return [...merged.values()];
 }
 
 const KEYWORDS_SOURCES: SourceLinkItem[] = [
