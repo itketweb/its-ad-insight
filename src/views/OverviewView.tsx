@@ -146,15 +146,18 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
   // 사이트별 견적 건수 breakdown — quotesExtra(어드민)가 있을 때만 의미 있다
   const hasMultiSite = stats.quotesRaw.some((r) => r.site);
-  const siteBreak = (rows: QuoteRawRow[]): string | null => {
+  const siteBreak = (rows: QuoteRawRow[]): React.ReactNode => {
     if (!hasMultiSite || !rows.length) return null;
     const counts: Record<string, number> = {};
     rows.forEach((r) => {
       const k = r.inquiryType ? '전화/톡플러스' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
       counts[k] = (counts[k] || 0) + 1;
     });
-    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
-    return parts.length > 1 ? parts.join(' · ') : null;
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => counts[k]);
+    if (parts.length <= 1) return null;
+    return parts.map((k, i) => (
+      <React.Fragment key={k}>{i > 0 && ' · '}{k} <b>{counts[k]}</b></React.Fragment>
+    ));
   };
   const curSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
   const ytdSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 4) === yr));

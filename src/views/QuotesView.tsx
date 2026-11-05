@@ -105,15 +105,18 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const yearQuoteMonths = new Set(quotes.filter(inMonths(months)).map((r) => r.month)).size;
 
   const hasMultiSite = quotesRaw.some((r) => r.site);
-  const siteBreak = (rows: QuoteRawRow[]): string | null => {
+  const siteBreak = (rows: QuoteRawRow[]): React.ReactNode => {
     if (!hasMultiSite || !rows.length) return null;
     const counts: Record<string, number> = {};
     rows.forEach((r) => {
       const k = r.inquiryType ? '전화/톡플러스' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
       counts[k] = (counts[k] || 0) + 1;
     });
-    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
-    return parts.length > 1 ? parts.join(' · ') : null;
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => counts[k]);
+    if (parts.length <= 1) return null;
+    return parts.map((k, i) => (
+      <React.Fragment key={k}>{i > 0 && ' · '}{k} <b>{counts[k]}</b></React.Fragment>
+    ));
   };
   const curSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
   const ytdSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 4) === yr));
