@@ -21,7 +21,6 @@ import { MultiChart } from '../components/charts/MultiChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
 import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
 import { Card } from '../components/common/Card';
-import { SkelBar } from '../components/common/SkeletonView';
 import { EmptyState } from '../components/common/EmptyState';
 import { dotYm, inMonths, periodStartsOf, sameMonthsLastYear, yearsOf } from '../utils/allPeriod';
 
@@ -116,7 +115,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const allCpa = cpaQuotesCount > 0 ? cpaSpend / cpaQuotesCount : 0;
 
   /** 최다 접수 담당자 카드 — 미지정은 순위·평균에서 빼고, 하단 줄에는 담당 현황만 보여 준다 */
-  const repCard = (label: string, rows: QuoteRawRow[], withAverage = true) => {
+  const repCard = (label: string, rows: QuoteRawRow[], prevRows: QuoteRawRow[] | null = null, withAverage = true) => {
     const counts = new Map<string, number>();
     rows.forEach((r) => {
       if (r.salesRep) counts.set(r.salesRep, (counts.get(r.salesRep) || 0) + 1);
@@ -126,8 +125,12 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     const assigned = sumBy(ranked, ([, n]) => n);
     const average = assigned / ranked.length;
     const unassigned = rows.length - assigned;
+    const prevTopCount = prevRows && top
+      ? prevRows.filter((r) => r.salesRep === top[0]).length || null
+      : null;
     const items: [string, string][] = [
       ['담당자', `${fmt(ranked.length)}명`],
+      ...(top ? ([['최다 접수', `${top[1]}건`]] as [string, string][]) : []),
       ...(withAverage ? ([['1인 평균', `${average < 10 ? average.toFixed(1) : fmt(average)}건`]] as [string, string][]) : []),
       ...(unassigned ? ([['미지정', `${fmt(unassigned)}건`]] as [string, string][]) : []),
     ];
@@ -135,7 +138,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
       <KpiCard
         label={label}
         value={top?.[0] || '–'}
-        sub={top ? `${fmt(top[1])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
+        cur={top?.[1] ?? null}
+        prev={prevTopCount}
+        cmpLabel={prevRows ? '전월' : undefined}
         detail={top ? <KpiDetailItems items={items} /> : null}
       />
     );
@@ -259,7 +264,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
               detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotesCount)}건</b></p></> : null}
             />
-            {repCard('전체 최다 접수 담당자', quotesRaw, false)}
+            {repCard('전체 최다 접수 담당자', quotesRaw, null, false)}
             <KpiCard
               label="전체 최다 견적 카테고리"
               value={topCat?.k || '–'}
@@ -303,6 +308,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
             const mo = r.date?.slice(0, 7) ?? '';
             return yearTotal ? mo.startsWith(yr) && mo <= curM : mo === curM;
           }),
+          yearTotal ? null : quotesRaw.filter((r) => r.date?.slice(0, 7) === pv),
         )}
         <KpiCard
           label={`${kpiLabel} 최다 견적 카테고리`}

@@ -5,6 +5,7 @@ import {
   catSum,
   cpaRankByCat1,
   fmt,
+  fmtWon,
   mLabel,
   prevM,
   LEGACY_ONLY_CATS,
@@ -14,7 +15,7 @@ import {
 } from '../utils/format';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
-import { KpiCard, KpiSection } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import {
   CategoryFilter,
@@ -185,6 +186,22 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     : bestCpaPool.find((c) => c.k.split(' > ').pop() !== '기타');
   const avgCpa = totQuotes > 0 ? totSpend / totQuotes : 0;
 
+  // KPI 비교 기준: 월 선택은 전월, 연도 전체는 전년 동기. 전체 기간은 비교하지 않는다
+  const cmpLabel = allPeriod ? undefined : yearTotal ? '전년 동기' : '전월';
+  const prevInputs = prevMonths.map((mo) => ({
+    rows: data.quotes.filter((r) => r.month === mo),
+    spend: catSum(categoryMap, data.spend.filter((r) => r.month === mo), (r) => r.cost),
+  }));
+  const qPrevOf = (c: string) => sumBy(prevInputs, (m) => quoteCountFor(m.rows, c, m.spend));
+  const cpaOf = (cost: number, quotes: number) => (quotes > 0 ? cost / quotes : null);
+  // 최고 효율은 1차 합산일 수 있어 그 아래 2차까지 더해 같은 기준으로 비교한다
+  const bestPrevKeys = bestCpaCat ? allCatKeys.filter((k) => k === bestCpaCat.k || k.startsWith(`${bestCpaCat.k} > `)) : [];
+  const bestPrevCpa = cpaOf(sumBy(bestPrevKeys, (k) => catSpendPrev[k] || 0), sumBy(bestPrevKeys, qPrevOf));
+  const totSpendPrev = isFiltered ? sumBy(catKeys, (k) => catSpendPrev[k] || 0) : sumBy(rowsPrev, (r) => r.cost);
+  const totQuotesPrev = isFiltered ? sumBy(catKeys, qPrevOf) : sumBy(prevInputs.flatMap((m) => m.rows), (r) => r.count);
+  const sharePct = (n: number, total: number) => `${(total > 0 ? (n / total) * 100 : 0).toFixed(1)}%`;
+  const noCompareSub = allPeriod ? periodLabel : undefined;
+
   const fullList = buildCategoryBarItems(
     filterByCategory(catSpendCur, catFilter.cat1, catFilter.cat2),
     filterByCategory(catSpendPrev, catFilter.cat1, catFilter.cat2),
@@ -232,22 +249,38 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         <KpiCard
           label="최다 집행 카테고리"
           value={topSpendCat?.k || '–'}
-          sub={`${fmt(topSpendCat?.cost || 0)}원 (${(topSpendCat?.share || 0).toFixed(1)}%)`}
+          cur={topSpendCat?.cost}
+          prev={topSpendCat?.prevCost}
+          cmpLabel={cmpLabel}
+          sub={noCompareSub}
+          detail={topSpendCat ? <KpiDetailItems items={[['광고비', fmtWon(topSpendCat.cost)], ['비중', sharePct(topSpendCat.cost, totSpend)]]} /> : null}
         />
         <KpiCard
           label="최다 견적 카테고리"
           value={topQuoteCat?.k || '–'}
-          sub={`${fmt(topQuoteCat?.quotes || 0)}건 접수`}
+          cur={topQuoteCat?.quotes}
+          prev={topQuoteCat ? qPrevOf(topQuoteCat.k) : null}
+          cmpLabel={cmpLabel}
+          sub={noCompareSub}
+          detail={topQuoteCat ? <KpiDetailItems items={[['견적', `${fmt(topQuoteCat.quotes)}건`], ['비중', sharePct(topQuoteCat.quotes, totQuotes)]]} /> : null}
         />
         <KpiCard
           label="최고 효율 (최저 CPA)"
           value={bestCpaCat?.k || '–'}
-          sub={bestCpaCat ? `건당 ${fmt(bestCpaCat.cpa)}원` : '–'}
+          cur={bestCpaCat?.cpa}
+          prev={bestPrevCpa}
+          cmpLabel={cmpLabel}
+          sub={noCompareSub}
+          detail={bestCpaCat ? <KpiDetailItems items={[['건당', `${fmt(bestCpaCat.cpa)}원`], ['견적', `${fmt(bestCpaCat.quotes)}건`]]} /> : null}
         />
         <KpiCard
           label={`${periodLabel} 전체 평균 CPA`}
           value={avgCpa ? `${fmt(avgCpa)}원` : '–'}
-          sub={`광고비 ${fmt(totSpend)}원 / ${totQuotes}건`}
+          cur={avgCpa || null}
+          prev={cpaOf(totSpendPrev, totQuotesPrev)}
+          cmpLabel={cmpLabel}
+          sub={noCompareSub}
+          detail={<KpiDetailItems items={[['광고비', fmtWon(totSpend)], ['견적', `${fmt(totQuotes)}건`]]} />}
         />
       </KpiSection>
 
