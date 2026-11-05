@@ -129,8 +129,8 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
     ? <KpiDetailItems items={[['네이버', fmtWon(naverCost)], ['구글', fmtWon(googleCost)]]} />
     : null;
   const cpcItems: [string, number | string][] = [];
-  if (naverCpc  > 0) cpcItems.push(['네이버', `${fmt(naverCpc)}원`]);
-  if (googleCpc > 0) cpcItems.push(['구글',   `${fmt(googleCpc)}원`]);
+  cpcItems.push(['네이버', naverCpc  > 0 ? `${fmt(naverCpc)}원`  : naverRows.length  === 0 ? '미수집' : '–']);
+  cpcItems.push(['구글',   googleCpc > 0 ? `${fmt(googleCpc)}원` : googleRows.length === 0 ? '미수집' : '–']);
   const cpcDetail = cpcItems.length > 0 ? <KpiDetailItems items={cpcItems} /> : null;
 
   const cost = catSum(categoryMap, rows, (r) => r.cost);
