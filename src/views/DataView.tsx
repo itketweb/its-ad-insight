@@ -171,7 +171,7 @@ export const DataView: React.FC<DataViewProps> = ({ data, categoryMap, status, l
                   className="link-acc"
                 >
                   광고비·전환·견적 취합 시트 (1mxrTeh7bo...)
-                  <ArrowUpRight size={12} aria-hidden="true" />
+                  <ArrowUpRight size="0.75rem" aria-hidden="true" />
                 </a>
               </td>
             </tr>

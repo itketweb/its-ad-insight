@@ -16,7 +16,7 @@ interface ButtonStyleProps {
   iconOnly?: boolean;
 }
 
-const ICON_SIZE: Record<ButtonSize, number> = { md: 16, sm: 14, xs: 13 };
+const ICON_SIZE: Record<ButtonSize, string> = { md: '1rem', sm: '0.875rem', xs: '0.8125rem' };
 
 const buttonClass = (
   { variant = 'default', size = 'md', icon, iconOnly }: ButtonStyleProps,

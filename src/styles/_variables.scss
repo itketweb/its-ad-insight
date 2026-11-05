@@ -28,6 +28,8 @@
   --c-ka: #d99b00;
   --c-etc: #c98a1a;
   --c-it: #c9573f;
+  --c-pink: #b84e82;
+  --c-rest: #8f97a8;
   --grp-naver-bg: #f2faf5;
   --grp-naver-ink: #166534;
   --grp-naver-hov: #e6f6ec;
@@ -66,6 +68,8 @@
   --c-ka: #f2c12e;
   --c-etc: #e0a53c;
   --c-it: #ee7a5f;
+  --c-pink: #e07aaa;
+  --c-rest: #6a7585;
   --grp-naver-bg: #13241b;
   --grp-naver-ink: #86efac;
   --grp-naver-hov: #182e23;
@@ -104,6 +108,8 @@
     --c-ka: #f2c12e;
     --c-etc: #e0a53c;
     --c-it: #ee7a5f;
+    --c-pink: #e07aaa;
+    --c-rest: #6a7585;
     --grp-naver-bg: #13241b;
     --grp-naver-ink: #86efac;
     --grp-naver-hov: #182e23;
@@ -115,7 +121,7 @@
 }
 
 html {
-  font-size: 16px;
+  font-size: 100%; // 브라우저 글자 크기 설정을 따른다 (기본 16px)
   min-width: 360px;
 }
 

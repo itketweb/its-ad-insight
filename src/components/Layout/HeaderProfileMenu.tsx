@@ -64,7 +64,7 @@ export const HeaderProfileMenu: React.FC<HeaderProfileMenuProps> = ({ onLogin })
           </>
         ) : (
           <>
-            <User size={14} />
+            <User size="0.875rem" />
             <span>로그인</span>
           </>
         )}

@@ -33,7 +33,7 @@ export const Pagination: React.FC<PaginationProps> = ({ page, totalPages, onChan
         title="이전 페이지"
         aria-label="이전 페이지"
       >
-        <ChevronLeft size={14} strokeWidth={2.25} aria-hidden="true" />
+        <ChevronLeft size="0.875rem" strokeWidth={2.25} aria-hidden="true" />
       </button>
       {pageNumbers.map((p, i) =>
         p === 'ellipsis' ? (
@@ -58,7 +58,7 @@ export const Pagination: React.FC<PaginationProps> = ({ page, totalPages, onChan
         title="다음 페이지"
         aria-label="다음 페이지"
       >
-        <ChevronRight size={14} strokeWidth={2.25} aria-hidden="true" />
+        <ChevronRight size="0.875rem" strokeWidth={2.25} aria-hidden="true" />
       </button>
     </nav>
   );

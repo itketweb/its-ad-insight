@@ -173,7 +173,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   const campTitle = (c: CampaignKeywordBucket) =>
     `${c.medias.map(mediaKo).join('·')} · ${c.campaign} (${c.groups.length}개 그룹)`;
   const campIcons = (c: CampaignKeywordBucket) =>
-    c.medias.map((m) => <MediaPill key={m} media={m} iconOnly size={10} />);
+    c.medias.map((m) => <MediaPill key={m} media={m} iconOnly size="0.625rem" />);
   const periodLabel = periodLabelProp || `${month.slice(0, 4)}년 ${mLabel(month)}`;
 
   return (
@@ -376,7 +376,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                                 strokeWidth={2.25}
                                 style={canOpen ? undefined : { visibility: 'hidden' }}
                               />
-                              {detailed && <MediaPill media={g.media} iconOnly size={14} />}
+                              {detailed && <MediaPill media={g.media} iconOnly size="0.875rem" />}
                               <span className="grp-acc-title">
                                 {selectedCamp ? g.adgroup : `${g.campaign} › ${g.adgroup}`}
                               </span>

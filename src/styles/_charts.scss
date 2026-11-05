@@ -329,6 +329,11 @@
 // 월별 견적 순위 막대 (MonthlyQuotesTable)
 .quote-rank-list {
   margin-top: 0.75rem;
+
+  // 색이 항목을 구분하므로 흐리게 하지 않는다
+  .cpa-bar {
+    opacity: 1;
+  }
 }
 
 .leg-note.quote-src-note {

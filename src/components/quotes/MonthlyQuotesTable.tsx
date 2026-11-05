@@ -55,8 +55,8 @@ const sharePct = (pct: number): string =>
 const REP_EMPTY_TEXT ='담당자 데이터가 아직 수집되지 않았습니다. 견적 데이터 수집이 다시 실행되면 표시됩니다.';
 const SRC_NOTE = "※ 유입 매체 추적은 2026년 10월 12일부터 시작되어 10월 이전 데이터는 '미수집' 상태입니다.";
 const CAT_OTHER = '기타';
-/** 색을 나눠 보여 주는 상위 카테고리 수 — 나머지는 같은 회색 계열 */
-const CAT_COLOR_LIMIT = 6;
+/** 순위 막대에서 색을 칠하는 상위 카테고리 수 (지금 보는 범위의 순위 기준) — 나머지는 회색 */
+const CAT_COLOR_LIMIT = 5;
 
 const monthOf = (r: QuoteRawRow): string => r.date?.slice(0, 7) ?? '';
 const repOf = (r: QuoteRawRow): string => r.salesRep || REP_UNASSIGNED;
@@ -195,18 +195,14 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
       return rankGroups(tally(scopeRaw, inquiryOf), (k) => INQUIRY_COLORS[k] || '--c-etc', CAT_OTHER);
     }
     if (summaryTab === 'cat') {
-      const order = scope === 'all' ? allCats : yearCats;
-      return rankGroups(
-        tally(quotes.filter((r) => scopeMonths.has(r.month)), (r) => cat1Of(r.category || CAT_OTHER), (r) => r.count),
-        (c) => {
-          const ci = order.indexOf(c);
-          return c === CAT_OTHER || ci >= CAT_COLOR_LIMIT ? '--c-etc' : QUOTE_COLORS[ci];
-        },
-        CAT_OTHER
-      );
+      const counts = tally(quotes.filter((r) => scopeMonths.has(r.month)), (r) => cat1Of(r.category || CAT_OTHER), (r) => r.count);
+      const colored = orderKeys(counts, CAT_OTHER)
+        .filter((c) => c !== CAT_OTHER && counts.get(c)! > 0)
+        .slice(0, CAT_COLOR_LIMIT);
+      return rankGroups(counts, (c) => QUOTE_COLORS[colored.indexOf(c)] || '--c-rest', CAT_OTHER);
     }
     return rankGroups(tally(scopeRaw.filter(isTrackedSource), (r) => r.source), sourceColorVar);
-  }, [summaryTab, scope, curM, months, dataMonths, quotes, quotesRaw, hasRepData, yearCats, allCats]);
+  }, [summaryTab, scope, curM, months, dataMonths, quotes, quotesRaw, hasRepData]);
 
   const isRep = summaryTab === 'rep';
   const isInquiry = summaryTab === 'type';

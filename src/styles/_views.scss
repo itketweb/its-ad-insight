@@ -1417,7 +1417,7 @@ tr.kw-more-row td {
 
 @media (max-width: 768px) {
   html {
-    font-size: 14px;
+    font-size: 87.5%; // 브라우저 기본 16px일 때 14px
     -webkit-text-size-adjust: 100%;
   }
   body {
