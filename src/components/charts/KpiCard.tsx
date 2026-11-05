@@ -1,5 +1,5 @@
 import React from 'react';
-import { pct } from '../../utils/format';
+import { fmt, pct } from '../../utils/format';
 
 interface KpiCardProps {
   label: React.ReactNode;
@@ -11,6 +11,20 @@ interface KpiCardProps {
   /** 카드 하단 보조 줄 (cmpLabel·sub와 별개로 항상 표시) */
   detail?: React.ReactNode;
 }
+
+/** 카드 하단 보조 줄의 항목 목록 — "이름 값 | 이름 값" */
+export const KpiDetailItems: React.FC<{ items: [string, number][] }> = ({ items }) => (
+  <>
+    {items.map(([label, value], i) => (
+      <React.Fragment key={label}>
+        {i > 0 && <i>|</i>}
+        <p>
+          {label} <b>{fmt(value)}</b>
+        </p>
+      </React.Fragment>
+    ))}
+  </>
+);
 
 export const KpiCard: React.FC<KpiCardProps> = ({
   label,
