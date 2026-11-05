@@ -43,7 +43,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
   { label: 'collectQuotes · collectQuoteStatsExtra · 1시간 자동 동기화' },
 ];
 
-export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing = false, selectedMonth, allPeriod = false, yearTotal = false }) => {
+export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMonth, allPeriod = false, yearTotal = false }) => {
   // 건수 통계는 아이티켓에 다른 사이트·전화문의를 더해 센다
   const { quotes, quotesRaw } = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
 
@@ -129,7 +129,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
       ? prevRows.filter((r) => r.salesRep === top[0]).length || null
       : null;
     const items: [string, string][] = [
-      ['담당자', `${fmt(ranked.length)}명`],
       ...(top ? ([['최다 접수', `${top[1]}건`]] as [string, string][]) : []),
       ...(withAverage ? ([['1인 평균', `${average < 10 ? average.toFixed(1) : fmt(average)}건`]] as [string, string][]) : []),
       ...(unassigned ? ([['미지정', `${fmt(unassigned)}건`]] as [string, string][]) : []),
@@ -199,6 +198,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     .slice(0, 2)
     .map((k): [string, number] => [k, sumBy(kpiQuotes.filter((r) => cat1Of(r.category) === k), (r) => r.count)]);
   const kpiCatRunnerUps = kpiCatRunnerUpItems.length ? <KpiDetailItems items={kpiCatRunnerUpItems} /> : null;
+  const pvTopCatCount = !yearTotal && kpiTopCatKey
+    ? sumBy(quotes.filter((r) => r.month === pv && cat1Of(r.category) === kpiTopCatKey), (r) => r.count)
+    : 0;
+  const catDelta = !yearTotal && kpiTopCat ? kpiTopCat.c - pvTopCatCount : null;
+  const catDeltaStr = catDelta !== null && catDelta !== 0
+    ? ` · ${catDelta > 0 ? '▲' : '▼'} ${fmt(Math.abs(catDelta))}건 전월`
+    : '';
 
   // KPI CPA: 월 선택 → 당월 / 전월 비교, 연도 전체 → 연간 / 전년 동기 비교
   const curSpendTot = sumBy(data.spend.filter((r) => r.month === curM), (r) => r.cost);
@@ -300,6 +306,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           cur={kpiCpa || null}
           prev={kpiPrevCpa}
           cmpLabel={kpiCpaCompLabel}
+          invertDelta
           detail={kpiCpaDetail}
         />
         {repCard(
@@ -313,7 +320,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
         <KpiCard
           label={`${kpiLabel} 최다 견적 카테고리`}
           value={kpiTopCat?.k || '–'}
-          sub={`${fmt(kpiTopCat?.c || 0)}건 (${kpiTotal > 0 ? (((kpiTopCat?.c || 0) / kpiTotal) * 100).toFixed(1) : 0}%)`}
+          sub={`${fmt(kpiTopCat?.c || 0)}건 (${kpiTotal > 0 ? (((kpiTopCat?.c || 0) / kpiTotal) * 100).toFixed(1) : 0}%)${catDeltaStr}`}
           detail={kpiCatRunnerUps}
         />
           </>

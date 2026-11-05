@@ -10,6 +10,8 @@ interface KpiCardProps {
   sub?: React.ReactNode;
   /** 카드 하단 보조 줄 (cmpLabel·sub와 별개로 항상 표시) */
   detail?: React.ReactNode;
+  /** CPA 등 낮을수록 좋은 지표 — ▼는 초록(up), ▲는 빨강(down)으로 반전 */
+  invertDelta?: boolean;
 }
 
 /** 카드 하단 보조 줄의 항목 목록 — "이름 값 | 이름 값" */
@@ -34,17 +36,23 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   cmpLabel,
   sub,
   detail,
+  invertDelta,
 }) => {
   const p = cur != null && prev != null ? pct(cur, prev) : null;
-  const cls = p && p.cls !== 'flat' ? ` ${p.cls}` : '';
+  const displayCls = p
+    ? invertDelta
+      ? (p.cls === 'down' ? 'up' : p.cls === 'up' ? 'down' : 'flat')
+      : p.cls
+    : null;
+  const cls = displayCls && displayCls !== 'flat' ? ` ${displayCls}` : '';
 
   return (
     <div className={`kpi${cls}`}>
       <div className="l">{label}</div>
       <div className="v">{value}</div>
       {cmpLabel ? (
-        p ? (
-          <div className={`d ${p.cls}`}>
+        p && displayCls ? (
+          <div className={`d ${displayCls}`}>
             {p.txt} <small>{cmpLabel}</small>
           </div>
         ) : (

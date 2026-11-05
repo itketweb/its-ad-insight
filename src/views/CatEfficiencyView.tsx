@@ -270,6 +270,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           cur={bestCpaCat?.cpa}
           prev={bestPrevCpa}
           cmpLabel={cmpLabel}
+          invertDelta
           sub={noCompareSub}
           detail={bestCpaCat ? <KpiDetailItems items={[['건당', `${fmt(bestCpaCat.cpa)}원`], ['견적', `${fmt(bestCpaCat.quotes)}건`]]} /> : null}
         />
@@ -279,6 +280,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           cur={avgCpa || null}
           prev={cpaOf(totSpendPrev, totQuotesPrev)}
           cmpLabel={cmpLabel}
+          invertDelta
           sub={noCompareSub}
           detail={<KpiDetailItems items={[['광고비', fmtWon(totSpend)], ['견적', `${fmt(totQuotes)}건`]]} />}
         />

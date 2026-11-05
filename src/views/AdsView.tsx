@@ -143,11 +143,12 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
     return c ? costIn(list) / c : 0;
   };
   const spendMonths = yearMonths.filter((mo) => tot(mo) > 0).length;
-  const curClk        = sumBy(at(curM), (r) => r.clk);
-  const curImp        = sumBy(at(curM), (r) => r.imp);
-  const pvClk         = sumBy(at(pv),   (r) => r.clk);
-  const curCpc        = curClk ? Math.round(tot(curM) / curClk) : 0;
-  const pvCpc         = pvClk  ? Math.round(tot(pv)   / pvClk)  : null;
+  const upTo = +curM.slice(5);
+  const ytd = (y: number) =>
+    sumBy(
+      data.spend.filter((r) => r.month >= ym(y, 1) && r.month <= ym(y, upTo)),
+      (r) => r.cost
+    );
   const curConv       = sumBy(at(curM), (r) => r.conv);
   const curGoogleCost = sumBy(at(curM).filter((r) => r.media === 'Google'), (r) => r.cost);
   const curNaverCost  = sumBy(at(curM).filter((r) => r.media === 'Naver'),  (r) => r.cost);
@@ -264,12 +265,11 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           })()}
         />
         <KpiCard
-          label={<>{mLabel(curM)} 클릭당 비용 <small className="muted">(CPC)</small></>}
-          value={curCpc ? `${fmt(curCpc)}원` : '–'}
-          cur={curCpc || null}
-          prev={pvCpc}
-          cmpLabel="전월"
-          detail={<KpiDetailItems items={[['클릭수', curClk], ['노출수', curImp]]} />}
+          label={`${Y}년 누적 (1~${upTo}월)`}
+          value={`${fmt(ytd(Y))}원`}
+          cur={ytd(Y)}
+          prev={ytd(Y - 1)}
+          cmpLabel="전년 동기"
         />
         <KpiCard
           label={`${mLabel(curM)} MDF 소진`}
@@ -285,6 +285,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           cur={cpa(curM)}
           prev={cpa(pv)}
           cmpLabel="전월"
+          invertDelta
           detail={<KpiDetailItems items={[['전환수', curConv]]} />}
         />
           </>

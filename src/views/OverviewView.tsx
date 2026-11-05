@@ -337,6 +337,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cur={ytdCpa || null}
               prev={lastYrMonths[0] >= starts.cpaFrom ? cpaIn(lastYrMonths) : null}
               cmpLabel="전년 동기"
+              invertDelta
               detail={ytdCpa ? <><p>광고비 <b>{fmtWon(ytdCpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(ytdAdQuotes)}건</b></p></> : null}
             />
             <KpiCard
