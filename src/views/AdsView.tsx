@@ -236,6 +236,7 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
               cur={cpaIn(yearMonths)}
               prev={cpaIn(lastYrMonths)}
               cmpLabel="전년 동기"
+              invertDelta
             />
           </>
         ) : (

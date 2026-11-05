@@ -217,6 +217,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const topSpendPct = topSpendCat && totalCatSpend > 0
     ? ((topSpendCat[1] / totalCatSpend) * 100).toFixed(1)
     : '0';
+  const catSpendPv = !yearTotal && !allPeriod ? catsMap(pv) : {};
+  const prevTopSpendAmt = topSpendCat ? (catSpendPv[topSpendCat[0]] ?? null) : null;
+  const topCatDelta = prevTopSpendAmt !== null && topSpendCat ? topSpendCat[1] - prevTopSpendAmt : null;
+  const topCatDeltaStr = topCatDelta !== null && topCatDelta !== 0
+    ? ` · ${topCatDelta > 0 ? '▲' : '▼'} ${fmtWon(Math.abs(topCatDelta))} 전월`
+    : '';
   const topSpendCatDetail = topSpendEntries.length > 1 ? (
     <>
       {topSpendEntries.slice(1, 3).map(([k, v], i) => (
@@ -385,12 +391,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cur={curCpa}
           prev={pvCpa}
           cmpLabel="전월"
+          invertDelta
           detail={curCpa > 0 ? <><p>광고비 <b>{fmtWon(curSpendTot)}</b></p><i>|</i><p>견적 <b>{fmt(curAdQuotes)}건</b></p></> : null}
         />
         <KpiCard
           label={`${mLabel(curM)} 최다 소진 카테고리`}
           value={topSpendCat?.[0] || '–'}
-          sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)` : undefined}
+          cur={topSpendCat?.[1] ?? null}
+          prev={prevTopSpendAmt}
+          sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)${topCatDeltaStr}` : undefined}
           detail={topSpendCatDetail}
         />
           </>

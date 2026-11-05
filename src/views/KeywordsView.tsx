@@ -233,6 +233,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           cur={kpiCpc || null}
           prev={hasPvData && pvCpc ? pvCpc : null}
           cmpLabel={cmpLabel}
+          invertDelta
           sub={`${fmt(totalClk)}클릭 기준`}
           detail={cpcDetail}
         />
