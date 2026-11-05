@@ -112,7 +112,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
       const k = r.inquiryType ? '전화/톡플러스' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
       counts[k] = (counts[k] || 0) + 1;
     });
-    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => k === 'cadkorea' || counts[k]);
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => k === 'cadkorea' || k === 'zbyhp' || counts[k]);
     if (parts.length <= 1) return null;
     return parts.map((k, i) => (
       <React.Fragment key={k}>{i > 0 && ' · '}{k} <b>{counts[k] ?? 0}</b></React.Fragment>
