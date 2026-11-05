@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ViewId } from '../../types/dashboard';
+import type { SyncStatus, ViewId } from '../../types/dashboard';
 import { useAuth } from '../../context/AuthContext';
 import { ChartColumnIncreasing, ChartLine, Database, DollarSign, FileText, LayoutGrid, Lock, Search, X } from 'lucide-react';
 import { Button } from '../common/Button';
@@ -7,8 +7,12 @@ import { Button } from '../common/Button';
 interface SidebarProps {
   currentView: ViewId;
   drawerOpen: boolean;
+  status: SyncStatus;
+  updated: string;
+  isSyncing: boolean;
   onNavigate: (view: ViewId) => void;
   onCloseDrawer: () => void;
+  onReload: () => void;
 }
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
@@ -52,10 +56,15 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   drawerOpen,
+  status,
+  updated,
+  isSyncing,
   onNavigate,
   onCloseDrawer,
+  onReload,
 }) => {
   const { isLoggedIn } = useAuth();
+  const live = status === 'live';
   return (
     <>
       <div className={`scrim${drawerOpen ? ' on' : ''}`} id="scrim" onClick={onCloseDrawer} />
@@ -131,9 +140,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
         {/* 마케팅팀 · 배포 날짜 기준 릴리즈 (같은 날 여러 번이면 -2, -3 …) */}
         <div className="sfoot">
-          마케팅팀 ·{' '}
-          <span className="rel" title={__APP_COMMIT__ ? `커밋 ${__APP_COMMIT__}` : undefined}>
-            {__APP_RELEASE__}
+          <span className={`upd${live ? ' live' : ''}`}>
+            {live ? (
+              <span className="upd-body">
+                <span>{updated || '취합본'} 수집</span>
+                {isSyncing && <span className="sync-pulse">동기화 중...</span>}
+              </span>
+            ) : (
+              <span className="upd-body">
+                <span>{status === 'error' ? '연동 지연 (자동 재시도 중)' : '실데이터 자동 연결 중...'}</span>
+                <Button variant="link" className="btn-reload" id="btn-reload" data-btn="reload" onClick={onReload}>
+                  지금 새로고침
+                </Button>
+              </span>
+            )}
+          </span>
+          <span className="sfoot-ver">
+            마케팅팀 ·{' '}
+            <span className="rel" title={__APP_COMMIT__ ? `커밋 ${__APP_COMMIT__}` : undefined}>
+              {__APP_RELEASE__}
+            </span>
           </span>
         </div>
       </aside>

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { CatEfficiencyItem } from './types';
-import { fmt, mLabel, sumBy } from '../../utils/format';
+import { fmt, sumBy } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { TableFootnote } from '../common/TableFootnote';
 import { ChevronRight } from 'lucide-react';
@@ -11,7 +11,8 @@ import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
 
 interface CatEfficiencyTableProps {
   catData: CatEfficiencyItem[];
-  curM: string;
+  /** 기준 기간 표시 (예: 10월, 2026년 1~11월) */
+  periodLabel: string;
   totSpend: number;
   totClk: number;
   totConv: number;
@@ -34,7 +35,7 @@ interface ParentGroup {
 
 export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
   catData,
-  curM,
+  periodLabel,
   totSpend,
   totClk,
   totConv,
@@ -114,7 +115,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
     <Card name="cat-table" tableWrap id="cat-table">
       <h3 id="ttCatTable">
         카테고리별 집행 성과 및 전환 효율 상세
-        <span className="muted">({mLabel(curM)} 기준)</span>
+        <span className="muted">({periodLabel} 기준)</span>
       </h3>
       <table className="stk" id="tbCatEfficiency">
         <colgroup>
@@ -134,8 +135,8 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
             {th('비중', 'share')}
             {th('클릭수', 'clk')}
             {th('광고전환', 'conv')}
-            {th('광고전환율', 'convRate')}
-            {th('총 견적', 'quotes')}
+            {th('견적전환율', 'convRate')}
+            {th('접수견적(아이티켓)', 'quotes')}
             {th('건당 광고비 (CPA)', 'cpa')}
           </tr>
         </thead>
@@ -204,7 +205,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
       <TableFootnote
         id="srcCatEfficiency"
         unit="원·건"
-        basis="산출 근거: 광고전환율 = (총 견적 ÷ 클릭수) × 100 · CPA = 광고비 ÷ 총 견적"
+        basis="산출 근거: 견적전환율 = (접수견적 ÷ 클릭수) × 100 · CPA = 광고비 ÷ 접수견적"
         sources={[
           <span key="ads">
             광고비·클릭·전환 —{' '}
@@ -213,7 +214,7 @@ export const CatEfficiencyTable: React.FC<CatEfficiencyTableProps> = ({
             <a href={EXTERNAL_LINKS.naverSearchAd} target="_blank" rel="noopener">네이버 검색광고</a>{' '}
             API 자동 수집
           </span>,
-          '총 견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)',
+          '접수견적 — 아이티켓 고도몰 견적 시트 (collectQuotes)',
         ]}
       />
     </Card>

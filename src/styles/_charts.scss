@@ -122,9 +122,11 @@
   transition: opacity 0.15s;
 }
 
-/* ── 스마트 툴팁 ── */
+/* ── 스마트 툴팁 ── 바탕이 본문과 반대(--ink)라 글자는 --card 기준으로 쓴다 (--ink·--sub 는 바탕에 묻힌다) */
 .tip-box {
   min-width: 11rem;
+  --tip-text: var(--card);
+  --tip-text-sub: color-mix(in srgb, var(--card) 78%, var(--ink));
 }
 
 .tip-h {
@@ -136,11 +138,11 @@
   font-weight: 600;
   padding-bottom: 0.5rem;
   margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid color-mix(in srgb, var(--card) 30%, var(--ink));
 
   b {
     font-size: 0.875rem;
-    color: var(--accink);
+    color: var(--tip-text);
     font-weight: 700;
   }
 }
@@ -162,7 +164,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: var(--ink2);
+    color: var(--tip-text);
 
     i {
       width: 0.5rem;
@@ -174,12 +176,12 @@
 
   b {
     font-weight: 600;
-    color: var(--ink);
+    color: var(--tip-text);
     font-variant-numeric: tabular-nums;
   }
 
   small {
-    color: var(--sub);
+    color: var(--tip-text-sub);
     font-weight: 400;
     margin-left: 0.25rem;
   }
@@ -297,7 +299,7 @@
 
 .cpa-row {
   display: grid;
-  grid-template-columns: 6.5rem 1fr 10.75rem;
+  grid-template-columns: 9rem 1fr 10rem;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.875rem;
@@ -370,7 +372,7 @@
 }
 
 .cpa-badge {
-  width: 4.75rem;
+  width: 5rem;
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   background: var(--accbg);
@@ -392,6 +394,13 @@
 
   .cpa-val {
     width: 3.25rem;
+  }
+}
+
+/* 1024px 초과 1200px 이하: 2열 그리드에서 카드가 좁아져 1fr 막대가 사라지는 구간 — 이름 열을 줄여 막대 공간을 확보 */
+@media (min-width: 1025px) and (max-width: 1200px) {
+  .cpa-row {
+    grid-template-columns: 6rem 1fr 10rem;
   }
 }
 

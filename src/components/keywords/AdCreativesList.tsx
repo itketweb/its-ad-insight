@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Images } from 'lucide-react';
 import type { AdGroupCreatives, AdRow } from '../../types/dashboard';
 import { adStatKey, displayAdTitle, getCreativeImages, MEDIA_COLOR_VARS, type AdStat } from '../../utils/creativeImage';
@@ -19,7 +20,7 @@ interface AdCreativesListProps {
   stats: Record<string, AdStat>;
   /** 실데이터를 받는 중 — 아직 없는 성과는 – 대신 스켈레톤으로 보여 준다 */
   loading: boolean;
-  /** 기준월 표시 (예: 10월) */
+  /** 기준 기간 표시 (예: 2026년 10월, 2026년 1~11월) */
   periodLabel: string;
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
@@ -51,37 +52,60 @@ const METRICS: { key: string; label: string; value: (s: AdStat) => string }[] = 
 const CreativeImage: React.FC<{ ad: AdRow; src: string; title: string }> = ({ ad, src, title }) => {
   const [broken, setBroken] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const showImg = src && !broken;
+  const canOpen = showImg && loaded;
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [lightbox]);
 
   return (
     // 이미지는 외부(소재 서버)에서 늦게 올 수 있어, 받기 전까지 스켈레톤 면을 보여 준다
-    <div
-      className={`cr-img${showImg && !loaded ? ' is-loading' : ''}`}
-      style={showImg ? undefined : { background: `var(${MEDIA_COLOR_VARS[ad.media] || '--c-it'})` }}
-      aria-busy={showImg && !loaded ? true : undefined}
-    >
-      {showImg ? (
-        <img
-          src={src}
-          alt={title}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onLoad={() => setLoaded(true)}
-          onError={() => setBroken(true)}
-        />
-      ) : (
-        <>
-          {title}
-          <small>
-            {broken
-              ? '이미지를 불러오지 못함'
-              : ad.type === 'SA'
-                ? '텍스트 광고 · 이미지 소재 없음'
-                : '이미지 소재 없음'}
-          </small>
-        </>
+    <>
+      <div
+        className={`cr-img${showImg && !loaded ? ' is-loading' : ''}${canOpen ? ' is-clickable' : ''}`}
+        style={showImg ? undefined : { background: `var(${MEDIA_COLOR_VARS[ad.media] || '--c-it'})` }}
+        aria-busy={showImg && !loaded ? true : undefined}
+        onClick={canOpen ? () => setLightbox(true) : undefined}
+      >
+        {showImg ? (
+          <img
+            src={src}
+            alt={title}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoaded(true)}
+            onError={() => setBroken(true)}
+          />
+        ) : (
+          <>
+            {title}
+            <small>
+              {broken
+                ? '이미지를 불러오지 못함'
+                : ad.type === 'SA'
+                  ? '텍스트 광고 · 이미지 소재 없음'
+                  : '이미지 소재 없음'}
+            </small>
+          </>
+        )}
+      </div>
+      {lightbox && createPortal(
+        <div className="cr-lightbox" onClick={() => setLightbox(false)}>
+          <img
+            src={src}
+            alt={title}
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 };
 
@@ -182,12 +206,12 @@ const Gallery: React.FC<{ ad: AdRow; images: string[]; label?: string }> = ({ ad
       <ul className="cr-gallery">
         {images.map((src, i) => (
           <li key={src}>
-            <a href={src} target="_blank" rel="noopener noreferrer" title="원본 이미지를 새 탭에서 열기">
+            <div>
               <CreativeImage ad={ad} src={src} title={`${title} (${i + 1}/${images.length})`} />
               <span className="cr-no">
                 {i + 1} / {images.length}
               </span>
-            </a>
+            </div>
           </li>
         ))}
       </ul>
@@ -241,7 +265,7 @@ const AdBody: React.FC<{
 const Metrics: React.FC<{ stat?: AdStat; loading: boolean }> = ({ stat, loading }) => {
   const pending = !stat && loading;
   // 실적이 없으면 빈 칸 다섯 개 대신 한 줄로
-  if (!stat && !pending) return <p className="cr-metrics is-empty">기준월 실적 없음</p>;
+  if (!stat && !pending) return <p className="cr-metrics is-empty">선택 기간 실적 없음</p>;
   return (
     <dl className="cr-metrics" aria-busy={pending || undefined}>
       {METRICS.map((m) => (

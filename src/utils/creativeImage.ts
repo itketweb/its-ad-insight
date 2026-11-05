@@ -30,6 +30,11 @@ export function displayAdTitle(title: string): string {
   return title.replace(/\{keyword:([^}]*)\}/gi, '$1');
 }
 
+/** 소재 이름 — 제목 자리에 소재 종류 코드(SHOPPING_PRODUCT_AD 등)만 있으면 광고그룹 이름을 쓴다 */
+export function adDisplayTitle(ad: { title: string; adgroup: string }): string {
+  return (ad.title && !/^[A-Z0-9_]+$/.test(ad.title) && displayAdTitle(ad.title)) || ad.adgroup;
+}
+
 /** 소재를 광고그룹별로 묶는다 — 들어온 순서(실적 큰 소재부터)를 그룹 안에서도 지킨다 */
 export function groupAdsByAdgroup(ads: AdRow[]): AdGroupCreatives[] {
   const map = new Map<string, AdGroupCreatives>();

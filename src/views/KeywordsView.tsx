@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import type {
   AdRow,
-  CampaignKeywordBucket,
   CategoryMap,
   DashboardData,
-  KeywordGroup,
-  KeywordRow,
   SyncStatus,
 } from '../types/dashboard';
 import { catSum, catsOf, mLabel, THIS_M } from '../utils/format';
@@ -25,6 +22,8 @@ import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTa
 import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
+import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
+import { campaignBuckets, groupKeywordRows } from '../utils/keywordGroups';
 
 interface KeywordsViewProps {
   data: DashboardData;
@@ -33,6 +32,10 @@ interface KeywordsViewProps {
   /** 실데이터를 받는 중 (화면은 저장해 둔 이전 데이터로 먼저 그린다) */
   isSyncing?: boolean;
   selectedMonth?: string;
+  /** 기간 선택이 '전체' */
+  allPeriod?: boolean;
+  /** 월 선택이 '전체' — selectedMonth 는 그 연도의 마지막 달이다 */
+  yearTotal?: boolean;
 }
 
 const KEYWORDS_SOURCES: SourceLinkItem[] = [
@@ -48,6 +51,8 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   status,
   isSyncing = false,
   selectedMonth,
+  allPeriod = false,
+  yearTotal = false,
 }) => {
   const [media, setMedia] = useState<'all' | 'Google' | 'Naver'>('all');
   const [type, setType] = useState<'SA' | 'DA'>('SA');
@@ -80,7 +85,9 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
     ms.filter((m) => m <= THIS_M).pop() ||
     ms[ms.length - 1] ||
     THIS_M;
-  const rows = data.spend.filter((r) => r.month === mo && pass(r));
+  const periodMonths = yearTotal ? monthsUpTo(mo) : [mo];
+  const inPeriod = allPeriod ? () => true : inMonths(periodMonths);
+  const rows = data.spend.filter((r) => inPeriod(r) && pass(r));
   const cost = catSum(categoryMap, rows, (r) => r.cost);
   const clk = catSum(categoryMap, rows, (r) => r.clk);
   const conv = catSum(categoryMap, rows, (r) => r.conv);
@@ -90,33 +97,15 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const catFilter = buildCategoryFilter(ck, catState);
   const filteredCk = ck.filter((k) => matchesCategory(k, catFilter.cat1, catFilter.cat2));
 
-  // 키워드 그룹 집계 (SA) - 선택된 월(mo) 기준 집계
-  const ks = data.keywords.filter((k) => k.month === mo && pass(k));
+  // 키워드 그룹 집계 (SA) - 선택된 기간 기준 집계
+  const monthKs = data.keywords.filter((k) => inPeriod(k) && pass(k));
+  const ks = allPeriod || yearTotal ? mergeKeywordMonths(monthKs) : monthKs;
   // 키워드 실적이 있는 가장 이른 달 — 이보다 앞선 달은 키워드 재구성 전이라 비어 있다
   const kwFirstMonth = data.keywords
     .filter(pass)
     .map((k) => k.month)
     .sort()[0];
-  const groups: Record<string, KeywordGroup> = {};
-  const sumClk = (list: KeywordRow[]) => list.reduce((a, k) => a + k.clk, 0);
-  ks.forEach((k) => {
-    const g = [k.media, k.campaign, k.adgroup].join('\u0001');
-    if (!groups[g]) {
-      groups[g] = {
-        media: k.media,
-        campaign: k.campaign,
-        adgroup: k.adgroup,
-        cost: 0,
-        list: [],
-      };
-    }
-    groups[g].list.push(k);
-    groups[g].cost += k.cost;
-  });
-
-  const allGroups = Object.values(groups).sort(
-    (a, b) => b.cost - a.cost || sumClk(b.list) - sumClk(a.list)
-  );
+  const allGroups = groupKeywordRows(ks);
 
   // 카테고리 필터 — 광고그룹의 매핑 카테고리로 판단해 키워드 그룹과 주요 · 확장 소재에 똑같이 적용
   const inCategory = (g: { media: string; campaign: string; adgroup: string }) =>
@@ -130,21 +119,8 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const topGroups = activeGroups;
 
   // 캠페인 탭: 캠페인명 단위로 묶고(같은 이름은 Google·Naver 합산) 광고비 상위 10개 캠페인
-  const campMap: Record<string, CampaignKeywordBucket> = {};
-  activeGroups.forEach((g) => {
-    const key = g.campaign.trim();
-    if (!campMap[key]) {
-      campMap[key] = { medias: [], campaign: key, cost: 0, groups: [] };
-    }
-    if (!campMap[key].medias.includes(g.media)) {
-      campMap[key].medias.push(g.media);
-      campMap[key].medias.sort();
-    }
-    campMap[key].groups.push(g);
-    campMap[key].cost += g.cost;
-  });
   // 전부 넘기고, 상위 10개만 탭으로 보이며 나머지는 '더보기' 목록에 둔다
-  const campaigns = Object.values(campMap).sort((a, b) => b.cost - a.cost);
+  const campaigns = campaignBuckets(activeGroups);
 
   // 주요 소재: 기준월 광고비가 큰 캠페인의 소재부터
   const campCost: Record<string, number> = {};
@@ -155,7 +131,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   // 소재별 기준월 실적 — 캠페인 안에서는 비용(없으면 노출)이 큰 소재부터 고른다
   const adStats: Record<string, AdStat> = {};
   (data.adStats || [])
-    .filter((s) => s.month === mo)
+    .filter(inPeriod)
     .forEach((s) => {
       const k = adStatKey(s.media, s.adId);
       const cur = adStats[k] || (adStats[k] = { cost: 0, imp: 0, clk: 0, conv: 0 });
@@ -175,6 +151,8 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
     (g) => campCost[`${g.media}\u0001${g.campaign}`] || 0
   );
 
+  const periodLabel = allPeriod ? '전체 기간' : yearTotal ? yearRangeLabel(mo) : `${mo.slice(0, 4)}년 ${mLabel(mo)}`;
+
   return (
     <div className="view on" data-view="keywords" data-title="키워드 · 소재">
       <ViewHeader
@@ -182,6 +160,13 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
         description="광고그룹별 검색 키워드 입찰/품질/전환 지표 및 배너·확장 소재 현황"
         status={status}
       />
+
+      {allPeriod && (
+        <p className="leg-note quote-src-note">
+          ※ 전체 기간 합산입니다.
+          {type === 'SA' && kwFirstMonth && ` 키워드별 실적은 ${dotYm(kwFirstMonth)}부터 있어 카테고리 표의 광고비와 기간이 다릅니다.`}
+        </p>
+      )}
 
       <div className="mock-bar">
         <SegmentedControl<'all' | 'Google' | 'Naver'>
@@ -215,7 +200,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
       </div>
 
       <KeywordCategoryTable
-        month={mo}
+        periodLabel={allPeriod ? '전체 기간' : yearTotal ? yearRangeLabel(mo) : mLabel(mo)}
         categoryKeys={filteredCk}
         costByCat={cost}
         clkByCat={clk}
@@ -229,6 +214,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
           topGroups={topGroups}
           campaigns={campaigns}
           month={mo}
+          periodLabel={periodLabel}
           firstMonth={kwFirstMonth}
           media={media}
           type={type}
@@ -238,7 +224,7 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
       )}
 
       {(type === 'SA' || adGroups.length > 0) && (
-        <AdCreativesList groups={adGroups} stats={adStats} loading={isSyncing} periodLabel={`${mo.slice(0, 4)}년 ${mLabel(mo)}`} media={media} type={type} />
+        <AdCreativesList groups={adGroups} stats={adStats} loading={isSyncing} periodLabel={periodLabel} media={media} type={type} />
       )}
       <SecSrc sources={KEYWORDS_SOURCES} />
     </div>

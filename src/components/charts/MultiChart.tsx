@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ChartType, SeriesItem } from '../../types/dashboard';
-import { axisC, fmt, niceMax, rem } from '../../utils/format';
+import { axisC, fmt, measureSvgText, niceMax, rem } from '../../utils/format';
 import { useElementWidth } from '../../hooks/useElementWidth';
 import { SegmentedControl } from '../common/SegmentedControl';
 import { EmptyState } from '../common/EmptyState';
@@ -104,9 +104,29 @@ export const MultiChart: React.FC<MultiChartProps> = ({
   const renderDonutSvg = () => {
     const sums = series.map((s) => s.v.reduce((a, v) => a + (v || 0), 0));
     const total = Math.max(1, sums.reduce((a, v) => a + v, 0));
-    const cx = W * 0.4;
+    const fsName = r * 0.7;
+    const fsNameHover = r * 0.82;
+    const fsPct = r * 0.75;
+    const fsPctHover = r * 0.9;
+
+    // 범례 자리는 가장 긴 이름과 비율이 겹치지 않을 만큼 잡는다 (마우스를 올려 글자가 커져도). 원 자리를 지키도록 최대 58%까지만 쓰고, 넘치는 이름은 말줄임
+    const pctEnd = W - R * 0.5;
+    const pctW = measureSvgText('100.0%', fsPctHover) * 1.05;
+    const nameX = r * 0.88;
+    const nameGap = r * 0.75;
+    const nameMax = Math.max(r * 3, pctEnd * 0.58 - nameX - nameGap - pctW);
+    const nameW = Math.min(nameMax, Math.max(...series.map((s) => measureSvgText(s.k, fsNameHover) * 1.04)));
+    const lx = Math.min(W * 0.74, pctEnd - pctW - nameGap - nameW - nameX);
+    const fitName = (text: string, fontSize: number, maxW: number) => {
+      if (measureSvgText(text, fontSize) <= maxW) return text;
+      let cut = text;
+      while (cut.length > 1 && measureSvgText(`${cut}…`, fontSize) > maxW) cut = cut.slice(0, -1);
+      return `${cut}…`;
+    };
+
+    const cx = lx * 0.54;
     const cy = H / 2;
-    const ro = Math.min(W * 0.36, H / 2 - r) * 0.88;
+    const ro = Math.min(lx * 0.486, H / 2 - r) * 0.88;
     const ri = ro * 0.58;
     const midR = (ro + ri) / 2;
     const sw = ro - ri;
@@ -114,10 +134,6 @@ export const MultiChart: React.FC<MultiChartProps> = ({
     const swBase = sw;
     const swHover = sw * 1.22;
     const swFade = sw * 0.72;
-    const fsName = r * 0.7;
-    const fsNameHover = r * 0.82;
-    const fsPct = r * 0.75;
-    const fsPctHover = r * 0.9;
 
     let cumFrac = 0;
     const circles = series.map((s, si) => {
@@ -147,8 +163,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
       );
     });
 
-    const lx = W * 0.74;
-    const rowH = Math.min((ph * 0.9) / S, 2.2 * r);
+    const rowH =Math.min((ph * 0.9) / S, 2.2 * r);
     const ly0 = cy - (S / 2 - 0.5) * rowH;
 
     const hoveredItem = hoverPie !== null ? series[hoverPie] : null;
@@ -165,7 +180,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
           fill="var(--sub)"
           style={{ fontSize: `${hoverPie !== null ? r * 0.68 : r * 0.72}px` }}
         >
-          {hoveredItem ? hoveredItem.k : '기간 합산'}
+          {hoveredItem ? fitName(hoveredItem.k, r * 0.68, ri * 1.7) : '기간 합산'}
         </text>
         <text
           className="pie-value"
@@ -195,7 +210,7 @@ export const MultiChart: React.FC<MultiChartProps> = ({
               />
               <text
                 className="pie-leg-name"
-                x={lx + r * 0.88}
+                x={lx + nameX}
                 y={ly}
                 fill="var(--ink2)"
                 style={{
@@ -203,7 +218,8 @@ export const MultiChart: React.FC<MultiChartProps> = ({
                   fontWeight: isHovered ? 700 : 400,
                 }}
               >
-                {s.k}
+                <title>{s.k}</title>
+                {fitName(s.k, isHovered ? fsNameHover : fsName, nameW)}
               </text>
               <text
                 className="pie-leg-pct"

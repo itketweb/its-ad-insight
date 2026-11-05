@@ -22,6 +22,7 @@ import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
 import { Card } from '../components/common/Card';
 import { SkelBar } from '../components/common/SkeletonView';
 import { EmptyState } from '../components/common/EmptyState';
+import { dotYm, inMonths, yearRangeLabel, yearsOf } from '../utils/allPeriod';
 
 interface QuotesViewProps {
   data: DashboardData;
@@ -29,6 +30,10 @@ interface QuotesViewProps {
   /** 실데이터를 받는 중 */
   isSyncing?: boolean;
   selectedMonth?: string;
+  /** 기간 선택이 '전체' */
+  allPeriod?: boolean;
+  /** 월 선택이 '전체' — selectedMonth 는 그 연도의 마지막 달이다 */
+  yearTotal?: boolean;
 }
 
 const QUOTES_SOURCES: SourceLinkItem[] = [
@@ -38,7 +43,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
   { label: 'collectQuotes · collectQuoteStatsExtra · 1시간 자동 동기화' },
 ];
 
-export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing = false, selectedMonth }) => {
+export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing = false, selectedMonth, allPeriod = false, yearTotal = false }) => {
   // 건수 통계는 아이티켓에 다른 사이트·전화문의를 더해 센다
   const { quotes, quotesRaw } = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
 
@@ -66,17 +71,23 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
 
   const allAvailable = quotes.map((r) => r.month).filter(Boolean).sort();
   const fallbackLast = quotes.reduce((m, r) => (r.month > m ? r.month : m), '');
-  const last =
+  const last = allPeriod ? fallbackLast :
     (selectedMonth && allAvailable.includes(selectedMonth) ? selectedMonth : undefined) ||
     selectedMonth ||
     fallbackLast;
-  const yr = last.slice(0, 4);
+  const years = yearsOf(allAvailable);
+  const yr = allPeriod ? '' : last.slice(0, 4);
   const mm = +last.slice(5, 7);
-  const curM = `${yr}-${String(mm).padStart(2, '0')}`;
+  const curM = last.slice(0, 7);
   const pv = prevM(curM);
-  const labels = Array.from({ length: mm }, (_, i) => `${i + 1}월`);
-  const months = Array.from({ length: mm }, (_, i) => ym(yr, i + 1));
-  const allMonths = Array.from({ length: 12 }, (_, i) => ym(yr, i + 1));
+  // 전체 기간이면 달 대신 연도 단위로 본다
+  const labels = allPeriod ? years.map((y) => `${y}년`) : Array.from({ length: mm }, (_, i) => `${i + 1}월`);
+  const axisKeys = allPeriod ? years : Array.from({ length: mm }, (_, i) => ym(yr, i + 1));
+  const months = axisKeys;
+  const allMonths = allPeriod ? years : Array.from({ length: 12 }, (_, i) => ym(yr, i + 1));
+  const firstM = allAvailable[0] || '';
+  const monthCount = new Set(allAvailable).size;
+  const allTotal = sumBy(quotes, (r) => r.count);
 
   const totM = (mo: string) =>
     quotes.filter((r) => r.month === mo).reduce((a, r) => a + r.count, 0);
@@ -91,14 +102,18 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     (r) => r.count
   );
 
+  const yearQuoteMonths = new Set(quotes.filter(inMonths(months)).map((r) => r.month)).size;
+
   const { bySource: bySrcAll, topSourceKey: topSrcKey, items: srcItems } = buildSourceShareData(
     quotesRaw,
     yr,
-    quotes
+    quotes,
+    allPeriod ? undefined : curM
   );
 
   // 카테고리는 분류표 1차 기준 (2차는 1차에 합산). 최다 카테고리는 '기타'를 빼고 고른다
-  const yrQuotes = quotes.filter((r) => r.month.startsWith(yr));
+  // 선택한 달까지만 본다 — 비중의 분모인 누적 견적(1~선택 월)과 기간을 맞춘다
+  const yrQuotes = quotes.filter((r) => r.month.startsWith(yr) && r.month <= curM);
   const topCatKey = quoteCat1Order(yrQuotes).find((c) => c !== '기타');
   const topCat = topCatKey
     ? { k: topCatKey, c: sumBy(yrQuotes.filter((r) => cat1Of(r.category) === topCatKey), (r) => r.count) }
@@ -110,11 +125,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     .map((k, ci) => ({
       k,
       c: QUOTE_COLORS[ci % QUOTE_COLORS.length],
-      v: labels.map((_, i) =>
+      v: axisKeys.map((key) =>
         sumBy(
-          yrQuotes.filter(
-            (r) => r.month === `${yr}-${String(i + 1).padStart(2, '0')}` && chartCats.keyOf(r.category) === k
-          ),
+          yrQuotes.filter((r) => r.month.startsWith(key) && chartCats.keyOf(r.category) === k),
           (r) => r.count
         )
       ),
@@ -129,14 +142,43 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
         status={status}
       />
 
+      {allPeriod && (
+        <p className="leg-note quote-src-note">
+          ※ 전체 기간 합산입니다. 견적 데이터는 {dotYm(firstM)}부터 있고, 유입 매체는 2026년 10월부터 추적합니다.
+        </p>
+      )}
+
       <div className="kpis" id="kpiQuotes">
-        <KpiCard
-          label={`${mLabel(curM)} 접수 견적`}
-          value={`${fmt(curTot)}건`}
-          cur={curTot}
-          prev={pvTot}
-          cmpLabel="전월"
-        />
+        {allPeriod ? (
+          <>
+            <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} />
+            <KpiCard
+              label="월평균 견적"
+              value={`${fmt(monthCount ? Math.round(allTotal / monthCount) : 0)}건`}
+              sub={`${fmt(monthCount)}개월 기준`}
+            />
+            <KpiCard
+              label="전체 최다 유입 매체"
+              value={topSrcKey}
+              sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
+            />
+            <KpiCard
+              label="전체 최다 견적 카테고리"
+              value={topCat?.k || '–'}
+              sub={`${fmt(topCat?.c || 0)}건 (${allTotal > 0 ? (((topCat?.c || 0) / allTotal) * 100).toFixed(1) : 0}%)`}
+            />
+          </>
+        ) : (
+          <>
+        {!yearTotal && (
+          <KpiCard
+            label={`${mLabel(curM)} 접수 견적`}
+            value={`${fmt(curTot)}건`}
+            cur={curTot}
+            prev={pvTot}
+            cmpLabel="전월"
+          />
+        )}
         <KpiCard
           label={`${yr}년 누적 견적 (1~${mm}월)`}
           value={`${fmt(ytdQuotes)}건`}
@@ -144,22 +186,31 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           prev={lastYrQuotes}
           cmpLabel="전년 동기"
         />
+        {yearTotal && (
+          <KpiCard
+            label="월평균 견적"
+            value={`${fmt(yearQuoteMonths ? Math.round(ytdQuotes / yearQuoteMonths) : 0)}건`}
+            sub={`${fmt(yearQuoteMonths)}개월 기준 · ${yearRangeLabel(curM)}`}
+          />
+        )}
         <KpiCard
           label={`${yr}년 최다 유입 매체`}
           value={topSrcKey}
-          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '집계 중'}
+          sub={bySrcAll[topSrcKey] ? `${fmt(bySrcAll[topSrcKey])}건 접수` : isSyncing ? <SkelBar w="5rem" h="0.75rem" /> : '–'}
         />
         <KpiCard
           label={`${yr}년 최다 견적 카테고리`}
           value={topCat?.k || '–'}
           sub={`${fmt(topCat?.c || 0)}건 (${ytdQuotes > 0 ? (((topCat?.c || 0) / ytdQuotes) * 100).toFixed(1) : 0}%)`}
         />
+          </>
+        )}
       </div>
 
-      <div className="grid">
+      <div className="grid grid-2-1">
         <MultiChart
           id="chQuote"
-          title="월별 견적 접수 수"
+          title={allPeriod ? '연도별 견적 접수 수' : '월별 견적 접수 수'}
           labels={labels}
           series={series}
           unit="건"
@@ -180,6 +231,8 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
         curM={curM}
         months={months}
         allMonths={allMonths}
+        allPeriod={allPeriod}
+        yearTotal={yearTotal}
       />
       <SecSrc sources={QUOTES_SOURCES} />
     </div>

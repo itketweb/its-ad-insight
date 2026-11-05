@@ -408,7 +408,7 @@ tr.kw-cat-child {
   min-width: 48rem;
 
   .col-eff-name {
-    width: 20%;
+    width: 19%;
   }
   .col-eff-cost {
     width: 16%;
@@ -423,10 +423,10 @@ tr.kw-cat-child {
     width: 8%;
   }
   .col-eff-quotes {
-    width: 8%;
+    width: 12%;
   }
   .col-eff-rate {
-    width: 12%;
+    width: 9%;
   }
   .col-eff-cpa {
     width: 20%;
@@ -1101,6 +1101,10 @@ tr.kw-more-row td {
   overflow: hidden;
   background: var(--acc);
 
+  &.is-clickable {
+    cursor: zoom-in;
+  }
+
   &:has(img) {
     padding: 0;
     background: transparent;
@@ -1142,6 +1146,31 @@ tr.kw-more-row td {
     height: 5.5rem;
     min-width: 5.5rem;
   }
+}
+
+.cr-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  cursor: zoom-out;
+  animation: cr-lb-in 0.15s ease;
+
+  img {
+    max-width: min(90vw, 72rem);
+    max-height: 90vh;
+    object-fit: contain;
+    cursor: default;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes cr-lb-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .hier {
@@ -1466,6 +1495,7 @@ tr.kw-more-row td {
     line-height: 1.2;
     justify-self: start;
     align-self: start;
+    height: auto;
     padding: 0.25rem 0.5rem;
 
     &::before {
@@ -1494,9 +1524,10 @@ tr.kw-more-row td {
       height: 1.25rem;
     }
   }
+  // 테마 전환: 옆 버튼과 같은 높이(2.5rem)
   .tgl {
-    width: 3.5rem;
-    height: 2.25rem;
+    width: 4rem;
+    height: 2.5rem;
   }
   .side {
     position: fixed;
@@ -1705,4 +1736,468 @@ tr.kw-more-row td {
     display: block !important;
     margin-bottom: 2rem;
   }
+}
+
+// 헤더 검색
+.top .btn.btn-search {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-color: var(--line);
+}
+
+.search-backdrop {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.card.search-dialog {
+  width: 100%;
+  max-width: 40rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 76vh;
+  overflow: hidden;
+  border: 1px solid var(--line2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.1);
+
+  .sd-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--sub);
+    flex-shrink: 0;
+  }
+
+  .sd-input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-size: 1rem;
+    padding: 0.25rem;
+    outline: none;
+    box-shadow: none;
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+
+  .sd-close {
+    display: inline-flex;
+    padding: 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--sub);
+    cursor: pointer;
+  }
+
+  .sd-hint,
+  .sd-summary {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--sub);
+  }
+
+  .sd-summary {
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+
+    b {
+      color: var(--ink);
+    }
+  }
+
+  &.has-history {
+    max-width: 56rem;
+  }
+
+  .sd-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  .sd-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .sd-history {
+    width: 16rem;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 0.25rem 0 0.5rem;
+    border-left: 1px solid var(--line);
+  }
+
+  .sd-results {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.25rem 0 0.5rem;
+  }
+
+  .sd-group h3 {
+    margin: 0;
+    padding: 0.625rem 1rem 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--sub);
+
+    span {
+      color: var(--ink2);
+    }
+  }
+
+  .sd-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--line);
+      outline: none;
+    }
+  }
+
+  .sd-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sd-meta {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--sub);
+  }
+
+  .sd-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.625rem 1rem;
+    border: 0;
+    border-top: 1px solid var(--line);
+    background: transparent;
+    color: var(--acc);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+}
+
+.search-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+.search-sub {
+  color: var(--sub);
+  font-size: 0.8125rem;
+}
+
+.s-media-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+// 검색 결과 안의 표 컴포넌트는 자기 카드를 쓰므로, 바깥 카드와 겹치지 않게 틀만 없앤다
+#search-list .card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#tbSearchKeywords {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 52rem;
+
+  .col-skw-val {
+    width: 6rem;
+  }
+
+  .col-skw-cost {
+    width: 8rem; // 광고비: 최대 7자리 + "원"
+  }
+
+  .search-sub-line {
+    display: block;
+    margin-top: 0.125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+#tbSearchQuotes {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 52rem;
+
+  .col-sq-date {
+    width: 8rem;
+  }
+
+  .col-sq-customer {
+    width: 12rem;
+  }
+
+  .col-sq-text {
+    width: 8.5rem;
+  }
+
+  .search-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .search-q-row {
+    cursor: pointer;
+  }
+
+  .search-q-detail td {
+    background: var(--bg);
+    white-space: normal;
+  }
+
+  .search-q-subject {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  dl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.5rem;
+    margin: 0;
+    font-size: 0.8125rem;
+
+    div {
+      display: flex;
+      gap: 0.375rem;
+    }
+
+    dt {
+      color: var(--sub);
+    }
+
+    dd {
+      margin: 0;
+      color: var(--ink);
+    }
+  }
+}
+
+.kw-detail {
+  margin-left: 0.5rem;
+}
+
+.search-nowrap {
+  white-space: nowrap;
+}
+
+.search-login-note {
+  margin: 0.75rem 0 0;
+}
+
+@media (max-width: 768px) {
+  .search-backdrop {
+    padding: 0;
+  }
+
+  .card.search-dialog {
+    max-width: none;
+    max-height: none;
+    height: 100%; // 내용이 많아도 창 안에서 스크롤해 아래 버튼이 잘리지 않게 한다
+    margin: 0;
+
+    // 좁은 화면은 목록을 결과 위에 둔다 — 결과 자리를 지키도록 높이를 제한한다
+    .sd-body {
+      flex-direction: column;
+    }
+
+    .sd-main {
+      order: 1;
+    }
+
+    .sd-history {
+      width: auto;
+      max-height: 11rem;
+      border-left: 0;
+      border-bottom: 1px solid var(--line);
+    }
+  }
+}
+
+// 검색 결과 — 견적 구성
+.search-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1rem 1.5rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+
+  h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--sub);
+  }
+
+  p {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0 0 0.25rem;
+    font-size: 0.8125rem;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    b {
+      flex-shrink: 0;
+    }
+  }
+}
+
+// 헤더 제목 오른쪽의 검색어 — 길면 말줄임
+.top .crumb {
+  min-width: 0;
+}
+
+.top .crumb-detail {
+  margin-left: 0.5rem;
+  max-width: 24rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--acc);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .top .crumb-detail {
+    max-width: 8rem;
+  }
+}
+
+// 검색창 — 최근 검색어
+.card.search-dialog .sd-recent {
+  h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sd-recent-clear {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--sub);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .sd-recent-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .sd-row {
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding-right: 2.5rem;
+
+    svg {
+      flex-shrink: 0;
+      color: var(--sub);
+    }
+  }
+
+  .sd-row {
+    padding-right: 4rem;
+  }
+
+  .sd-recent-acts {
+    position: absolute;
+    right: 0.75rem;
+    display: inline-flex;
+    gap: 0.125rem;
+  }
+
+  .sd-recent-del,
+  .sd-star {
+    display: inline-flex;
+    padding: 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--sub);
+    cursor: pointer;
+  }
+}
+
+// 검색어 즐겨찾기 별 — 켜지면 채운다
+.card.search-dialog .sd-recent .btn-search-star.on,
+.top .crumb-star.btn-search-star.on {
+  color: var(--star);
+
+  svg {
+    fill: currentColor;
+  }
+}
+
+.top .crumb-star {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
 }

@@ -17,10 +17,16 @@ interface KeywordAccordionTableProps {
   month?: string;
   /** 키워드 실적이 있는 가장 이른 달 (YYYY-MM) — 이보다 앞선 달이면 빈 표에 이유를 적는다 */
   firstMonth?: string;
+  /** 기준 기간 표시 (없으면 '2026년 10월' 처럼 month 로 만든다) */
+  periodLabel?: string;
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
   kwTabIdx: number;
   onChangeTab: (idx: number) => void;
+  /** 표 제목 (기본: 키워드) */
+  title?: string;
+  /** 매체 로고와 키워드의 입찰가·품질지수까지 보여 준다 (검색 결과) */
+  detailed?: boolean;
 }
 
 const mediaKo = (m: string) => (m === 'Naver' ? '네이버' : m === 'Google' ? '구글' : m);
@@ -37,14 +43,21 @@ const NUMERIC_COLS: { key: SortKey; label: string }[] = [
   { key: 'cost', label: '광고비' },
 ];
 
+/** 그룹 합계 — 따로 받은 실적이 있으면 그 값, 없으면 키워드 합 */
+const groupTotals = (g: KeywordGroup) =>
+  g.totals || {
+    imp: g.list.reduce((sum, k) => sum + k.imp, 0),
+    clk: g.list.reduce((sum, k) => sum + k.clk, 0),
+    conv: g.list.reduce((sum, k) => sum + k.conv, 0),
+  };
+
 const getGroupMetric = (g: KeywordGroup, key: SortKey) => {
   if (key === 'cost') return g.cost;
-  const imp = g.list.reduce((sum, k) => sum + k.imp, 0);
-  const clk = g.list.reduce((sum, k) => sum + k.clk, 0);
+  const { imp, clk, conv } = groupTotals(g);
   if (key === 'imp') return imp;
   if (key === 'clk') return clk;
   if (key === 'ctr') return imp > 0 ? clk / imp : 0;
-  if (key === 'conv') return g.list.reduce((sum, k) => sum + k.conv, 0);
+  if (key === 'conv') return conv;
   return 0;
 };
 
@@ -64,10 +77,13 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   campaigns,
   month = THIS_M,
   firstMonth,
+  periodLabel: periodLabelProp,
   media,
   type,
   kwTabIdx,
   onChangeTab,
+  title = '키워드',
+  detailed = false,
 }) => {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [expandedKwGroups, setExpandedKwGroups] = useState<Set<string>>(new Set());
@@ -158,21 +174,21 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
     `${c.medias.map(mediaKo).join('·')} · ${c.campaign} (${c.groups.length}개 그룹)`;
   const campIcons = (c: CampaignKeywordBucket) =>
     c.medias.map((m) => <MediaPill key={m} media={m} iconOnly size={10} />);
-  const periodLabel = `${month.slice(0, 4)}년 ${mLabel(month)}`;
+  const periodLabel = periodLabelProp || `${month.slice(0, 4)}년 ${mLabel(month)}`;
 
   return (
     <Card name="kw-list" id="kw-list">
       <h3 id="ttKw">
         {type === 'DA' ? (
-          '키워드'
+          title
         ) : !campaigns.length ? (
           <>
-            키워드
+            {title}
             <span className="muted">{periodLabel} · 광고비 상위 캠페인</span>
           </>
         ) : safeKwIdx === 0 ? (
           <>
-            키워드
+            {title}
             <span className="muted">
               {periodLabel} · 광고비 상위{' '}
               {visibleCount < topGroups.length
@@ -182,7 +198,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
           </>
         ) : (
           <>
-            키워드
+            {title}
             <span className="muted">
               {periodLabel} · {selectedCamp?.campaign}
               <small className="kw-head-sub">({selectedCamp?.groups.length}개 광고그룹)</small>
@@ -341,21 +357,26 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                   });
                   const sortedKws = isKwExpanded ? allSortedKws : allSortedKws.slice(0, 10);
                   const remainCount = allSortedKws.length - 10;
-                  const grpImp = g.list.reduce((a, k) => a + k.imp, 0);
-                  const grpClk = g.list.reduce((a, k) => a + k.clk, 0);
-                  const grpConv = g.list.reduce((a, k) => a + k.conv, 0);
+                  const { imp: grpImp, clk: grpClk, conv: grpConv } = groupTotals(g);
+                  const canOpen = g.list.length > 0;
 
                   return (
                     <React.Fragment key={groupKey}>
                       <tr
                         className={`grp grp-accordion grp-${g.media.toLowerCase()}`}
-                        onClick={() => toggleGroup(groupKey)}
-                        title={isOpen ? '클릭하여 키워드 목록 접기' : '클릭하여 키워드 목록 펼치기'}
+                        onClick={canOpen ? () => toggleGroup(groupKey) : undefined}
+                        style={canOpen ? undefined : { cursor: 'default' }}
+                        title={!canOpen ? undefined : isOpen ? '클릭하여 키워드 목록 접기' : '클릭하여 키워드 목록 펼치기'}
                       >
                         <td>
                           <div className="grp-acc-cell">
                             <span className="grp-acc-main">
-                              <ChevronRight className={`grp-acc-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} />
+                              <ChevronRight
+                                className={`grp-acc-chev${isOpen ? ' open' : ''}`}
+                                strokeWidth={2.25}
+                                style={canOpen ? undefined : { visibility: 'hidden' }}
+                              />
+                              {detailed && <MediaPill media={g.media} iconOnly size={14} />}
                               <span className="grp-acc-title">
                                 {selectedCamp ? g.adgroup : `${g.campaign} › ${g.adgroup}`}
                               </span>
@@ -379,7 +400,14 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                       {isOpen &&
                         sortedKws.map((k, ki) => (
                           <tr key={`${k.keyword}-${ki}`}>
-                            <td className="ind">{k.keyword}</td>
+                            <td className="ind">
+                              {k.keyword}
+                              {detailed && (k.bid > 0 || k.quality > 0) && (
+                                <small className="muted kw-detail">
+                                  {[k.bid > 0 && `입찰가 ${fmt(k.bid)}원`, k.quality > 0 && `품질지수 ${k.quality}`].filter(Boolean).join(' · ')}
+                                </small>
+                              )}
+                            </td>
                             <td className="n">{fmt(k.imp)}</td>
                             <td className="n">{fmt(k.clk)}</td>
                             <td className="n">

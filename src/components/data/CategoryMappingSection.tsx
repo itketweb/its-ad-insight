@@ -110,7 +110,7 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
         </table>
         {!loading && <ShowMoreButton total={audit.categoryBreakdown.length} expanded={showAll} onToggle={() => setShowAll((v) => !v)} />}
         <TableFootnote
-          basis="산출 근거: 광고그룹·견적을 분류표 1차 카테고리로 집계 (2차는 1차에 합산) · 기타 = 이름·제목으로 카테고리를 알 수 없는 항목"
+          basis="산출 근거: 광고그룹·견적을 분류표 1차로 집계 (2차 합산) · 기타 = 이름·제목으로 분류 불가"
           sources={[
             '광고: 캠페인·광고그룹 매핑표 → 이름 규칙 (format.ts · categoryText.ts)',
             '견적: 제목 → 유입 광고 꼬리표 규칙 (categoryText.ts · Code.gs)',

@@ -1,4 +1,4 @@
-export type ViewId = 'overview' | 'ads' | 'cat-efficiency' | 'keywords' | 'quotes' | 'data' | 'admin';
+export type ViewId = 'overview' | 'ads' | 'cat-efficiency' | 'keywords' | 'quotes' | 'search' | 'data' | 'admin';
 
 export type ChartType = 'line' | 'grouped' | 'donut';
 
@@ -57,6 +57,8 @@ export interface QuoteRawRow {
   phone?: string;
   /** 전화문의를 받은 직원 */
   receiver?: string;
+  /** 문의 유형 (전화·톡플러스·메일 등). 비어 있으면 사이트로 접수된 견적문의 */
+  inquiryType?: string;
   /** 자동 분류 결과 (제목 → 유입 광고 꼬리표) — 수동 지정과 비교해 흔적을 보여 준다 */
   autoCategory?: string;
   /** 어드민에서 수동 지정해 저장된 기록 (manual_categories 시트) */
@@ -96,6 +98,8 @@ export interface KeywordGroup {
   adgroup: string;
   cost: number;
   list: KeywordRow[];
+  /** 키워드 합계와 다른 그룹 실적을 보여 줄 때 (검색 결과는 광고그룹 전체 실적을 쓴다) */
+  totals?: { imp: number; clk: number; conv: number };
 }
 
 export interface CampaignKeywordBucket {
