@@ -156,7 +156,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     const parts = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스'].filter((k) => k === 'cadkorea' || k === 'zbyhp' || counts[k]);
     if (parts.length <= 1) return null;
     return parts.map((k, i) => (
-      <React.Fragment key={k}>{i > 0 && ' · '}{k} <b>{counts[k] ?? 0}</b></React.Fragment>
+      <React.Fragment key={k}>{i > 0 && <i>|</i>}<p>{k} <b>{counts[k] ?? 0}</b></p></React.Fragment>
     ));
   };
   const curSiteDetail = siteBreak(stats.quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));

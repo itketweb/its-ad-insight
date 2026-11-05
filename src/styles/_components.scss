@@ -64,7 +64,17 @@
     color: var(--sub);
     display: flex;
     flex-wrap: wrap;
-    gap: 0.125rem 0.5rem;
+    align-items: center;
+    gap: 0.125rem 0.375rem;
+
+    p {
+      margin: 0;
+    }
+
+    i {
+      font-style: normal;
+      opacity: 0.35;
+    }
 
     b {
       font-weight: 600;
