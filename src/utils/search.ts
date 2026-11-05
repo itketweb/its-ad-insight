@@ -103,8 +103,10 @@ export function searchDashboard(
     if (!typeOk(r.type)) weight = 0;
     else if (matches(tokens, names)) weight = 1;
     else if (matches(tokens, [...names, ...cats.map(({ c }) => c)])) {
-      // 검색어가 이름과 카테고리에 나뉘어 맞으면 어느 비율인지 정할 수 없어 전체로 본다
-      weight = cats.filter(({ c }) => matches(tokens, [c])).reduce((a, { w }) => a + w, 0) || 1;
+      const catWeight = cats.filter(({ c }) => matches(tokens, [c])).reduce((a, { w }) => a + w, 0);
+      // catWeight=0: 토큰이 이름·카테고리에 나뉘어 맞는 경우 → 비율 미정이므로 전체(1)
+      // catWeight<0.2: 카테고리 연결 비율이 낮아 관련성이 약한 그룹 → 제외
+      weight = catWeight === 0 ? 1 : catWeight >= 0.2 ? catWeight : 0;
     }
     // 이름·카테고리로는 안 맞고 매체 덕분에 맞았다
     if (weight && !matches(tokens, [r.campaign, r.adgroup, ...cats.map(({ c }) => c)])) channelSearch = true;
