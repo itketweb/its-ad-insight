@@ -8,6 +8,8 @@ interface KpiCardProps {
   prev?: number | null;
   cmpLabel?: string;
   sub?: React.ReactNode;
+  /** 카드 하단 보조 줄 (cmpLabel·sub와 별개로 항상 표시) */
+  detail?: React.ReactNode;
 }
 
 export const KpiCard: React.FC<KpiCardProps> = ({
@@ -17,6 +19,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   prev,
   cmpLabel,
   sub,
+  detail,
 }) => {
   const p = cur != null && prev != null ? pct(cur, prev) : null;
   const cls = p && p.cls !== 'flat' ? ` ${p.cls}` : '';
@@ -38,6 +41,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
       ) : sub ? (
         <div className="s">{sub}</div>
       ) : null}
+      {detail && <div className="kpi-detail">{detail}</div>}
     </div>
   );
 };

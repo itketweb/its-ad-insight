@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { DashboardData, SyncStatus } from '../types/dashboard';
+import type { DashboardData, QuoteRawRow, SyncStatus } from '../types/dashboard';
 import {
   buildSourceShareData,
   fmt,
@@ -104,6 +104,21 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
 
   const yearQuoteMonths = new Set(quotes.filter(inMonths(months)).map((r) => r.month)).size;
 
+  const hasMultiSite = quotesRaw.some((r) => r.site);
+  const siteBreak = (rows: QuoteRawRow[]): string | null => {
+    if (!hasMultiSite || !rows.length) return null;
+    const counts: Record<string, number> = {};
+    rows.forEach((r) => {
+      const k = r.inquiryType ? '전화' : !r.site ? 'itket' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    const parts = ['itket', 'zbyhp', 'cadkorea', '전화'].filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`);
+    return parts.length > 1 ? parts.join(' · ') : null;
+  };
+  const curSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
+  const ytdSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 4) === yr));
+  const allSiteDetail = siteBreak(quotesRaw);
+
   const { bySource: bySrcAll, topSourceKey: topSrcKey, items: srcItems } = buildSourceShareData(
     quotesRaw,
     yr,
@@ -151,7 +166,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
       <div className="kpis" id="kpiQuotes">
         {allPeriod ? (
           <>
-            <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} />
+            <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} detail={allSiteDetail} />
             <KpiCard
               label="월평균 견적"
               value={`${fmt(monthCount ? Math.round(allTotal / monthCount) : 0)}건`}
@@ -177,6 +192,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
             cur={curTot}
             prev={pvTot}
             cmpLabel="전월"
+            detail={curSiteDetail}
           />
         )}
         <KpiCard
@@ -185,6 +201,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           cur={ytdQuotes}
           prev={lastYrQuotes}
           cmpLabel="전년 동기"
+          detail={ytdSiteDetail}
         />
         {yearTotal && (
           <KpiCard
