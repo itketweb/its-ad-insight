@@ -95,10 +95,13 @@ const LEGACY_CATS = new Set(['서버', '워크스테이션', '스토리지', '�
  * '기타'도 새 분류표에 있고 catch-all 로 쓰이므로 여기에 넣지 않는다.
  */
 export const LEGACY_ONLY_CATS = new Set(['서버', '워크스테이션', '스토리지', 'PC', 'PC·노트북', '노트북']);
-/** 차트 색 — 상위 6개 카테고리 + 그 외 */
-export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-n2', '--c-n', '--c-etc'];
+/** 상위 카테고리 색 (건수 순). 이보다 많으면 색이 서로 비슷해져 나머지는 회색(--c-rest)으로 둔다 */
+export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-n', '--c-pink', '--c-blue'];
 /** 차트에서 상위 카테고리 밖을 묶는 이름 */
 export const QUOTE_OTHER = '그 외';
+/** 견적 추이 차트의 계열 색 — '그 외'는 회색 */
+export const quoteSeriesColor = (key: string, index: number): string =>
+  key === QUOTE_OTHER ? '--c-rest' : QUOTE_COLORS[index] || '--c-rest';
 
 /** 카테고리의 1차 ('SAN 스토리지 > 화웨이' → 'SAN 스토리지') */
 export const cat1Of = (cat: string): string => {
