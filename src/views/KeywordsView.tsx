@@ -5,7 +5,7 @@ import type {
   DashboardData,
   SyncStatus,
 } from '../types/dashboard';
-import { catSum, catsOf, fmt, mLabel, THIS_M } from '../utils/format';
+import { catSum, catsOf, fmt, fmtWon, mLabel, THIS_M } from '../utils/format';
 import { adStatKey, groupAdsByAdgroup, selectRoundRobinAds, type AdStat } from '../utils/creativeImage';
 import { EXTERNAL_LINKS } from '../utils/constants';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
@@ -20,7 +20,7 @@ import { PeriodNavSlot } from '../components/common/PeriodNav';
 import { KeywordCategoryTable } from '../components/keywords/KeywordCategoryTable';
 import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTable';
 import { AdCreativesList } from '../components/keywords/AdCreativesList';
-import { KpiCard, KpiSection } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
 import { dotYm, inMonths, mergeKeywordMonths, monthsUpTo, yearRangeLabel } from '../utils/allPeriod';
@@ -96,6 +96,31 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
   const kpiCtr = totalImp > 0 ? `${((totalClk / totalImp) * 100).toFixed(2)}%` : '–';
   const kpiCpc = totalClk > 0 ? Math.round(totalCost / totalClk) : 0;
   const kpiAdCpa = totalConv > 0 ? Math.round(totalCost / totalConv) : 0;
+
+  // 비교 기간 계산 (전월 / 전년 동기)
+  const yr = mo.slice(0, 4);
+  const mm = parseInt(mo.slice(5, 7));
+  const pvMo = mm === 1 ? `${parseInt(yr) - 1}-12` : `${yr}-${String(mm - 1).padStart(2, '0')}`;
+  const pvRows = allPeriod ? [] : data.spend.filter((r) => {
+    if (yearTotal) {
+      const pvYr = String(parseInt(yr) - 1);
+      return r.month >= `${pvYr}-01` && r.month <= `${pvYr}-${String(mm).padStart(2, '0')}` && pass(r);
+    }
+    return r.month === pvMo && pass(r);
+  });
+  const hasPvData = pvRows.length > 0;
+  const pvCost = pvRows.reduce((s, r) => s + r.cost, 0);
+  const pvClk  = pvRows.reduce((s, r) => s + r.clk, 0);
+  const pvConv = pvRows.reduce((s, r) => s + r.conv, 0);
+  const pvCpc  = pvClk > 0 ? Math.round(pvCost / pvClk) : 0;
+  const cmpLabel = allPeriod ? undefined : yearTotal ? '전년 동기' : '전월';
+
+  // 광고비 매체별 breakdown
+  const naverCost = rows.filter((r) => r.media === 'Naver').reduce((s, r) => s + r.cost, 0);
+  const googleCost = rows.filter((r) => r.media === 'Google').reduce((s, r) => s + r.cost, 0);
+  const mediaDetail = naverCost > 0 && googleCost > 0
+    ? <KpiDetailItems items={[['네이버', fmtWon(naverCost)], ['구글', fmtWon(googleCost)]]} />
+    : null;
 
   const cost = catSum(categoryMap, rows, (r) => r.cost);
   const clk = catSum(categoryMap, rows, (r) => r.clk);
@@ -174,22 +199,37 @@ export const KeywordsView: React.FC<KeywordsViewProps> = ({
         <KpiCard
           label="광고비"
           value={`${fmt(totalCost)}원`}
+          cur={totalCost || null}
+          prev={hasPvData ? pvCost : null}
+          cmpLabel={cmpLabel}
           sub={`클릭 ${fmt(totalClk)} · 전환 ${fmt(totalConv)}`}
+          detail={mediaDetail}
         />
         <KpiCard
           label="클릭수"
           value={fmt(totalClk)}
+          cur={totalClk || null}
+          prev={hasPvData ? pvClk : null}
+          cmpLabel={cmpLabel}
           sub={`노출 ${fmt(totalImp)} · CTR ${kpiCtr}`}
+          detail={cmpLabel ? <KpiDetailItems items={[['노출', totalImp], ['CTR', kpiCtr]]} /> : null}
         />
         <KpiCard
           label="클릭당 비용 (CPC)"
           value={kpiCpc ? `${fmt(kpiCpc)}원` : '–'}
+          cur={kpiCpc || null}
+          prev={hasPvData && pvCpc ? pvCpc : null}
+          cmpLabel={cmpLabel}
           sub={`${fmt(totalClk)}클릭 기준`}
         />
         <KpiCard
           label="광고 전환수"
           value={fmt(totalConv)}
+          cur={totalConv || null}
+          prev={hasPvData ? pvConv : null}
+          cmpLabel={cmpLabel}
           sub={kpiAdCpa ? `건당 ${fmt(kpiAdCpa)}원` : '견적 CPA는 카테고리 효율 참고'}
+          detail={cmpLabel && kpiAdCpa ? <KpiDetailItems items={[['건당', `${fmt(kpiAdCpa)}원`]]} /> : null}
         />
       </KpiSection>
 
