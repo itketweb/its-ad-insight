@@ -220,9 +220,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const catSpendPv = !yearTotal && !allPeriod ? catsMap(pv) : {};
   const prevTopSpendAmt = topSpendCat ? (catSpendPv[topSpendCat[0]] ?? null) : null;
   const topCatDelta = prevTopSpendAmt !== null && topSpendCat ? topSpendCat[1] - prevTopSpendAmt : null;
-  const topCatDeltaStr = topCatDelta !== null && topCatDelta !== 0
-    ? ` · ${topCatDelta > 0 ? '▲' : '▼'} ${fmtWon(Math.abs(topCatDelta))} 전월`
-    : '';
+  const topCatDeltaNode = topCatDelta !== null && topCatDelta !== 0
+    ? <span style={{ color: topCatDelta > 0 ? 'var(--up)' : 'var(--down)' }}>{' · '}{topCatDelta > 0 ? '▲' : '▼'} {fmtWon(Math.abs(topCatDelta))} 전월</span>
+    : null;
   const topSpendCatDetail = topSpendEntries.length > 1 ? (
     <>
       {topSpendEntries.slice(1, 3).map(([k, v], i) => (
@@ -399,7 +399,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           value={topSpendCat?.[0] || '–'}
           cur={topSpendCat?.[1] ?? null}
           prev={prevTopSpendAmt}
-          sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)${topCatDeltaStr}` : undefined}
+          sub={topSpendCat ? <>{fmtWon(topSpendCat[1])} ({topSpendPct}%){topCatDeltaNode}</> : undefined}
           detail={topSpendCatDetail}
         />
           </>

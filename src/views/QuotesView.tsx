@@ -202,9 +202,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
     ? sumBy(quotes.filter((r) => r.month === pv && cat1Of(r.category) === kpiTopCatKey), (r) => r.count)
     : 0;
   const catDelta = !yearTotal && kpiTopCat ? kpiTopCat.c - pvTopCatCount : null;
-  const catDeltaStr = catDelta !== null && catDelta !== 0
-    ? ` · ${catDelta > 0 ? '▲' : '▼'} ${fmt(Math.abs(catDelta))}건 전월`
-    : '';
+  const catDeltaNode = catDelta !== null && catDelta !== 0
+    ? <span style={{ color: catDelta > 0 ? 'var(--up)' : 'var(--down)' }}>{' · '}{catDelta > 0 ? '▲' : '▼'} {fmt(Math.abs(catDelta))}건 전월</span>
+    : null;
 
   // KPI CPA: 월 선택 → 당월 / 전월 비교, 연도 전체 → 연간 / 전년 동기 비교
   const curSpendTot = sumBy(data.spend.filter((r) => r.month === curM), (r) => r.cost);
@@ -282,7 +282,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
           <>
         {!yearTotal && (
           <KpiCard
-            label={`${mLabel(curM)} 접수 견적`}
+            label={`${mLabel(curM)} 총 견적`}
             value={`${fmt(curTot)}건`}
             cur={curTot}
             prev={pvTot}
@@ -320,7 +320,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
         <KpiCard
           label={`${kpiLabel} 최다 견적 카테고리`}
           value={kpiTopCat?.k || '–'}
-          sub={`${fmt(kpiTopCat?.c || 0)}건 (${kpiTotal > 0 ? (((kpiTopCat?.c || 0) / kpiTotal) * 100).toFixed(1) : 0}%)${catDeltaStr}`}
+          cur={kpiTopCat?.c ?? null}
+          prev={pvTopCatCount || null}
+          sub={<>{fmt(kpiTopCat?.c || 0)}건 ({kpiTotal > 0 ? (((kpiTopCat?.c || 0) / kpiTotal) * 100).toFixed(1) : 0}%){catDeltaNode}</>}
           detail={kpiCatRunnerUps}
         />
           </>
