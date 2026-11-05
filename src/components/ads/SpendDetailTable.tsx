@@ -25,6 +25,9 @@ interface SpendDetailTableProps {
   mdfCost: (mo: string) => number;
   storeCost: (mo: string) => number;
   lastY: (mo: string) => number;
+  /** 기간 선택이 '전체' — 열이 연도이고 전년 비교 행이 없다 */
+  allPeriod?: boolean;
+  colLabel?: (key: string) => string;
 }
 
 type SortKey = 'name' | 'total';
@@ -39,6 +42,8 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
   mdfCost,
   storeCost,
   lastY,
+  allPeriod = false,
+  colLabel = mLabel,
 }) => {
   const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('total');
 
@@ -54,9 +59,10 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
   }, [series, sortKey, sortOrder]);
 
   return (
-    <Card name="spend-monthly" tableWrap id="spend-monthly" title="월별 집행 상세 내역">
+    <Card name="spend-monthly" tableWrap id="spend-monthly" title={allPeriod ? '연도별 집행 상세 내역' : '월별 집행 상세 내역'}>
       <div>
-        <table className="stk" id="tbSpendDetail">
+        {/* 연도 열만 있을 때는 월별 표의 min-width(72rem)가 불필요한 가로 스크롤을 만든다 */}
+        <table className="stk" id="tbSpendDetail" style={allPeriod ? { minWidth: 'auto' } : undefined}>
           <colgroup>
             <col className="col-mo-label" />
             {allMonths12.map((mo) => (
@@ -69,7 +75,7 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
               <SortableTh sortKey="name" activeKey={sortKey} order={sortOrder} onSort={toggleSort}>구분</SortableTh>
               {allMonths12.map((mo) => (
                 <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
-                  {mLabel(mo)}
+                  {colLabel(mo)}
                 </th>
               ))}
               <SortableTh sortKey="total" activeKey={sortKey} order={sortOrder} onSort={toggleSort} className="n">합계</SortableTh>
@@ -118,6 +124,8 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
               ))}
               <td className="n sub-t">{fmt(sumBy(months, storeCost))}</td>
             </tr>
+            {!allPeriod && (
+              <>
             <tr>
               <td className="sub-t">전년 동월</td>
               {allMonths12.map((mo) => (
@@ -138,6 +146,8 @@ export const SpendDetailTable: React.FC<SpendDetailTableProps> = ({
                 <DeltaSpan a={sumBy(months, tot)} b={sumBy(months, lastY)} />
               </td>
             </tr>
+              </>
+            )}
           </tbody>
         </table>
         <TableFootnote

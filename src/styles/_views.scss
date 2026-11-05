@@ -408,7 +408,7 @@ tr.kw-cat-child {
   min-width: 48rem;
 
   .col-eff-name {
-    width: 20%;
+    width: 19%;
   }
   .col-eff-cost {
     width: 16%;
@@ -423,10 +423,10 @@ tr.kw-cat-child {
     width: 8%;
   }
   .col-eff-quotes {
-    width: 8%;
+    width: 12%;
   }
   .col-eff-rate {
-    width: 12%;
+    width: 9%;
   }
   .col-eff-cpa {
     width: 20%;
@@ -1466,6 +1466,7 @@ tr.kw-more-row td {
     line-height: 1.2;
     justify-self: start;
     align-self: start;
+    height: auto;
     padding: 0.25rem 0.5rem;
 
     &::before {
@@ -1494,9 +1495,10 @@ tr.kw-more-row td {
       height: 1.25rem;
     }
   }
+  // 테마 전환: 옆 버튼과 같은 높이(2.5rem)
   .tgl {
-    width: 3.5rem;
-    height: 2.25rem;
+    width: 4rem;
+    height: 2.5rem;
   }
   .side {
     position: fixed;

@@ -17,6 +17,8 @@ interface KeywordAccordionTableProps {
   month?: string;
   /** 키워드 실적이 있는 가장 이른 달 (YYYY-MM) — 이보다 앞선 달이면 빈 표에 이유를 적는다 */
   firstMonth?: string;
+  /** 기준 기간 표시 (없으면 '2026년 10월' 처럼 month 로 만든다) */
+  periodLabel?: string;
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
   kwTabIdx: number;
@@ -64,6 +66,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   campaigns,
   month = THIS_M,
   firstMonth,
+  periodLabel: periodLabelProp,
   media,
   type,
   kwTabIdx,
@@ -158,7 +161,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
     `${c.medias.map(mediaKo).join('·')} · ${c.campaign} (${c.groups.length}개 그룹)`;
   const campIcons = (c: CampaignKeywordBucket) =>
     c.medias.map((m) => <MediaPill key={m} media={m} iconOnly size={10} />);
-  const periodLabel = `${month.slice(0, 4)}년 ${mLabel(month)}`;
+  const periodLabel = periodLabelProp || `${month.slice(0, 4)}년 ${mLabel(month)}`;
 
   return (
     <Card name="kw-list" id="kw-list">

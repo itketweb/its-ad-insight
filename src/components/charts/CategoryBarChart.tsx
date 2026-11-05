@@ -9,12 +9,21 @@ interface CategoryBarChartProps {
   id: string;
   list: CategoryBarItem[];
   emptyMessage?: string;
+  /** 비교 대상이 없을 때(전체 기간) 전월 막대를 숨긴다 */
+  hidePrev?: boolean;
+  /** 비교 대상 이름 (기본 전월) */
+  prevLabel?: string;
+  /** 기준 기간 이름 (기본 기준월) */
+  curLabel?: string;
 }
 
 export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   id,
   list,
   emptyMessage = '표시할 데이터가 없습니다',
+  hidePrev = false,
+  prevLabel = '전월',
+  curLabel = '기준월',
 }) => {
   const { ref: boxRef, width: W } = useElementWidth([list.length]);
 
@@ -74,7 +83,7 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
                 width={Math.max(0, w1)}
                 height={barH1}
                 fill="var(--bar)"
-                data-tip={`${c.k} · 기준월|${fmt(c.cur)}만원`}
+                data-tip={`${c.k} · ${hidePrev ? '전체 기간' : curLabel}|${fmt(c.cur)}만원`}
               />
               <text
                 x={L + w1 + 0.4 * r}
@@ -96,22 +105,26 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
                   </tspan>
                 )}
               </text>
-              <rect
-                className="hit"
-                x={L}
-                y={y2}
-                width={Math.max(0, w2)}
-                height={barH2}
-                fill="var(--bar2)"
-                data-tip={`${c.k} · 전월|${fmt(c.prev)}만원`}
-              />
-              <text
-                x={L + w2 + 0.4 * r}
-                y={y2 + barH2 * 0.82}
-                style={{ fontSize: '0.625rem', fill: 'var(--sub)' }}
-              >
-                {fmt(c.prev)}만
-              </text>
+              {!hidePrev && (
+                <>
+                  <rect
+                    className="hit"
+                    x={L}
+                    y={y2}
+                    width={Math.max(0, w2)}
+                    height={barH2}
+                    fill="var(--bar2)"
+                    data-tip={`${c.k} · ${prevLabel}|${fmt(c.prev)}만원`}
+                  />
+                  <text
+                    x={L + w2 + 0.4 * r}
+                    y={y2 + barH2 * 0.82}
+                    style={{ fontSize: '0.625rem', fill: 'var(--sub)' }}
+                  >
+                    {fmt(c.prev)}만
+                  </text>
+                </>
+              )}
               {hasQ && (
                 <text
                   x={W}

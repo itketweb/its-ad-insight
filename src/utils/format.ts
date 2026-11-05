@@ -87,8 +87,14 @@ export const SERIES_DEFS = [
 
 /** 카테고리 개편 전 7분류 — mapping 시트·견적 데이터에 이 값이 있으면 옛 값으로 보고 새 체계로 다시 계산한다 */
 const LEGACY_CATS = new Set(['서버', '워크스테이션', '스토리지', '노트북', 'PC', 'PC·노트북', '모니터', '기타']);
-/** 새 분류표에는 없는 옛 이름 (노트북·모니터·기타는 새 분류표에도 있어 옛 데이터인지 가르는 데 쓰지 않는다) */
-export const LEGACY_ONLY_CATS = new Set(['서버', '워크스테이션', '스토리지', 'PC', 'PC·노트북']);
+/**
+ * 새 분류표에 없거나, 새 분류표에서는 2차 항목으로만 존재하는 옛 이름.
+ * 견적 원장에서 이 값이 있으면 옛 체계 행으로 간주하고 allCatKeys 에서 제외한다.
+ * → 제외해야 2차 항목(노트북 > HP 노트북 등)의 비례 배분 행과 중복 집계되지 않는다.
+ * '모니터'는 새 분류표에서도 1차 직접 항목이므로 제외 대상이 아니다.
+ * '기타'도 새 분류표에 있고 catch-all 로 쓰이므로 여기에 넣지 않는다.
+ */
+export const LEGACY_ONLY_CATS = new Set(['서버', '워크스테이션', '스토리지', 'PC', 'PC·노트북', '노트북']);
 /** 차트 색 — 상위 6개 카테고리 + 그 외 */
 export const QUOTE_COLORS = ['--c-it', '--c-g', '--c-m', '--c-ka', '--c-n2', '--c-n', '--c-etc'];
 /** 차트에서 상위 카테고리 밖을 묶는 이름 */
@@ -99,6 +105,29 @@ export const cat1Of = (cat: string): string => {
   const i = cat.indexOf(' > ');
   return i >= 0 ? cat.slice(0, i) : cat;
 };
+
+export interface CpaRankItem {
+  k: string;
+  cpa: number;
+  quotes: number;
+}
+
+/**
+ * 1차 카테고리별 CPA 를 낮은 순으로. 견적이 없는 2차의 광고비도 1차 광고비에 포함한다 (카테고리 효율 표와 같은 계산).
+ * 광고비나 견적이 없으면 단가를 낼 수 없어 뺀다.
+ */
+export function cpaRankByCat1(items: { k: string; cost: number; quotes: number }[]): CpaRankItem[] {
+  const map = new Map<string, { cost: number; quotes: number }>();
+  items.forEach(({ k, cost, quotes }) => {
+    const key = cat1Of(k);
+    const cur = map.get(key) || { cost: 0, quotes: 0 };
+    map.set(key, { cost: cur.cost + cost, quotes: cur.quotes + quotes });
+  });
+  return [...map]
+    .filter(([, v]) => v.cost > 0 && v.quotes > 0)
+    .map(([k, v]) => ({ k, cpa: v.cost / v.quotes, quotes: v.quotes }))
+    .sort((a, b) => a.cpa - b.cpa || b.quotes - a.quotes);
+}
 
 /** 견적 1차 카테고리를 건수 큰 순으로 ('기타'는 맨 뒤). 표의 행 순서에 쓴다 */
 export function quoteCat1Order(rows: QuoteRow[]): string[] {
@@ -281,11 +310,14 @@ export function sourceColorVar(source: string): string {
 export function buildSourceShareData(
   quotesRaw: QuoteRawRow[],
   yearPrefix: string,
-  quotesMonthly?: QuoteRow[]
+  quotesMonthly?: QuoteRow[],
+  /** 이 달(YYYY-MM)까지만 센다 — 누적 수치가 선택한 달 이후를 포함하지 않게 */
+  lastMonth?: string
 ): { bySource: Record<string, number>; topSourceKey: string; items: SourceShareItem[] } {
   const bySource: Record<string, number> = {};
+  const withinPeriod = (date: string) => date.startsWith(yearPrefix) && (!lastMonth || date.slice(0, 7) <= lastMonth);
   const rawFiltered = quotesRaw.filter(
-    (r) => r.date?.startsWith(yearPrefix) && r.source && r.source !== '미수집'
+    (r) => r.date && withinPeriod(r.date) && r.source && r.source !== '미수집'
   );
 
   if (rawFiltered.length > 0) {
@@ -294,7 +326,7 @@ export function buildSourceShareData(
     });
   } else if (quotesMonthly?.length) {
     quotesMonthly
-      .filter((r) => r.month?.startsWith(yearPrefix) && r.source && r.source !== '미수집')
+      .filter((r) => r.month && withinPeriod(r.month) && r.source && r.source !== '미수집')
       .forEach((r) => {
         bySource[r.source] = (bySource[r.source] || 0) + r.count;
       });

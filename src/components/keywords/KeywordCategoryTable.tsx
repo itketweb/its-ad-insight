@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { fmt, mLabel, sumBy, THIS_M } from '../../utils/format';
+import { fmt, sumBy } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { TableFootnote } from '../common/TableFootnote';
 import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
@@ -7,7 +7,8 @@ import { ChevronRight } from 'lucide-react';
 import { Card } from '../common/Card';
 
 interface KeywordCategoryTableProps {
-  month?: string;
+  /** 기준 기간 표시 (예: 10월, 2026년 1~11월) */
+  periodLabel: string;
   categoryKeys: string[];
   costByCat: Record<string, number>;
   clkByCat: Record<string, number>;
@@ -21,7 +22,7 @@ function cpa(cost: number, conv: number) {
 }
 
 export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
-  month = THIS_M,
+  periodLabel,
   categoryKeys,
   costByCat,
   clkByCat,
@@ -80,7 +81,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
     <Card name="kw-cat" id="kw-cat">
       <h3 id="ttCatConv">
         카테고리별 전환 · 소진
-        <span className="muted">({mLabel(month || THIS_M)} 기준)</span>
+        <span className="muted">({periodLabel} 기준)</span>
       </h3>
       <div className="tw">
         <table className="stk" id="tbCatConv">

@@ -965,7 +965,7 @@ function legacyQuoteCategory_(subject) {
 function quoteSource_(raw) {
   const t = String(raw == null ? '' : raw).trim();
   const tl = t.toLowerCase();
-  if (!tl) return '미수집';
+  if (!tl || t === '미수집') return '미수집'; // zbyhp 시트는 경로 칸에 '미수집'을 글자로 적어 둔다
 
   // ── Naver ──
   if (/naver|네이버/.test(tl)) {

@@ -23,6 +23,14 @@ interface PeriodNavProps {
   maxAvailableMonth: string;
   onSelectYear: (year: string) => void;
   onSelectMonth: (month: string) => void;
+  /** 전체 기간을 보는 중 */
+  allPeriod?: boolean;
+  /** 있으면 연도 목록에 '전체' 를 넣는다 (지원하는 화면에서만) */
+  onSelectAll?: () => void;
+  /** 선택 연도 합계를 보는 중 */
+  yearTotal?: boolean;
+  /** 있으면 월 목록에 '전체' 를 넣는다 (지원하는 화면에서만) */
+  onSelectYearTotal?: (month: string) => void;
 }
 
 export const PeriodNav: React.FC<PeriodNavProps> = ({
@@ -33,6 +41,10 @@ export const PeriodNav: React.FC<PeriodNavProps> = ({
   maxAvailableMonth,
   onSelectYear,
   onSelectMonth,
+  allPeriod,
+  onSelectAll,
+  yearTotal,
+  onSelectYearTotal,
 }) => {
   const minYear = [...years].sort()[0] || maxAvailableMonth.slice(0, 4);
 
@@ -51,6 +63,16 @@ export const PeriodNav: React.FC<PeriodNavProps> = ({
           min={minAvailableMonth || `${minYear}-01`}
           max={maxAvailableMonth}
           onChange={selectMonth}
+          allPeriod={allPeriod}
+          onSelectAll={onSelectAll}
+          yearTotal={yearTotal}
+          onSelectYearTotal={
+            onSelectYearTotal &&
+            ((m) => {
+              onSelectYear(m.slice(0, 4));
+              onSelectYearTotal(m);
+            })
+          }
         />
         <div className="period-nav-filters" id={SLOT_ID} />
       </div>

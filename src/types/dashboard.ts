@@ -57,6 +57,8 @@ export interface QuoteRawRow {
   phone?: string;
   /** 전화문의를 받은 직원 */
   receiver?: string;
+  /** 문의 유형 (전화·톡플러스·메일 등). 비어 있으면 사이트로 접수된 견적문의 */
+  inquiryType?: string;
   /** 자동 분류 결과 (제목 → 유입 광고 꼬리표) — 수동 지정과 비교해 흔적을 보여 준다 */
   autoCategory?: string;
   /** 어드민에서 수동 지정해 저장된 기록 (manual_categories 시트) */

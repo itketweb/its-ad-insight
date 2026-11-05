@@ -329,6 +329,7 @@ export function fromApi(j: RawApiPayload): DashboardData {
         date: String(r.date ?? '').trim(),
         category: String(r.category ?? '').trim() || '기타',
         source: extraSourceOf(r),
+        inquiryType: extraInquiryTypeOf(r),
         sourceDetail: '',
         salesRep: String(r.sales_rep ?? '').trim().replace(/\s+/g, ' '),
       }))
@@ -369,11 +370,20 @@ export function fromApi(j: RawApiPayload): DashboardData {
   };
 }
 
-// 전화·톡플러스는 문의 방법이지 유입 매체가 아니라 유입 통계에서 뺀다 ('미수집'은 유입 통계에서 제외된다)
-const NOT_INFLOW_SOURCES = new Set(['전화', '톡플러스']);
+// 전화문의 시트의 경로(전화·톡플러스·메일 등)는 문의 방법이지 유입 매체가 아니라 유입 통계에서 뺀다 ('미수집'은 유입 통계에서 제외된다)
 function extraSourceOf(r: RawQuoteStatsExtraApiRow): string {
+  if (String(r.origin ?? '').trim() === 'phone') return '미수집';
   const source = String(r.source ?? '').trim();
-  return !source || NOT_INFLOW_SOURCES.has(source) ? '미수집' : source;
+  // zbyhp 시트의 경로 칸에 적힌 글자 '미수집'을 수집 스크립트가 '기타'로 분류해 내려온다. 다른 사이트는 유입 매체를 추적하지 않으므로 미수집으로 되돌린다
+  return !source || source === '기타' ? '미수집' : source;
+}
+
+// 전화문의 시트의 경로 — 수기 입력이라 정해진 값 밖은 '기타'로 묶는다. 다른 사이트 견적은 사이트 접수라 비워 둔다
+const PHONE_INQUIRY_TYPES = new Set(['전화', '톡플러스', '메일']);
+function extraInquiryTypeOf(r: RawQuoteStatsExtraApiRow): string | undefined {
+  if (String(r.origin ?? '').trim() !== 'phone') return undefined;
+  const source = String(r.source ?? '').trim();
+  return PHONE_INQUIRY_TYPES.has(source) ? source : '기타';
 }
 
 /** 전화문의 시트 한 행 — 메모를 제목 자리에, 경로(전화·톡플러스)를 유입경로 자리에 둔다 */

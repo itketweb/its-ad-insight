@@ -7,6 +7,7 @@ import { Sidebar } from './components/Layout/Sidebar';
 import { Header } from './components/Layout/Header';
 import { Tooltip } from './components/Layout/Tooltip';
 import { PeriodNav } from './components/common/PeriodNav';
+import { lastMonthOfYear, TOTAL_PERIOD_VIEWS } from './utils/allPeriod';
 import { SkeletonView } from './components/common/SkeletonView';
 import { OverviewView } from './views/OverviewView';
 import { AdsView } from './views/AdsView';
@@ -90,6 +91,14 @@ export const App: React.FC = () => {
 
   const [selectedYear, setSelectedYear] = useState<string>(String(THIS_Y));
   const [selectedMonth, setSelectedMonth] = useState<string>(THIS_M);
+  // 기간 선택의 '전체' — 지원하는 화면에서만 켜지고, 달을 고르면 풀린다. 고른 달은 그대로 남겨 다른 화면에서 쓴다
+  const [allPeriodOn, setAllPeriodOn] = useState(false);
+  const supportsTotal = TOTAL_PERIOD_VIEWS.includes(currentView);
+  const allPeriod = allPeriodOn && supportsTotal;
+  // 월 선택의 '전체' — 선택 연도의 1월~최신 달 합계. 화면에는 그 마지막 달을 기준월로 넘긴다
+  const [yearTotalOn, setYearTotalOn] = useState(false);
+  const yearTotal = yearTotalOn && supportsTotal && !allPeriod;
+  const viewMonth = yearTotal ? lastMonthOfYear(selectedMonth, maxAvailableMonth) : selectedMonth;
 
   useEffect(() => {
     if (maxAvailableMonth) {
@@ -209,7 +218,30 @@ export const App: React.FC = () => {
               minAvailableMonth={minAvailableMonth}
               maxAvailableMonth={maxAvailableMonth}
               onSelectYear={setSelectedYear}
-              onSelectMonth={setSelectedMonth}
+              onSelectMonth={(m) => {
+                setAllPeriodOn(false);
+                setYearTotalOn(false);
+                setSelectedMonth(m);
+              }}
+              allPeriod={allPeriod}
+              onSelectAll={
+                supportsTotal
+                  ? () => {
+                      setAllPeriodOn(true);
+                      setYearTotalOn(false);
+                    }
+                  : undefined
+              }
+              yearTotal={yearTotal}
+              onSelectYearTotal={
+                supportsTotal
+                  ? (m) => {
+                      setAllPeriodOn(false);
+                      setYearTotalOn(true);
+                      setSelectedMonth(m);
+                    }
+                  : undefined
+              }
             />
           )}
           <div className="cont">
@@ -225,14 +257,18 @@ export const App: React.FC = () => {
                   data={data}
                   categoryMap={categoryMap}
                   status={status}
-                  selectedMonth={selectedMonth}
+                  selectedMonth={viewMonth}
+                  allPeriod={allPeriod}
+                  yearTotal={yearTotal}
                 />
               )}
               {!isLoading && currentView === 'ads' && (
                 <AdsView
                   data={data}
                   status={status}
-                  selectedMonth={selectedMonth}
+                  selectedMonth={viewMonth}
+                  allPeriod={allPeriod}
+                  yearTotal={yearTotal}
                 />
               )}
               {!isLoading && currentView === 'cat-efficiency' && (
@@ -240,7 +276,9 @@ export const App: React.FC = () => {
                   data={data}
                   categoryMap={categoryMap}
                   status={status}
-                  selectedMonth={selectedMonth}
+                  selectedMonth={viewMonth}
+                  allPeriod={allPeriod}
+                  yearTotal={yearTotal}
                 />
               )}
               {!isLoading && currentView === 'keywords' && (
@@ -249,7 +287,9 @@ export const App: React.FC = () => {
                   categoryMap={categoryMap}
                   status={status}
                   isSyncing={isSyncing}
-                  selectedMonth={selectedMonth}
+                  selectedMonth={viewMonth}
+                  allPeriod={allPeriod}
+                  yearTotal={yearTotal}
                 />
               )}
               {!isLoading && currentView === 'quotes' && (
@@ -257,7 +297,9 @@ export const App: React.FC = () => {
                   data={data}
                   status={status}
                   isSyncing={isSyncing}
-                  selectedMonth={selectedMonth}
+                  selectedMonth={viewMonth}
+                  allPeriod={allPeriod}
+                  yearTotal={yearTotal}
                 />
               )}
               {currentView === 'data' && authLoading && <SkeletonView title={VIEW_TITLES.data} variant="table" />}

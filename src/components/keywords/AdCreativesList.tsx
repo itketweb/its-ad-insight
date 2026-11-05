@@ -19,7 +19,7 @@ interface AdCreativesListProps {
   stats: Record<string, AdStat>;
   /** 실데이터를 받는 중 — 아직 없는 성과는 – 대신 스켈레톤으로 보여 준다 */
   loading: boolean;
-  /** 기준월 표시 (예: 10월) */
+  /** 기준 기간 표시 (예: 2026년 10월, 2026년 1~11월) */
   periodLabel: string;
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
@@ -241,7 +241,7 @@ const AdBody: React.FC<{
 const Metrics: React.FC<{ stat?: AdStat; loading: boolean }> = ({ stat, loading }) => {
   const pending = !stat && loading;
   // 실적이 없으면 빈 칸 다섯 개 대신 한 줄로
-  if (!stat && !pending) return <p className="cr-metrics is-empty">기준월 실적 없음</p>;
+  if (!stat && !pending) return <p className="cr-metrics is-empty">선택 기간 실적 없음</p>;
   return (
     <dl className="cr-metrics" aria-busy={pending || undefined}>
       {METRICS.map((m) => (

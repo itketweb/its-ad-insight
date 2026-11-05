@@ -3,6 +3,7 @@ import type { CategoryMap, DashboardData, SyncStatus } from '../types/dashboard'
 import {
   buildCategoryBarItems,
   catSum,
+  cpaRankByCat1,
   fmt,
   mLabel,
   prevM,
@@ -28,12 +29,17 @@ import { CatEfficiencyTable } from '../components/cat-efficiency/CatEfficiencyTa
 import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
+import { dotYm, inMonths, monthsUpTo, periodStartsOf, sameMonthsLastYear, yearRangeLabel } from '../utils/allPeriod';
 
 interface CatEfficiencyViewProps {
   data: DashboardData;
   categoryMap: CategoryMap;
   status: SyncStatus;
   selectedMonth?: string;
+  /** 기간 선택이 '전체' */
+  allPeriod?: boolean;
+  /** 월 선택이 '전체' — selectedMonth 는 그 연도의 마지막 달이다 */
+  yearTotal?: boolean;
 }
 
 const CAT_EFF_SOURCES: SourceLinkItem[] = [
@@ -48,6 +54,8 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   categoryMap,
   status,
   selectedMonth,
+  allPeriod = false,
+  yearTotal = false,
 }) => {
   const catState = useCategoryFilterState();
   const [visibleCount, setVisibleCount] = useState(LIST_LIMIT);
@@ -83,21 +91,32 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     allMonths[allMonths.length - 1];
   const pv = prevM(curM);
 
-  const rowsCur = data.spend.filter((r) => r.month === curM);
-  const rowsPrev = data.spend.filter((r) => r.month === pv);
+  // 기준 기간: 한 달, 연도 합계(1월~마지막 달), 또는 전체 기간. 비교 대상은 전월·전년 같은 달들이고 전체 기간은 없다
+  // 이 화면은 광고비와 견적을 맞대는 지표가 중심이라, 전체 기간은 둘 다 있는 달부터만 합산한다
+  const cpaFrom = periodStartsOf(data).cpaFrom;
+  const efficiencyMonths = [...new Set([...data.spend, ...data.quotes].map((r) => r.month))]
+    .filter((mo) => mo && mo >= cpaFrom)
+    .sort();
+  const curMonths = allPeriod ? efficiencyMonths : yearTotal ? monthsUpTo(curM) : [curM];
+  const prevMonths = allPeriod ? [] : yearTotal ? sameMonthsLastYear(curMonths) : [pv];
+  const periodLabel = allPeriod ? `${dotYm(cpaFrom)} 이후` : yearTotal ? yearRangeLabel(curM) : mLabel(curM);
+  const prevLabel = yearTotal ? '전년 동기' : mLabel(pv);
+
+  const rowsCur = data.spend.filter(inMonths(curMonths));
+  const rowsPrev = data.spend.filter(inMonths(prevMonths));
   const catSpendCur = catSum(categoryMap, rowsCur, (r) => r.cost);
   const catSpendPrev = catSum(categoryMap, rowsPrev, (r) => r.cost);
   const catClk = catSum(categoryMap, rowsCur, (r) => r.clk);
   const catConv = catSum(categoryMap, rowsCur, (r) => r.conv);
 
-  const qOf = (mo: string, c: string) =>
-    quoteCountFor(
-      data.quotes.filter((r) => r.month === mo),
-      c,
-      mo === curM ? catSpendCur : catSum(categoryMap, data.spend.filter((r) => r.month === mo), (r) => r.cost)
-    );
+  // quoteCountFor 는 한 달 치 기준이라, 여러 달은 달별로 계산해 더한다 (월별 화면의 합과 맞도록)
+  const monthlyInputs = curMonths.map((mo) => ({
+    rows: data.quotes.filter((r) => r.month === mo),
+    spend: allPeriod || yearTotal ? catSum(categoryMap, data.spend.filter((r) => r.month === mo), (r) => r.cost) : catSpendCur,
+  }));
+  const qOf = (c: string) => sumBy(monthlyInputs, (m) => quoteCountFor(m.rows, c, m.spend));
 
-  const curQuotes = data.quotes.filter((r) => r.month === curM);
+  const curQuotes = monthlyInputs.flatMap((m) => m.rows);
   // 견적 시트의 옛 분류(서버·워크스테이션…)는 역매핑(quoteCountFor)으로 처리하므로 allCatKeys에서 제외
   const legacyCatSet = LEGACY_ONLY_CATS;
 
@@ -107,7 +126,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       ...Object.keys(catSpendPrev),
       ...curQuotes.map((r) => r.category).filter((c): c is string => !!c && !legacyCatSet.has(c)),
     ]),
-  ].sort((a, b) => (catSpendCur[b] || 0) - (catSpendCur[a] || 0) || qOf(curM, b) - qOf(curM, a));
+  ].sort((a, b) => (catSpendCur[b] || 0) - (catSpendCur[a] || 0) || qOf(b) - qOf(a));
 
   // 1차/2차 카테고리 필터 — 선택하면 표·차트·KPI·합계가 해당 카테고리만으로 다시 계산된다
   const catFilter = buildCategoryFilter(allCatKeys, catState);
@@ -118,13 +137,13 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     ? sumBy(catKeys, (k) => catSpendCur[k] || 0)
     : sumBy(rowsCur, (r) => r.cost);
   const totQuotes = isFiltered
-    ? sumBy(catKeys, (k) => qOf(curM, k))
+    ? sumBy(catKeys, (k) => qOf(k))
     : sumBy(curQuotes, (r) => r.count);
 
   const catData = catKeys.map((k) => {
     const cost = catSpendCur[k] || 0;
     const prevCost = catSpendPrev[k] || 0;
-    const quotes = qOf(curM, k);
+    const quotes = qOf(k);
     const clk = catClk[k] || 0;
     const conv = catConv[k] || 0;
     const cpa = quotes > 0 ? cost / quotes : null;
@@ -142,22 +161,40 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
 
   const topSpendCat = catData[0];
   const topQuoteCat = [...catData].sort((a, b) => b.quotes - a.quotes)[0];
-  const validCpaCats = catData
-    .filter((c): c is typeof c & { cpa: number } => c.cpa != null && c.quotes > 0)
-    .sort((a, b) => a.cpa - b.cpa);
-  const bestCpaCat = validCpaCats[0];
+  const cpaRank = cpaRankByCat1(catData);
+  // 최고 효율: 평소에는 목록과 같은 1차 기준, 1차를 고르면 그 안의 2차끼리 비교한다. '기타'는 제품군이 아니라 뺀다
+  const bestCpaPool = catFilter.cat1
+    ? (() => {
+        // 1차 필터를 고른 경우: 2차(YYYY > ZZZ 형태)만 비교한다
+        // cost>0·quotes>0 조건을 만족하는 2차가 없으면 집계 CPA를 단일 항목으로 반환 (1차 직접 항목의 편향 방지)
+        const asSorted = (pool: typeof catData) =>
+          pool
+            .filter((c) => c.cost > 0 && c.quotes > 0)
+            .map((c) => ({ k: c.k, cpa: c.cost / c.quotes, quotes: c.quotes }))
+            .sort((a, b) => a.cpa - b.cpa);
+        const sub2 = asSorted(catData.filter((c) => c.k.includes(' > ')));
+        if (sub2.length) return sub2;
+        const aggQ = sumBy(catData, (c) => c.quotes);
+        const aggC = sumBy(catData, (c) => c.cost);
+        return aggQ > 0 ? [{ k: catFilter.cat1, cpa: aggC / aggQ, quotes: aggQ }] : [];
+      })()
+    : cpaRank;
+  // 1차 필터 활성 시에는 집계 항목 자체가 KPI이므로 '기타' 제외를 적용하지 않는다
+  const bestCpaCat = catFilter.cat1
+    ? bestCpaPool[0]
+    : bestCpaPool.find((c) => c.k.split(' > ').pop() !== '기타');
   const avgCpa = totQuotes > 0 ? totSpend / totQuotes : 0;
 
   const fullList = buildCategoryBarItems(
     filterByCategory(catSpendCur, catFilter.cat1, catFilter.cat2),
     filterByCategory(catSpendPrev, catFilter.cat1, catFilter.cat2),
-    (c) => qOf(curM, c),
+    qOf,
     true,
     Infinity
   );
 
   // 필터·월 변경 시 visibleCount 리셋
-  const filterKey = `${curM}|${catFilter.cat1}|${catFilter.cat2}`;
+  const filterKey = `${allPeriod ? 'ALL' : yearTotal ? `Y${curM}` : curM}|${catFilter.cat1}|${catFilter.cat2}`;
   if (prevFilterKey.current !== filterKey) {
     prevFilterKey.current = filterKey;
     setVisibleCount(LIST_LIMIT);
@@ -179,6 +216,18 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
         <CategoryFilter filter={catFilter} />
       </PeriodNavSlot>
 
+      {allPeriod && (
+        <p className="leg-note quote-src-note">
+          ※ 전체 기간은 광고비와 견적이 모두 있는 {dotYm(cpaFrom)} 이후만 합산합니다. 그래서 광고비 합계가 종합 요약의 전체 누적 광고비보다 적습니다.
+        </p>
+      )}
+
+      {yearTotal && curMonths[0] < cpaFrom && (
+        <p className="leg-note quote-src-note">
+          ※ {dotYm(cpaFrom)} 이전은 광고비와 견적 데이터가 모두 갖춰지지 않아 CPA가 실제와 다를 수 있습니다.
+        </p>
+      )}
+
       <div className="kpis" id="kpiCatEff">
         <KpiCard
           label="최다 집행 카테고리"
@@ -196,7 +245,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           sub={bestCpaCat ? `건당 ${fmt(bestCpaCat.cpa)}원` : '–'}
         />
         <KpiCard
-          label={`${mLabel(curM)} 전체 평균 CPA`}
+          label={`${periodLabel} 전체 평균 CPA`}
           value={avgCpa ? `${fmt(avgCpa)}원` : '–'}
           sub={`광고비 ${fmt(totSpend)}원 / ${totQuotes}건`}
         />
@@ -207,19 +256,27 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
           <h3 id="ttCatEff">
             카테고리별 광고비 소진 비교
             <span className="muted">
-              ({mLabel(curM)} vs {mLabel(pv)})
+              {allPeriod ? `(${periodLabel})` : `(${periodLabel} vs ${prevLabel})`}
             </span>
           </h3>
-          <CategoryBarChart id="chCatEff" list={list} />
+          <CategoryBarChart
+            id="chCatEff"
+            list={list}
+            hidePrev={allPeriod}
+            curLabel={yearTotal ? periodLabel : undefined}
+            prevLabel={yearTotal ? prevLabel : undefined}
+          />
           <div className="leg">
             <span>
               <i className="cur" />
-              기준월
+              {allPeriod || yearTotal ? periodLabel : '기준월'}
             </span>
-            <span>
-              <i className="prev" />
-              전월
-            </span>
+            {!allPeriod && (
+              <span>
+                <i className="prev" />
+                {yearTotal ? prevLabel : '전월'}
+              </span>
+            )}
             <span className="leg-note">단위: 만원</span>
           </div>
           <ShowMoreButton
@@ -228,12 +285,12 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             onToggle={() => setVisibleCount((v) => (v >= fullList.length ? LIST_LIMIT : fullList.length))}
           />
         </Card>
-        <CpaRankList validCpaCats={validCpaCats} curM={curM} />
+        <CpaRankList sortedCats={cpaRank} periodLabel={periodLabel} />
       </div>
 
       <CatEfficiencyTable
         catData={catData}
-        curM={curM}
+        periodLabel={periodLabel}
         totSpend={totSpend}
         totClk={totClk}
         totConv={totConv}

@@ -1,52 +1,24 @@
-import React, { useMemo, useState } from 'react';
-import { fmt, mLabel } from '../../utils/format';
+import React, { useState } from 'react';
+import { fmt, type CpaRankItem } from '../../utils/format';
 import { EmptyState } from '../common/EmptyState';
 import { Card } from '../common/Card';
 import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
 
-interface CpaItem {
-  k: string;
-  cpa: number;
-  quotes: number;
-}
-
 interface CpaRankListProps {
-  validCpaCats: CpaItem[];
-  curM: string;
+  sortedCats: CpaRankItem[];
+  /** 기준 기간 표시 (예: 10월, 2026년 1~11월) */
+  periodLabel: string;
 }
 
-export const CpaRankList: React.FC<CpaRankListProps> = ({ validCpaCats, curM }) => {
-  // "1차 > 2차" 키를 1차 단위로 합산 후 CPA 재산출
+export const CpaRankList: React.FC<CpaRankListProps> = ({ sortedCats, periodLabel }) => {
   const [showAll, setShowAll] = useState(false);
-  const sortedCats = useMemo(() => {
-    const map: Record<string, { totalCost: number; totalQuotes: number }> = {};
-    const order: string[] = [];
-
-    validCpaCats.forEach((item) => {
-      const sep = item.k.indexOf(' > ');
-      const pk = sep >= 0 ? item.k.slice(0, sep) : item.k;
-      if (!map[pk]) { map[pk] = { totalCost: 0, totalQuotes: 0 }; order.push(pk); }
-      map[pk].totalCost   += item.cpa * item.quotes;
-      map[pk].totalQuotes += item.quotes;
-    });
-
-    return order
-      .map((k) => ({
-        k,
-        cpa:    map[k].totalQuotes > 0 ? map[k].totalCost / map[k].totalQuotes : 0,
-        quotes: map[k].totalQuotes,
-      }))
-      .filter((c) => c.cpa > 0 && c.quotes > 0)
-      .sort((a, b) => a.cpa - b.cpa || b.quotes - a.quotes);
-  }, [validCpaCats]);
-
   const maxCpa = Math.max(...sortedCats.map((c) => c.cpa), 1);
 
   return (
     <Card name="cat-cpa" id="cat-cpa">
       <h3 id="ttCatCpa">
         카테고리별 견적 획득 단가 (CPA)
-        <span className="muted">({mLabel(curM)} 실적 기준)</span>
+        <span className="muted">({periodLabel} 실적 기준)</span>
       </h3>
       <div id="chCatCpa">
         {sortedCats.length ? (

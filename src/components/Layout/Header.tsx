@@ -89,13 +89,13 @@ export const Header: React.FC<HeaderProps> = ({
           title="테마 전환"
           onClick={onToggleTheme}
         >
+          <i />
           <span className="k sun" aria-hidden="true">
             <Sun />
           </span>
           <span className="k moon" aria-hidden="true">
             <Moon />
           </span>
-          <i />
         </button>
       </div>
     </header>
