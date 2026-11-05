@@ -22,7 +22,7 @@ import { MonthlyQuotesTable } from '../components/quotes/MonthlyQuotesTable';
 import { Card } from '../components/common/Card';
 import { SkelBar } from '../components/common/SkeletonView';
 import { EmptyState } from '../components/common/EmptyState';
-import { dotYm, inMonths, yearRangeLabel, yearsOf } from '../utils/allPeriod';
+import { dotYm, inMonths, periodStartsOf, sameMonthsLastYear, yearsOf } from '../utils/allPeriod';
 
 interface QuotesViewProps {
   data: DashboardData;
@@ -86,7 +86,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const months = axisKeys;
   const allMonths = allPeriod ? years : Array.from({ length: 12 }, (_, i) => ym(yr, i + 1));
   const firstM = allAvailable[0] || '';
-  const monthCount = new Set(allAvailable).size;
+
   const allTotal = sumBy(quotes, (r) => r.count);
 
   const totM = (mo: string) =>
@@ -102,7 +102,21 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     (r) => r.count
   );
 
-  const yearQuoteMonths = new Set(quotes.filter(inMonths(months)).map((r) => r.month)).size;
+
+
+  const starts = periodStartsOf(data);
+  const cpaMonths = yr ? Array.from({ length: mm }, (_, i) => ym(yr, i + 1)) : [];
+  const lastYrMonths = sameMonthsLastYear(cpaMonths);
+  const cpaIn = (list: string[]) => {
+    const valid = list.filter((mo) => mo >= starts.cpaFrom);
+    const q = sumBy(data.quotes.filter(inMonths(valid)), (r) => r.count);
+    return q > 0 ? sumBy(data.spend.filter(inMonths(valid)), (r) => r.cost) / q : 0;
+  };
+  const ytdCpa = cpaIn(cpaMonths);
+  const lastYrCpa = cpaIn(lastYrMonths);
+  const cpaSpend = sumBy(data.spend.filter((r) => r.month >= starts.cpaFrom), (r) => r.cost);
+  const cpaQuotesCount = sumBy(data.quotes.filter((r) => r.month >= starts.cpaFrom), (r) => r.count);
+  const allCpa = cpaQuotesCount > 0 ? cpaSpend / cpaQuotesCount : 0;
 
   const hasMultiSite = quotesRaw.some((r) => r.site);
   const siteBreak = (rows: QuoteRawRow[]): React.ReactNode => {
@@ -188,9 +202,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           <>
             <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} detail={allSiteDetail} />
             <KpiCard
-              label="월평균 견적"
-              value={`${fmt(monthCount ? Math.round(allTotal / monthCount) : 0)}건`}
-              sub={`${fmt(monthCount)}개월 기준`}
+              label={<>견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
+              value={allCpa ? `${fmt(allCpa)}원` : '–'}
+              sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
             />
             <KpiCard
               label="전체 최다 유입 매체"
@@ -217,21 +231,23 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
             detail={curSiteDetail}
           />
         )}
-        <KpiCard
-          label={`${yr}년 누적 견적 (1~${mm}월)`}
-          value={`${fmt(ytdQuotes)}건`}
-          cur={ytdQuotes}
-          prev={lastYrQuotes}
-          cmpLabel="전년 동기"
-          detail={ytdSiteDetail}
-        />
-        {yearTotal && (
+        {!yearTotal && (
           <KpiCard
-            label="월평균 견적"
-            value={`${fmt(yearQuoteMonths ? Math.round(ytdQuotes / yearQuoteMonths) : 0)}건`}
-            sub={`${fmt(yearQuoteMonths)}개월 기준 · ${yearRangeLabel(curM)}`}
+            label={<>{yr}년 누적 견적 (1~{mm}월)</>}
+            value={`${fmt(ytdQuotes)}건`}
+            cur={ytdQuotes}
+            prev={lastYrQuotes}
+            cmpLabel="전년 동기"
+            detail={ytdSiteDetail}
           />
         )}
+        <KpiCard
+          label={<>{yr}년 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
+          value={ytdCpa ? `${fmt(ytdCpa)}원` : '–'}
+          cur={ytdCpa || null}
+          prev={lastYrMonths[0] >= starts.cpaFrom ? lastYrCpa : null}
+          cmpLabel="전년 동기"
+        />
         <KpiCard
           label={`${yr}년 최다 유입 매체`}
           value={topSrcKey}
