@@ -97,10 +97,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     quotes.filter((r) => r.month >= ym(yr, 1) && r.month <= curM),
     (r) => r.count
   );
-  const lastYrQuotes = sumBy(
-    quotes.filter((r) => r.month >= ym(+yr - 1, 1) && r.month <= ym(+yr - 1, mm)),
-    (r) => r.count
-  );
 
 
 
@@ -133,7 +129,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
     ));
   };
   const curSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 7) === curM));
-  const ytdSiteDetail = siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 4) === yr));
   const allSiteDetail = siteBreak(quotesRaw);
 
   const { bySource: bySrcAll, topSourceKey: topSrcKey, items: srcItems } = buildSourceShareData(
@@ -229,16 +224,6 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
             prev={pvTot}
             cmpLabel="전월"
             detail={curSiteDetail}
-          />
-        )}
-        {!yearTotal && (
-          <KpiCard
-            label={<>{yr}년 누적 견적 (1~{mm}월)</>}
-            value={`${fmt(ytdQuotes)}건`}
-            cur={ytdQuotes}
-            prev={lastYrQuotes}
-            cmpLabel="전년 동기"
-            detail={ytdSiteDetail}
           />
         )}
         <KpiCard
