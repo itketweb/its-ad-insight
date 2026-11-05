@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
-import type { CategoryMap, DashboardData, QuoteRow, SyncStatus } from '../types/dashboard';
+import type { CategoryMap, DashboardData, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
 import { cat1Of, fmt, mLabel, QUOTE_COLORS, quoteChartCats, SERIES_DEFS, sumBy } from '../utils/format';
 import { dotYm, monthsUpTo, periodStartsOf, yearRangeLabel, yearsOf } from '../utils/allPeriod';
 import { searchDashboard, type SearchTab } from '../utils/search';
@@ -14,6 +13,8 @@ import { EmptyState } from '../components/common/EmptyState';
 import { TabButton } from '../components/common/TabButton';
 import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { MediaPill } from '../components/common/MediaPill';
+import { useSort } from '../hooks/useSort';
+import { SortableTh } from '../components/common/SortableTh';
 
 interface SearchViewProps {
   data: DashboardData;
@@ -25,7 +26,6 @@ interface SearchViewProps {
   allPeriod?: boolean;
   yearTotal?: boolean;
   isLoggedIn: boolean;
-  onOpenSearch: () => void;
   onLogin: () => void;
   onSelectAllPeriod: () => void;
 }
@@ -33,6 +33,20 @@ interface SearchViewProps {
 const TITLE = '검색 결과';
 const DESCRIPTION = '검색어와 관련된 광고와 견적을 한 화면에 요약합니다';
 const CUSTOMER_FALLBACK = '–';
+const SEARCH_HINT = '화면 위쪽 돋보기 버튼이나 Ctrl+K로 검색할 수 있습니다.';
+
+const BREAKDOWN_LIMIT = 5;
+const INQUIRY_WEB = '견적문의';
+
+/** 견적을 키별로 세어 많은 순으로 — 비어 있는 값은 emptyLabel 로 모아 맨 뒤에 둔다 */
+function breakdownOf(rows: QuoteRawRow[], keyOf: (r: QuoteRawRow) => string, emptyLabel: string) {
+  const counts = new Map<string, number>();
+  rows.forEach((r) => {
+    const k = keyOf(r) || emptyLabel;
+    counts.set(k, (counts.get(k) || 0) + 1);
+  });
+  return [...counts.entries()].sort((a, b) => (a[0] === emptyLabel ? 1 : b[0] === emptyLabel ? -1 : b[1] - a[1]));
+}
 
 const ctr = (clk: number, imp: number) => (imp > 0 ? `${((clk / imp) * 100).toFixed(2)}%` : '–');
 
@@ -46,7 +60,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
   allPeriod = false,
   yearTotal = false,
   isLoggedIn,
-  onOpenSearch,
   onLogin,
   onSelectAllPeriod,
 }) => {
@@ -67,25 +80,22 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [tab, setTab] = useState<SearchTab | null>(initialTab || null);
   const [showAll, setShowAll] = useState(false);
 
+  const { sortKey: gKey, sortOrder: gOrd, toggleSort: gSort } = useSort<'imp' | 'clk' | 'conv' | 'cost'>('cost');
+  const { sortKey: kKey, sortOrder: kOrd, toggleSort: kSort } = useSort<'bid' | 'quality' | 'imp' | 'clk' | 'conv' | 'cost'>('cost');
+  const { sortKey: aKey, sortOrder: aOrd, toggleSort: aSort } = useSort<'imp' | 'clk' | 'cost'>('cost');
+
   const periodLabel = allPeriod
     ? '전체 기간'
     : yearTotal
       ? yearRangeLabel(selectedMonth)
       : `${selectedMonth.slice(0, 4)}년 ${mLabel(selectedMonth)}`;
 
-  const searchAgain = (
-    <Button icon={Search} size="sm" className="btn-search-again" id="btn-search-again" data-btn="search-again" onClick={onOpenSearch}>
-      다시 검색
-    </Button>
-  );
-
   if (!query || !result) {
     return (
       <div className="view on" data-view="search" data-title={TITLE}>
         <ViewHeader title={TITLE} description={DESCRIPTION} status={status} />
         <Card name="empty" id="search-empty">
-          <EmptyState message="검색어를 입력해 주세요." />
-          <div className="search-actions">{searchAgain}</div>
+          <EmptyState message="검색어를 입력해 주세요." subMessage={SEARCH_HINT} />
         </Card>
       </div>
     );
@@ -104,15 +114,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
       <div className="view on" data-view="search" data-title={TITLE}>
         <ViewHeader title={`"${query}" ${TITLE}`} description={DESCRIPTION} status={status} />
         <Card name="empty" id="search-empty">
-          <EmptyState message={`${periodLabel}에 "${query}"와 일치하는 결과가 없습니다.`} />
-          <div className="search-actions">
-            {!allPeriod && (
+          <EmptyState message={`${periodLabel}에 "${query}"와 일치하는 결과가 없습니다.`} subMessage={SEARCH_HINT} />
+          {!allPeriod && (
+            <div className="search-actions">
               <Button size="sm" className="btn-search-all" id="btn-search-all" data-btn="search-all" onClick={onSelectAllPeriod}>
                 전체 기간에서 찾기
               </Button>
-            )}
-            {searchAgain}
-          </div>
+            </div>
+          )}
         </Card>
       </div>
     );
@@ -164,24 +173,21 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const cpaFrom = periodStartsOf(data).cpaFrom;
   const otherQuotes = result.quotes.length - result.itketQuotes;
 
-  // 로그아웃 상태의 견적 탭 — 제목 없이 카테고리별 건수만
-  const catCounts = new Map<string, number>();
-  result.quotes.forEach((r) => {
-    const c = cat1Of(r.category || '기타');
-    catCounts.set(c, (catCounts.get(c) || 0) + 1);
-  });
-  const catRows = [...catCounts.entries()].sort((a, b) => b[1] - a[1]);
+  // 견적 구성 — 제목·고객 정보 없이 건수만이라 로그아웃 상태에서도 보여 준다
+  const breakdowns = [
+    { title: '카테고리', rows: breakdownOf(result.quotes, (r) => cat1Of(r.category || '기타'), '기타') },
+    { title: '유입 매체', rows: breakdownOf(result.quotes.filter((r) => !r.inquiryType), (r) => (r.source === '미수집' ? '' : r.source), '미수집') },
+    { title: '문의 유형', rows: breakdownOf(result.quotes, (r) => r.inquiryType || INQUIRY_WEB, '기타') },
+    { title: '담당자', rows: breakdownOf(result.quotes, (r) => r.salesRep || '', '미지정') },
+  ];
 
   return (
     <div className="view on" data-view="search" data-title={TITLE}>
       <ViewHeader title={`"${query}" ${TITLE}`} description={DESCRIPTION} status={status} />
 
-      <div className="search-actions search-actions-top">
-        <p className="leg-note quote-src-note">
+      <p className="leg-note quote-src-note">
           ※ {periodLabel} 기준입니다. 광고비는 이름·카테고리·매체가 일치한 광고그룹과 일치한 키워드의 합계이고, 견적은 제목·카테고리·유입 매체 일치 건입니다(유입 매체는 2026년 10월부터 추적). 서로 직접 연결된 값이 아니어서 CPA는 추정치입니다.
-        </p>
-        {searchAgain}
-      </div>
+      </p>
 
       <div className="kpis" id="kpiSearch">
         <KpiCard
@@ -189,7 +195,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
           value={`${fmt(result.cost)}원`}
           sub={`광고그룹 ${fmt(counts.groups)}개${result.keywordOnlyGroups ? ` · 키워드만 일치 ${fmt(result.keywordOnlyGroups)}개 그룹` : ''}`}
         />
-        <KpiCard label="클릭" value={fmt(result.clk)} sub={`노출 ${fmt(result.imp)} · CTR ${ctr(result.clk, result.imp)}`} />
+        <KpiCard label="클릭" value={fmt(result.clk)} sub={`노출 ${fmt(result.imp)} · CTR ${ctr(result.clk, result.imp)} · 전환 ${fmt(result.conv)}`} />
         <KpiCard
           label="접수 견적"
           value={`${fmt(result.quotes.length)}건`}
@@ -202,7 +208,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
             </>
           }
           value={result.cpa ? `${fmt(result.cpa)}원` : '–'}
-          sub={`${dotYm(cpaFrom)} 이후 기준`}
+          sub={result.cpaHidden ? '매체·유입 경로 검색은 추적 기간이 달라 계산하지 않습니다' : `${dotYm(cpaFrom)} 이후 기준`}
         />
       </div>
 
@@ -248,17 +254,17 @@ export const SearchView: React.FC<SearchViewProps> = ({
               <thead>
                 <tr>
                   <th>캠페인 › 광고그룹</th>
-                  <th className="n">노출</th>
-                  <th className="n">클릭</th>
-                  <th className="n">전환</th>
-                  <th className="n">광고비</th>
+                  <SortableTh className="n" sortKey="imp" activeKey={gKey} order={gOrd} onSort={gSort}>노출</SortableTh>
+                  <SortableTh className="n" sortKey="clk" activeKey={gKey} order={gOrd} onSort={gSort}>클릭</SortableTh>
+                  <SortableTh className="n" sortKey="conv" activeKey={gKey} order={gOrd} onSort={gSort}>전환</SortableTh>
+                  <SortableTh className="n" sortKey="cost" activeKey={gKey} order={gOrd} onSort={gSort}>광고비</SortableTh>
                 </tr>
               </thead>
               <tbody>
-                {result.groups.slice(0, limit).map((g) => (
+                {[...result.groups].sort((a, b) => (gOrd === 'asc' ? 1 : -1) * (a[gKey] - b[gKey])).slice(0, limit).map((g) => (
                   <tr key={`${g.media}|${g.type}|${g.campaign}|${g.adgroup}`}>
                     <td>
-                      <MediaPill media={g.media} iconOnly size={12} /> {g.campaign} › {g.adgroup} <small className="muted">{g.type}</small>
+                      <span className="s-media-row"><MediaPill media={g.media} iconOnly size={12} />{g.campaign} › {g.adgroup} <small className="muted">{g.type}</small></span>
                     </td>
                     <td className="n">{fmt(g.imp)}</td>
                     <td className="n">{fmt(g.clk)}</td>
@@ -276,21 +282,25 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 <tr>
                   <th>키워드</th>
                   <th>캠페인 › 광고그룹</th>
-                  <th className="n">노출</th>
-                  <th className="n">클릭</th>
-                  <th className="n">전환</th>
-                  <th className="n">광고비</th>
+                  <SortableTh className="n" sortKey="bid" activeKey={kKey} order={kOrd} onSort={kSort}>입찰가</SortableTh>
+                  <SortableTh className="n" sortKey="quality" activeKey={kKey} order={kOrd} onSort={kSort}>품질지수</SortableTh>
+                  <SortableTh className="n" sortKey="imp" activeKey={kKey} order={kOrd} onSort={kSort}>노출</SortableTh>
+                  <SortableTh className="n" sortKey="clk" activeKey={kKey} order={kOrd} onSort={kSort}>클릭</SortableTh>
+                  <SortableTh className="n" sortKey="conv" activeKey={kKey} order={kOrd} onSort={kSort}>전환</SortableTh>
+                  <SortableTh className="n" sortKey="cost" activeKey={kKey} order={kOrd} onSort={kSort}>광고비</SortableTh>
                 </tr>
               </thead>
               <tbody>
-                {result.keywords.slice(0, limit).map((k) => (
+                {[...result.keywords].sort((a, b) => (kOrd === 'asc' ? 1 : -1) * (a[kKey] - b[kKey])).slice(0, limit).map((k) => (
                   <tr key={`${k.media}|${k.campaign}|${k.adgroup}|${k.keyword}|${k.match || ''}`}>
                     <td>
-                      <MediaPill media={k.media} iconOnly size={12} /> <b>{k.keyword}</b>
+                      <span className="s-media-row"><MediaPill media={k.media} iconOnly size={12} /><b>{k.keyword}</b></span>
                     </td>
                     <td className="search-sub">
                       {k.campaign} › {k.adgroup}
                     </td>
+                    <td className="n">{k.bid ? `${fmt(k.bid)}원` : '–'}</td>
+                    <td className="n">{k.quality || '–'}</td>
                     <td className="n">{fmt(k.imp)}</td>
                     <td className="n">{fmt(k.clk)}</td>
                     <td className="n">{fmt(k.conv)}</td>
@@ -307,16 +317,16 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 <tr>
                   <th>소재</th>
                   <th>캠페인 › 광고그룹</th>
-                  <th className="n">노출</th>
-                  <th className="n">클릭</th>
-                  <th className="n">광고비</th>
+                  <SortableTh className="n" sortKey="imp" activeKey={aKey} order={aOrd} onSort={aSort}>노출</SortableTh>
+                  <SortableTh className="n" sortKey="clk" activeKey={aKey} order={aOrd} onSort={aSort}>클릭</SortableTh>
+                  <SortableTh className="n" sortKey="cost" activeKey={aKey} order={aOrd} onSort={aSort}>광고비</SortableTh>
                 </tr>
               </thead>
               <tbody>
-                {result.ads.slice(0, limit).map(({ ad, stat }) => (
+                {[...result.ads].sort((a, b) => (aOrd === 'asc' ? 1 : -1) * ((a.stat?.[aKey] ?? 0) - (b.stat?.[aKey] ?? 0))).slice(0, limit).map(({ ad, stat }) => (
                   <tr key={`${ad.media}|${ad.adId}`}>
                     <td>
-                      <MediaPill media={ad.media} iconOnly size={12} /> {displayAdTitle(ad.title) || ad.adgroup}
+                      <span className="s-media-row"><MediaPill media={ad.media} iconOnly size={12} />{displayAdTitle(ad.title) || ad.adgroup}</span>
                     </td>
                     <td className="search-sub">
                       {ad.campaign} › {ad.adgroup}
@@ -328,6 +338,23 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 ))}
               </tbody>
             </table>
+          )}
+
+          {activeTab === 'quotes' && (
+            <div className="search-breakdown" id="searchBreakdown">
+              {breakdowns.map((b) => (
+                <div key={b.title} className="search-breakdown-col">
+                  <h4>{b.title}</h4>
+                  {b.rows.slice(0, showAll ? undefined : BREAKDOWN_LIMIT).map(([k, n]) => (
+                    <p key={k}>
+                      <span title={k}>{k}</span>
+                      <b>{fmt(n)}건</b>
+                    </p>
+                  ))}
+                  {!showAll && b.rows.length > BREAKDOWN_LIMIT && <small className="muted">외 {fmt(b.rows.length - BREAKDOWN_LIMIT)}개</small>}
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 'quotes' &&
@@ -357,35 +384,17 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 </tbody>
               </table>
             ) : (
-              <>
-                <table className="stk" id="tbSearchQuoteCats">
-                  <thead>
-                    <tr>
-                      <th>카테고리</th>
-                      <th className="n">건수</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {catRows.slice(0, limit).map(([c, n]) => (
-                      <tr key={c}>
-                        <td>{c}</td>
-                        <td className="n">{fmt(n)}건</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="leg-note search-login-note">
-                  견적 제목과 고객 정보는 로그인 후 볼 수 있습니다.{' '}
-                  <Button variant="link" className="btn-search-login" id="btn-search-login" data-btn="search-login" onClick={onLogin}>
-                    로그인
-                  </Button>
-                </p>
-              </>
+              <p className="leg-note search-login-note">
+                견적 제목과 고객 정보는 로그인 후 볼 수 있습니다.{' '}
+                <Button variant="link" className="btn-search-login" id="btn-search-login" data-btn="search-login" onClick={onLogin}>
+                  로그인
+                </Button>
+              </p>
             ))}
         </div>
 
         <ShowMoreButton
-          total={activeTab === 'quotes' && !isLoggedIn ? catRows.length : counts[activeTab]}
+          total={counts[activeTab]}
           expanded={showAll}
           onToggle={() => setShowAll((v) => !v)}
         />

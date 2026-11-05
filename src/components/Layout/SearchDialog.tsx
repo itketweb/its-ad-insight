@@ -94,7 +94,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
 
         {!q ? (
           <p className="sd-hint">
-            관련된 광고와 견적을 전체 기간에서 찾습니다. 예: HPE, 워크스테이션, 네이버
+            관련된 광고와 견적을 전체 기간에서 찾습니다. 예: HPE, 워크스테이션, 네이버, cadkorea
             {isLoggedIn ? ', 고객사 이름' : ''}
           </p>
         ) : !result ? null : empty ? (

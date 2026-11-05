@@ -236,6 +236,7 @@ export const App: React.FC = () => {
         <div className="wrap">
           <Header
             title={VIEW_TITLES[currentView]}
+            titleDetail={isSearchView ? searchQuery : undefined}
             drawerOpen={drawerOpen}
             isDark={isDark}
             onOpenDrawer={handleOpenDrawer}
@@ -355,7 +356,6 @@ export const App: React.FC = () => {
                   allPeriod={searchPeriod.mode === 'all'}
                   yearTotal={searchPeriod.mode === 'year'}
                   isLoggedIn={isLoggedIn}
-                  onOpenSearch={() => setSearchOpen(true)}
                   onLogin={() => setLoginOpen(true)}
                   onSelectAllPeriod={() => setSearchPeriod((p) => ({ ...p, mode: 'all' }))}
                 />

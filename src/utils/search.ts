@@ -31,6 +31,8 @@ export interface SearchResult {
   itketQuotes: number;
   /** 추정 CPA — 광고비와 견적이 모두 있는 달만 계산한다 */
   cpa: number;
+  /** 매체·유입 경로로 찾은 결과라 CPA 를 계산하지 않았다 (견적의 유입 추적이 광고비보다 늦게 시작해 기간이 맞지 않는다) */
+  cpaHidden: boolean;
 }
 
 /** 매체 코드의 한글 이름 — "네이버" 로 찾아도 Naver 광고가 나오게 한다 */
@@ -47,8 +49,11 @@ const matches = (tokens: string[], fields: (string | number | undefined)[]): boo
   return tokens.every((t) => text.includes(t));
 };
 
-const groupKey = (r: { media: string; campaign: string; adgroup: string }): string =>
-  [r.media, r.campaign.trim(), r.adgroup.trim()].join('\u0001');
+const groupKey = (r: { media: string; type: string; campaign: string; adgroup: string }): string =>
+  [r.media, r.type, r.campaign.trim(), r.adgroup.trim()].join('\u0001');
+
+/** 견적이 들어온 사이트 이름 — 아이티켓 원장은 비어 있고, 전화문의는 문의 유형으로 찾는다 */
+const siteNameOf = (r: QuoteRawRow): string => (!r.site ? '아이티켓' : r.site === 'phone' ? '' : r.site);
 
 const sumInto = (a: SpendRow, b: SpendRow): void => {
   a.cost += b.cost;
@@ -74,25 +79,35 @@ export function searchDashboard(
   query: string,
   months: string[] | null
 ): SearchResult {
-  const tokens = searchTokens(query);
+  // SA·DA 는 글자 포함으로 찾으면 "samsung" 같은 이름까지 걸리므로 광고 구분으로만 본다
+  const allTokens = searchTokens(query);
+  const typeTokens = allTokens.filter((t) => t === 'sa' || t === 'da');
+  const tokens = allTokens.filter((t) => t !== 'sa' && t !== 'da');
+  const typeOk = (type: string) => typeTokens.length === 0 || typeTokens.some((t) => t === type.toLowerCase());
+  const textHit = (type: string, fields: (string | undefined)[]) =>
+    tokens.length > 0 && typeOk(type) && matches(tokens, fields);
   const set = months && new Set(months);
   const inPeriod = (month: string) => !set || set.has(month);
 
   // 광고그룹
+  let channelSearch = false;
   const weights = new Map<string, number>();
-  /** 광고그룹이 검색어에 해당하는 비율 — 이름·매체가 맞으면 1, 카테고리만 맞으면 그 카테고리의 비율, 아니면 0 */
-  const groupWeight = (r: { media: string; campaign: string; adgroup: string }): number => {
+  /** 광고그룹이 검색어에 해당하는 비율 — 이름·매체·SA/DA 가 맞으면 1, 카테고리만 맞으면 그 카테고리의 비율, 아니면 0 */
+  const groupWeight = (r: { media: string; type: string; campaign: string; adgroup: string }): number => {
     const k = groupKey(r);
     const known = weights.get(k);
     if (known !== undefined) return known;
     const names = [r.media, MEDIA_KO[r.media], r.campaign, r.adgroup];
-    const cats = catsOf(categoryMap, { ...r, month: '', type: '', cost: 0, imp: 0, clk: 0, conv: 0 });
+    const cats = catsOf(categoryMap, { ...r, month: '', cost: 0, imp: 0, clk: 0, conv: 0 });
     let weight = 0;
-    if (matches(tokens, names)) weight = 1;
+    if (!typeOk(r.type)) weight = 0;
+    else if (matches(tokens, names)) weight = 1;
     else if (matches(tokens, [...names, ...cats.map(({ c }) => c)])) {
       // 검색어가 이름과 카테고리에 나뉘어 맞으면 어느 비율인지 정할 수 없어 전체로 본다
       weight = cats.filter(({ c }) => matches(tokens, [c])).reduce((a, { w }) => a + w, 0) || 1;
     }
+    // 이름·카테고리로는 안 맞고 매체 덕분에 맞았다
+    if (weight && !matches(tokens, [r.campaign, r.adgroup, ...cats.map(({ c }) => c)])) channelSearch = true;
     weights.set(k, weight);
     return weight;
   };
@@ -104,15 +119,17 @@ export function searchDashboard(
     if (!w) return;
     const row = w === 1 ? r : { ...r, cost: r.cost * w, imp: r.imp * w, clk: r.clk * w, conv: r.conv * w };
     spendRows.push(row);
-    const k = `${groupKey(r)}\u0001${r.type}`;
+    const k = groupKey(r);
     const cur = groupMap.get(k);
     if (cur) sumInto(cur, row);
     else groupMap.set(k, { ...row });
   });
   const groups = [...groupMap.values()].sort((a, b) => b.cost - a.cost);
 
-  // 키워드 — 합계에는 이름이 일치하지 않은 광고그룹의 것만 더한다
-  const keywordHits = data.keywords.filter((k) => inPeriod(k.month) && matches(tokens, [k.keyword]));
+  // 키워드 — 글자가 맞거나 일치한 광고그룹에 속한 것. 합계에는 일치하지 않은 광고그룹의 것만 더한다 (광고그룹 실적에 이미 들어 있다)
+  const keywordHits = data.keywords.filter(
+    (k) => inPeriod(k.month) && (groupWeight(k) > 0 || textHit(k.type, [k.keyword]))
+  );
   const keywordOnly = new Set<string>();
   keywordHits.forEach((k) => {
     if (groupWeight(k)) return;
@@ -147,18 +164,20 @@ export function searchDashboard(
     }
   });
   const ads = data.ads
-    .filter((a) => groupWeight(a) > 0 || matches(tokens, [a.title, ...(a.titles || []), ...(a.descs || [])]))
+    .filter((a) => groupWeight(a) > 0 || textHit(a.type, [a.title, ...(a.titles || []), ...(a.descs || [])]))
     .map((ad) => ({ ad, stat: stats.get(adStatKey(ad.media, ad.adId)) }))
     .sort((a, b) => (b.stat?.cost || 0) - (a.stat?.cost || 0));
 
   // 견적 — 고객 정보는 로그인한 관리자에게만 내려오므로 없으면 찾지 못한다
   const quotes = quoteRowsOf(data)
-    .filter(
-      (r) =>
-        r.date &&
-        inPeriod(r.date.slice(0, 7)) &&
-        matches(tokens, [r.subject, r.category, r.source, r.sourceDetail, r.inquiryType, r.salesRep, r.company, r.name, r.email, r.phone, r.receiver])
-    )
+    .filter((r) => {
+      if (!tokens.length || !r.date || !inPeriod(r.date.slice(0, 7))) return false;
+      const plain = [r.subject, r.category, r.sourceDetail, r.salesRep, r.sno, r.company, r.name, r.email, r.phone, r.receiver];
+      if (matches(tokens, plain)) return true;
+      const channel = matches(tokens, [...plain, r.source, r.inquiryType, siteNameOf(r)]);
+      if (channel) channelSearch = true;
+      return channel;
+    })
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const sum = (f: (r: SpendRow) => number) => spendRows.reduce((a, r) => a + f(r), 0);
@@ -179,6 +198,7 @@ export function searchDashboard(
     conv: sum((r) => r.conv),
     keywordOnlyGroups: keywordOnly.size,
     itketQuotes: quotes.filter(isItket).length,
-    cpa: cpaQuotes > 0 ? cpaCost / cpaQuotes : 0,
+    cpa: !channelSearch && cpaQuotes > 0 ? cpaCost / cpaQuotes : 0,
+    cpaHidden: channelSearch,
   };
 }

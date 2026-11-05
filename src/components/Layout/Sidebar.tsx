@@ -143,11 +143,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className={`upd${live ? ' live' : ''}`}>
             {live ? (
               <>
-                실제 데이터
-                <span className="upd-time">
-                  {updated || '취합본'} 수집
-                  {isSyncing && <>{' · '}<span className="sync-pulse">동기화 중...</span></>}
-                </span>
+                {updated || '취합본'} 수집
+                {isSyncing && <>{' · '}<span className="sync-pulse">동기화 중...</span></>}
               </>
             ) : (
               <>
@@ -158,9 +155,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </>
             )}
           </span>
-          마케팅팀 ·{' '}
-          <span className="rel" title={__APP_COMMIT__ ? `커밋 ${__APP_COMMIT__}` : undefined}>
-            {__APP_RELEASE__}
+          <span className="sfoot-ver">
+            마케팅팀 ·{' '}
+            <span className="rel" title={__APP_COMMIT__ ? `커밋 ${__APP_COMMIT__}` : undefined}>
+              {__APP_RELEASE__}
+            </span>
           </span>
         </div>
       </aside>

@@ -5,6 +5,8 @@ import { Button } from '../common/Button';
 
 interface HeaderProps {
   title: string;
+  /** 제목 오른쪽에 함께 보여 줄 값 (예: 검색어) */
+  titleDetail?: string;
   drawerOpen: boolean;
   isDark: boolean;
   onOpenDrawer: () => void;
@@ -17,6 +19,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   title,
+  titleDetail,
   drawerOpen,
   isDark,
   onOpenDrawer,
@@ -41,6 +44,11 @@ export const Header: React.FC<HeaderProps> = ({
         <span className="ttx">광고 &amp; 견적 대시보드 </span>
         <span className="crumb" id="crumb">
           {title}
+          {titleDetail && (
+            <span className="crumb-detail" title={titleDetail}>
+              &quot;{titleDetail}&quot;
+            </span>
+          )}
         </span>
       </h1>
       <span className="sp" />
