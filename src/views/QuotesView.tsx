@@ -3,6 +3,7 @@ import type { DashboardData, QuoteRawRow, SyncStatus } from '../types/dashboard'
 import {
   buildSourceShareData,
   fmt,
+  fmtWon,
   mLabel,
   prevM,
   cat1Of,
@@ -192,6 +193,20 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
   const kpiCpa = yearTotal ? ytdCpa : curCpa;
   const kpiPrevCpa = yearTotal ? (lastYrMonths[0] >= starts.cpaFrom ? lastYrCpa : null) : (pvCpa || null);
   const kpiCpaCompLabel = yearTotal ? '전년 동기' : '전월';
+  const ytdValidMonths = cpaMonths.filter((mo) => mo >= starts.cpaFrom);
+  const kpiSpend = yearTotal
+    ? sumBy(data.spend.filter(inMonths(ytdValidMonths)), (r) => r.cost)
+    : curM >= starts.cpaFrom ? curSpendTot : 0;
+  const kpiAdQuotes = yearTotal
+    ? sumBy(data.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count)
+    : curM >= starts.cpaFrom ? curAdQuotes : 0;
+  const kpiCpaDetail = kpiCpa ? (
+    <>
+      <p>광고비 <b>{fmtWon(kpiSpend)}</b></p>
+      <i>|</i>
+      <p>견적 <b>{fmt(kpiAdQuotes)}건</b></p>
+    </>
+  ) : null;
 
   // 추이 차트: 건수 상위 6개 1차 카테고리 + 그 외
   const chartCats = quoteChartCats(yrQuotes);
@@ -230,6 +245,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
               label={<>견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
               value={allCpa ? `${fmt(allCpa)}원` : '–'}
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
+              detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotesCount)}건</b></p></> : null}
             />
             <KpiCard
               label="전체 최다 유입 매체"
@@ -272,6 +288,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, isSyncing 
           cur={kpiCpa || null}
           prev={kpiPrevCpa}
           cmpLabel={kpiCpaCompLabel}
+          detail={kpiCpaDetail}
         />
         <KpiCard
           label={`${kpiLabel} 최다 유입 매체`}
