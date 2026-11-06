@@ -88,7 +88,9 @@ function syncAllBody_(t0) {
     ['다른 사이트 견적 데이터', () => withQuoteLock_(collectQuoteSites), 'collectQuoteSites'],
     ['전화문의 데이터', () => { if (PROPS.getProperty('QUOTE_SHEET_ID')) collectQuotePhone(); }, 'collectQuotePhone'],
     ['통계용 추가 견적', () => withQuoteLock_(collectQuoteStatsExtra), 'collectQuoteStatsExtra'],
-    ['구글 광고 이메일 리포트', collectGoogleAdsEmail, 'collectGoogleAdsEmail'],
+    // 구글은 2026-11-06 부터 Google Ads 스크립트(GoogleAdsScript.js, 매시간)가 g_* 시트를 통째로 쓴다.
+    // 메일 CSV 수집은 캠페인·광고그룹 ID 없이 이름으로 합치고 g_meta 도 덮어써 그 데이터와 섞이므로 돌리지 않는다.
+    // ['구글 광고 이메일 리포트', collectGoogleAdsEmail, 'collectGoogleAdsEmail'],
     ['네이버 GFA 리포트', collectGfaEmail, 'collectGfaEmail'],
     ['네이버 커머스', collectCommerce, 'collectCommerce'],
   ];

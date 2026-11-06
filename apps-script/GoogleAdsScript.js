@@ -1,7 +1,8 @@
 /**
  * its-ad-insight — Google Ads 수집 스크립트 (Google Ads 스크립트)
  *
- * Google Ads → 도구 → 대량 작업 → 스크립트 에 붙여넣고 "1시간마다"로 예약한다.
+ * Google Ads → 도구 → 대량 작업 → 스크립트 에 붙여넣고 "1시간마다"로 예약한다 (네이버 syncAll 과 같은 주기).
+ * 실행 계정: itketweb (2026-11-06, itsmkt1307 은 OAuth 본인 확인이 막혀 임시 전환). 같은 시트에 쓰는 다른 스크립트는 예약하지 않는다.
  * 개발자 토큰·관리자(MCC) 계정이 필요 없다. 이 광고 계정의 데이터를 같은 구글 계정의 시트에 쓴다.
  *  - g_campaign_monthly : 캠페인 × 월 비용·노출·클릭·전환 (2023년 1월부터, 실적 최대 MAX 버전)
  *  - g_adgroup_monthly  : 광고그룹 × 월 (카테고리 매칭용, P-Max 처럼 그룹이 없는 캠페인은 제외됨)
@@ -113,11 +114,31 @@ function met_(r) {
   return [Math.round(Number(m.costMicros || 0) / 1e6), Number(m.impressions || 0), Number(m.clicks || 0), Math.round(Number(m.conversions || 0) * 100) / 100];
 }
 function each_(q, fn) { const it = AdsApp.search(q); while (it.hasNext()) fn(it.next()); }
-/** 시트를 통째로 다시 쓴다. 1열(월 등)과 *_meta 의 2열(타임스탬프)은 날짜로 바뀌지 않게 글자 형식으로 둔다. */
+/**
+ * 시트를 새 값으로 바꾼다. 1열(월 등)과 *_meta 의 2열(타임스탬프)은 날짜로 바뀌지 않게 글자 형식으로 둔다.
+ * 먼저 비우고 쓰면 그 사이 시트 타임아웃이 났을 때 시트가 빈 채로 남으므로(2026-11-06 실제 발생),
+ * 새 값을 덮어쓴 뒤 남는 옛 행·열만 지운다. 실패해도 이전 값이 그대로 남고, 타임아웃이면 잠시 뒤 다시 시도한다.
+ */
 function put_(ss, name, rows) {
-  const sh = ss.getSheetByName(name) || ss.insertSheet(name);
-  sh.clearContents();
-  const textCols = /_meta$/.test(name) && rows[0] && rows[0].length >= 2 ? 2 : 1;
-  sh.getRange(1, 1, Math.max(rows.length, 1), textCols).setNumberFormat('@');
-  sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  const sh = retry_(() => ss.getSheetByName(name) || ss.insertSheet(name));
+  const nR = rows.length, nC = rows[0].length;
+  const textCols = /_meta$/.test(name) && nC >= 2 ? 2 : 1;
+  retry_(() => {
+    sh.getRange(1, 1, nR, textCols).setNumberFormat('@');
+    sh.getRange(1, 1, nR, nC).setValues(rows);
+    const lastR = sh.getLastRow(), lastC = sh.getLastColumn();
+    if (lastR > nR) sh.getRange(nR + 1, 1, lastR - nR, Math.max(lastC, nC)).clearContent();
+    if (lastC > nC) sh.getRange(1, nC + 1, nR, lastC - nC).clearContent();
+    SpreadsheetApp.flush();
+  });
+}
+/** 시트 서비스 타임아웃·일시 오류일 때만 10·20·30초 쉬고 최대 3번 더 시도한다. 그 밖의 오류는 바로 멈춘다. */
+function retry_(fn) {
+  for (let i = 0; ; i++) {
+    try { return fn(); } catch (e) {
+      if (i >= 3 || !/timed out|temporar|try again|잠시 후|시간 초과/i.test(String(e && e.message || e))) throw e;
+      console.log(`시트 쓰기 재시도 ${i + 1}/3: ${e && e.message}`);
+      Utilities.sleep(10000 * (i + 1));
+    }
+  }
 }
