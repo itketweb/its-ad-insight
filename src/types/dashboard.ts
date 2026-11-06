@@ -203,6 +203,9 @@ export interface SourceShareItem {
   c: string;
   v: number;
   count?: number;
+  /** 비교 기간(전월·전년 동기)의 점유율·건수. 비교를 켠 경우에만 채운다 */
+  prevV?: number;
+  prevCount?: number;
 }
 
 export interface RawSpendApiRow {

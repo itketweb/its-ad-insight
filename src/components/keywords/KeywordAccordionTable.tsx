@@ -8,6 +8,7 @@ import { MoreButton } from '../common/MoreButton';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useSort } from '../../hooks/useSort';
 import { SortableTh } from '../common/SortableTh';
+import { Th } from '../common/Th';
 import { TabButton } from '../common/TabButton';
 import { Card } from '../common/Card';
 
@@ -33,9 +34,9 @@ const mediaKo = (m: string) => (m === 'Naver' ? '네이버' : m === 'Google' ? '
 // CTR = 클릭 ÷ 노출 × 100 (노출 0 이면 –)
 const ctr = (clk: number, imp: number) => (imp ? `${((clk / imp) * 100).toFixed(1)}%` : '–');
 
-type SortKey = 'imp' | 'clk' | 'ctr' | 'conv' | 'cost';
+type SortKey = 'name' | 'imp' | 'clk' | 'ctr' | 'conv' | 'cost';
 
-const NUMERIC_COLS: { key: SortKey; label: string }[] = [
+const NUMERIC_COLS: { key: Exclude<SortKey, 'name'>; label: string }[] = [
   { key: 'imp', label: '노출' },
   { key: 'clk', label: '클릭' },
   { key: 'ctr', label: 'CTR' },
@@ -155,7 +156,12 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
   const displayGroups = selectedCamp ? selectedCamp.groups : topGroups.slice(0, visibleCount);
   const sortedDisplayGroups = useMemo(() => {
     const list = [...displayGroups];
+    const groupName = (g: KeywordGroup) => (selectedCamp ? g.adgroup : `${g.campaign} › ${g.adgroup}`);
     list.sort((a, b) => {
+      if (sortKey === 'name') {
+        const c = groupName(a).localeCompare(groupName(b));
+        return sortOrder === 'desc' ? -c : c;
+      }
       const valA = getGroupMetric(a, sortKey);
       const valB = getGroupMetric(b, sortKey);
       const diff = sortOrder === 'desc' ? valB - valA : valA - valB;
@@ -163,7 +169,16 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
       return b.cost - a.cost;
     });
     return list;
-  }, [displayGroups, sortKey, sortOrder]);
+  }, [displayGroups, sortKey, sortOrder, selectedCamp]);
+  // 합계: 화면에 펼쳐 둔 그룹만이 아니라 이 탭의 모든 광고그룹 (그룹 더보기로 보게 될 것까지 포함)
+  const totalGroups = selectedCamp ? selectedCamp.groups : topGroups;
+  const kwTotal = totalGroups.reduce(
+    (t, g) => {
+      const { imp, clk, conv } = groupTotals(g);
+      return { imp: t.imp + imp, clk: t.clk + clk, conv: t.conv + conv, cost: t.cost + g.cost };
+    },
+    { imp: 0, clk: 0, conv: 0, cost: 0 }
+  );
   const hiddenCamps = campaigns.slice(VISIBLE_TABS);
   const hiddenSelected = safeKwIdx > VISIBLE_TABS;
   const selectTab = (idx: number) => {
@@ -301,12 +316,12 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             <>
               <thead>
                 <tr>
-                  <th>캠페인 › 광고그룹 › 키워드</th>
-                  <th className="n">노출</th>
-                  <th className="n">클릭</th>
-                  <th className="n">CTR</th>
-                  <th className="n">전환</th>
-                  <th className="n">광고비</th>
+                  <Th>캠페인 › 광고그룹 › 키워드</Th>
+                  <Th className="n">노출</Th>
+                  <Th className="n">클릭</Th>
+                  <Th className="n">CTR</Th>
+                  <Th className="n">전환</Th>
+                  <Th className="n">광고비</Th>
                 </tr>
               </thead>
               <tbody>
@@ -335,7 +350,9 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
             <>
               <thead>
                 <tr>
-                  <th>{selectedCamp ? '광고그룹 › 키워드' : '캠페인 › 광고그룹 › 키워드'}</th>
+                  <SortableTh sortKey="name" activeKey={sortKey} order={sortOrder} onSort={toggleSort}>
+                    {selectedCamp ? '광고그룹 › 키워드' : '캠페인 › 광고그룹 › 키워드'}
+                  </SortableTh>
                   {NUMERIC_COLS.map(({ key, label }) => (
                     <SortableTh key={key} sortKey={key} activeKey={sortKey} order={sortOrder} onSort={toggleSort} className="n">
                       {label}
@@ -349,6 +366,10 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                   const isOpen = openGroups.has(groupKey);
                   const isKwExpanded = expandedKwGroups.has(groupKey);
                   const allSortedKws = [...g.list].sort((a, b) => {
+                    if (sortKey === 'name') {
+                      const c = a.keyword.localeCompare(b.keyword);
+                      return sortOrder === 'desc' ? -c : c;
+                    }
                     const valA = getKwMetric(a, sortKey);
                     const valB = getKwMetric(b, sortKey);
                     const diff = sortOrder === 'desc' ? valB - valA : valA - valB;
@@ -433,6 +454,18 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                     </React.Fragment>
                   );
                 })}
+                <tr className="grp kw-total">
+                  <td>
+                    합계<small className="grp-total-cnt">({fmt(totalGroups.length)}개 그룹)</small>
+                  </td>
+                  <td className="n">{fmt(kwTotal.imp)}</td>
+                  <td className="n">{fmt(kwTotal.clk)}</td>
+                  <td className="n">{ctr(kwTotal.clk, kwTotal.imp)}</td>
+                  <td className="n">{fmt(kwTotal.conv)}</td>
+                  <td className="n">
+                    <b>{fmt(kwTotal.cost)}원</b>
+                  </td>
+                </tr>
               </tbody>
             </>
           )}

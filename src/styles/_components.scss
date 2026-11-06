@@ -631,6 +631,20 @@ th.n {
   font-variant-numeric: tabular-nums;
 }
 
+// 설명이 있는 머리글(정렬·일반 모두): 글자 옆 ⓘ 로 툴팁이 있음을 알린다
+th .th-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+th .th-tip-ico {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  color: var(--sub);
+}
+
 th.sortable,
 th.n.sortable {
   cursor: pointer;
@@ -836,11 +850,11 @@ th.n.sortable {
       }
 
       .col-subject {
-        width: 16rem;
+        width: 14rem;
       }
 
       .col-company {
-        width: 10rem;
+        width: 8rem;
       }
 
       .col-name {
@@ -848,11 +862,11 @@ th.n.sortable {
       }
 
       .col-email {
-        width: 13rem;
+        width: 10rem;
       }
 
       .col-category {
-        width: 13rem;
+        width: 18rem; // 1차·2차 선택박스 2개가 나란히 들어가도록
       }
 
       .col-source {
@@ -985,6 +999,23 @@ th.n.sortable {
       white-space: nowrap;
     }
 
+    // 1차·2차 선택박스 한 쌍 — 칸을 반씩 나눠 쓴다
+    .qr-cat-pair {
+      display: flex;
+      gap: 0.25rem;
+
+      .dd-cat {
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+      }
+
+      .dd.disabled .dd-trigger {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
     // 행별 카테고리 Dropdown — 칸 너비 안에 두고 긴 이름은 말줄임 (펼친 목록은 전체 이름)
     .dd-cat {
       display: flex;
@@ -1090,6 +1121,14 @@ tr.grp td {
   font-weight: 600;
 }
 
+// 합계 줄 이름 옆의 범위 표시 (예: "(143개 그룹)")
+tr.grp .grp-total-cnt {
+  margin-left: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
 td.ind {
   padding-left: 3rem;
 }
@@ -1135,6 +1174,26 @@ table.kv th {
   span {
     color: var(--line2);
   }
+
+  // 표 머리글 설명: 제목 한 줄 + 줄바꿈되는 설명
+  &.desc {
+    white-space: normal;
+    word-break: keep-all; // 띄어쓰기에서만 줄을 바꾼다 (아이티켓·zbyhp 가 가운뎃점에서 끊기지 않게)
+    max-width: 18rem;
+
+    span {
+      display: block;
+      color: var(--card);
+      font-weight: 600;
+    }
+
+    b {
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--line2);
+    }
+  }
 }
 
 .pill {
@@ -1142,7 +1201,7 @@ table.kv th {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 1.25rem;
+  height: var(--badge-h);
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;

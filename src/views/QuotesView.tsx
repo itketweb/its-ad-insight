@@ -44,7 +44,7 @@ const QUOTES_SOURCES: SourceLinkItem[] = [
 ];
 
 export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMonth, allPeriod = false, yearTotal = false }) => {
-  // 건수 통계는 아이티켓에 다른 사이트·전화문의를 더해 센다
+  // 건수·CPA 모두 아이티켓에 다른 사이트(zbyhp·cadkorea)·전화문의를 더해 센다 (2026-11-06 사용자 결정)
   const { quotes, quotesRaw } = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
 
   if (!quotes.length) {
@@ -105,13 +105,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
   const lastYrMonths = sameMonthsLastYear(cpaMonths);
   const cpaIn = (list: string[]) => {
     const valid = list.filter((mo) => mo >= starts.cpaFrom);
-    const q = sumBy(data.quotes.filter(inMonths(valid)), (r) => r.count);
+    const q = sumBy(quotes.filter(inMonths(valid)), (r) => r.count);
     return q > 0 ? sumBy(data.spend.filter(inMonths(valid)), (r) => r.cost) / q : 0;
   };
   const ytdCpa = cpaIn(cpaMonths);
   const lastYrCpa = cpaIn(lastYrMonths);
   const cpaSpend = sumBy(data.spend.filter((r) => r.month >= starts.cpaFrom), (r) => r.cost);
-  const cpaQuotesCount = sumBy(data.quotes.filter((r) => r.month >= starts.cpaFrom), (r) => r.count);
+  const cpaQuotesCount = sumBy(quotes.filter((r) => r.month >= starts.cpaFrom), (r) => r.count);
   const allCpa = cpaQuotesCount > 0 ? cpaSpend / cpaQuotesCount : 0;
 
   /** 최다 접수 담당자 카드 — 미지정은 순위·평균에서 빼고, 하단 줄에는 담당 현황만 보여 준다 */
@@ -208,9 +208,9 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
 
   // KPI CPA: 월 선택 → 당월 / 전월 비교, 연도 전체 → 연간 / 전년 동기 비교
   const curSpendTot = sumBy(data.spend.filter((r) => r.month === curM), (r) => r.cost);
-  const curAdQuotes = sumBy(data.quotes.filter((r) => r.month === curM), (r) => r.count);
+  const curAdQuotes = sumBy(quotes.filter((r) => r.month === curM), (r) => r.count);
   const pvSpendTot = sumBy(data.spend.filter((r) => r.month === pv), (r) => r.cost);
-  const pvAdQuotes = sumBy(data.quotes.filter((r) => r.month === pv), (r) => r.count);
+  const pvAdQuotes = sumBy(quotes.filter((r) => r.month === pv), (r) => r.count);
   const curCpa = curM >= starts.cpaFrom && curAdQuotes > 0 ? curSpendTot / curAdQuotes : 0;
   const pvCpa = pv >= starts.cpaFrom && pvAdQuotes > 0 ? pvSpendTot / pvAdQuotes : 0;
   const kpiCpa = yearTotal ? ytdCpa : curCpa;
@@ -221,7 +221,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
     ? sumBy(data.spend.filter(inMonths(ytdValidMonths)), (r) => r.cost)
     : curM >= starts.cpaFrom ? curSpendTot : 0;
   const kpiAdQuotes = yearTotal
-    ? sumBy(data.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count)
+    ? sumBy(quotes.filter(inMonths(ytdValidMonths)), (r) => r.count)
     : curM >= starts.cpaFrom ? curAdQuotes : 0;
   const kpiCpaDetail = kpiCpa ? (
     <>
@@ -265,7 +265,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
           <>
             <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} detail={allSiteDetail} />
             <KpiCard
-              label={<>견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
+              label={<>견적당 광고비 (CPA)</>}
               value={allCpa ? `${fmt(allCpa)}원` : '–'}
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
               detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotesCount)}건</b></p></> : null}
@@ -301,7 +301,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
           />
         )}
         <KpiCard
-          label={<>{kpiLabel} 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small></>}
+          label={<>{kpiLabel} 견적당 광고비 (CPA)</>}
           value={kpiCpa ? `${fmt(kpiCpa)}원` : '–'}
           cur={kpiCpa || null}
           prev={kpiPrevCpa}

@@ -348,7 +348,7 @@ tr.kw-cat-parent {
 }
 
 tr.kw-cat-child {
-  td { background: var(--bg); color: var(--ink2); font-size: 0.8em; }
+  td { background: var(--bg); color: var(--ink2); font-size: 0.75rem; }
 }
 
 .kw-cat-child-label {
@@ -408,25 +408,22 @@ tr.kw-cat-child {
   min-width: 48rem;
 
   .col-eff-name {
-    width: 19%;
+    width: 21%;
   }
   .col-eff-cost {
     width: 16%;
   }
-  .col-eff-share {
-    width: 8%;
-  }
   .col-eff-clk {
-    width: 8%;
+    width: 10%;
   }
   .col-eff-conv {
-    width: 8%;
+    width: 10%;
   }
   .col-eff-quotes {
-    width: 12%;
+    width: 13%;
   }
   .col-eff-rate {
-    width: 9%;
+    width: 10%;
   }
   .col-eff-cpa {
     width: 20%;
@@ -774,13 +771,17 @@ tr.kw-more-row td {
 // 작은 이름표 (소재 개수·소재 종류)
 .cr-n {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--badge-h);
   padding: 0 0.5rem;
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--sub);
   font-size: 0.75rem;
   font-weight: 500;
-  line-height: 1.25rem;
+  line-height: 1;
   white-space: nowrap;
 
   // 설명 툴팁이 있는 이름표
@@ -1734,12 +1735,13 @@ tr.kw-more-row td {
 
 .card.search-dialog {
   width: 100%;
-  max-width: 40rem;
+  max-width: 46rem;
   padding: 0;
   display: flex;
   flex-direction: column;
   max-height: 76vh;
-  overflow: hidden;
+  /* 드롭다운 목록이 검색창 밖으로 펼쳐질 수 있어야 해서 잘라내지 않는다 (안쪽 목록은 각자 스크롤) */
+  overflow: visible;
   border: 1px solid var(--line2);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.1);
 
@@ -1766,6 +1768,68 @@ tr.kw-more-row td {
 
     &::-webkit-search-cancel-button {
       display: none;
+    }
+  }
+
+  /* 단계 선택: 캠페인 › 광고그룹 › 키워드. 다른 화면과 같은 Dropdown 을 쓰고, 목록이 창 밖으로 펼쳐질 수 있게 창은 잘라내지 않는다 */
+  .sd-scope {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--sub);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+
+    .seg {
+      flex-shrink: 0;
+    }
+
+    .sd-scope-title {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* 다른 화면의 드롭다운(common/Dropdown)을 그대로 쓰고, 칸 폭만 세 칸이 나눠 갖게 한다 */
+    .sd-dd {
+      flex: 1 1 0;
+      min-width: 0;
+
+      .dd-trigger {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .dd-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      &.disabled .dd-trigger {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .sd-scope-go {
+      flex-shrink: 0;
+      height: 2rem;
+      padding: 0 0.875rem;
+      border: 1px solid var(--acc);
+      border-radius: 0;
+      background: var(--acc);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
     }
   }
 

@@ -121,8 +121,9 @@ function withLatestRepTitles<T extends { salesRep?: string }>(rows: T[]): T[] {
 }
 
 /**
- * 건수 통계용 견적 — 아이티켓에 다른 사이트·전화문의를 더한다.
- * CPA·견적전환율은 광고 효율 지표라 이 값이 아니라 data.quotes(아이티켓)로 계산한다.
+ * 화면에 쓰는 견적 — 아이티켓에 다른 사이트(zbyhp·cadkorea)·전화문의를 더한다.
+ * 건수뿐 아니라 CPA·견적전환율·카테고리 효율도 이 값으로 계산한다 (2026-11-06 사용자 결정).
+ * data.quotes 는 아이티켓 원본이라 어드민·데이터 점검에서만 직접 쓴다.
  */
 export function quoteStatsOf(data: Pick<DashboardData, 'quotes' | 'quotesRaw' | 'quotesExtra'>): { quotes: QuoteRow[]; quotesRaw: QuoteRawRow[] } {
   const extra = data.quotesExtra || [];

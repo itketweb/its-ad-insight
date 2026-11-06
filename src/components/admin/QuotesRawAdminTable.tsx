@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { QuoteRawRow } from '../../types/dashboard';
 import { EXTERNAL_LINKS } from '../../utils/constants';
-import { fmt, quoteKey, sourceColorVar, THIS_M, THIS_Y } from '../../utils/format';
-import { ALL_CATEGORIES, QUOTE_PHONE_SHEET, QUOTE_SITES } from '../../utils/constants';
+import { fmt, parseCatParts, quoteKey, sourceColorVar, THIS_M, THIS_Y } from '../../utils/format';
+import { ALL_CATEGORIES, CATEGORY_HIERARCHY, QUOTE_PHONE_SHEET, QUOTE_SITES } from '../../utils/constants';
 import { SkelRows } from '../common/SkeletonView';
-import { Dropdown } from '../common/Dropdown';
+import { Dropdown, type DropdownOption } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
 import { Download, ExternalLink, Save } from 'lucide-react';
 import { useSort } from '../../hooks/useSort';
@@ -71,6 +71,50 @@ const CategoryTrace: React.FC<{ quote: QuoteRawRow; original?: string }> = ({ qu
     <span className="qr-cat-trace" title={tip}>
       수동 지정{m.at ? ` · ${shortAt(m.at)}` : ''}
     </span>
+  );
+};
+
+/**
+ * 표준 카테고리 지정 — 1차·2차를 따로 고른다 (분류표 CATEGORY_HIERARCHY 기준).
+ * 저장 값은 예전과 같은 문자열("1차" 또는 "1차 > 2차")이라 시트·집계는 그대로 쓴다.
+ * 1차를 바꾸면 2차는 비워지고, 2차가 없는 1차는 2차 칸이 꺼진다. 분류표에 없는 예전 값은 "(기존)"으로 남겨 둔다.
+ */
+const CategoryPicker: React.FC<{ value: string; changed: boolean; onChange: (category: string) => void }> = ({
+  value,
+  changed,
+  onChange,
+}) => {
+  const { cat1, cat2 } = parseCatParts(value || '기타');
+  const node = CATEGORY_HIERARCHY.find((n) => n.cat1 === cat1);
+  const cat2List = node?.cat2 ?? [];
+  const cat1Options: DropdownOption<string>[] = [
+    ...CATEGORY_HIERARCHY.map((n) => ({ value: n.cat1, label: n.cat1, hint: n.cat2.length ? `· ${n.cat2.length}` : undefined })),
+    ...(node ? [] : [{ value: cat1, label: `${cat1} (기존)` }]),
+  ];
+  const cat2Options: DropdownOption<string>[] = [
+    { value: '', label: '2차 없음' },
+    ...cat2List.map((c) => ({ value: c, label: c })),
+    ...(cat2 && !cat2List.includes(cat2) ? [{ value: cat2, label: `${cat2} (기존)` }] : []),
+  ];
+  const cls = `dd-cat${changed ? ' is-changed' : ''}`;
+  return (
+    <div className="qr-cat-pair">
+      <Dropdown
+        className={cls}
+        ariaLabel="1차 카테고리 선택"
+        value={cat1}
+        options={cat1Options}
+        onChange={(v) => onChange(v)}
+      />
+      <Dropdown
+        className={cls}
+        ariaLabel="2차 카테고리 선택"
+        value={cat2}
+        disabled={!node || cat2List.length === 0}
+        options={cat2Options}
+        onChange={(v) => onChange(v ? `${cat1} > ${v}` : cat1)}
+      />
+    </div>
   );
 };
 
@@ -460,16 +504,9 @@ export const QuotesRawAdminTable: React.FC<QuotesRawAdminTableProps> = ({
                       </td>
                     ) : (
                     <td className="qr-cat">
-                      <Dropdown
-                        className={`dd-cat${originals?.has(quoteKey(q)) ? ' is-changed' : ''}`}
-                        ariaLabel="카테고리 선택"
+                      <CategoryPicker
                         value={q.category || '기타'}
-                        options={[
-                          ...ALL_CATEGORIES.map((cat) => ({ value: cat, label: cat })),
-                          ...(!ALL_CATEGORIES.includes(q.category) && q.category
-                            ? [{ value: q.category, label: `${q.category} (기존)` }]
-                            : []),
-                        ]}
+                        changed={!!originals?.has(quoteKey(q))}
                         onChange={(v) => onUpdateQuoteCategory?.(rowKey, v)}
                       />
                       <CategoryTrace quote={q} original={originals?.get(quoteKey(q))} />

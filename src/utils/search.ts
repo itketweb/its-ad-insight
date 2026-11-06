@@ -1,7 +1,7 @@
 import type { AdRow, CategoryMap, DashboardData, KeywordGroup, KeywordRow, QuoteRawRow, SpendRow } from '../types/dashboard';
 import { mergeKeywordMonths, periodStartsOf } from './allPeriod';
 import { adStatKey, type AdStat } from './creativeImage';
-import { catsOf } from './format';
+import { catsOf, parseCatParts } from './format';
 
 export type SearchTab = 'groups' | 'keywords' | 'ads' | 'quotes';
 
@@ -27,7 +27,7 @@ export interface SearchResult {
   conv: number;
   /** 광고그룹은 일치하지 않고 키워드만 일치한 광고그룹 수 */
   keywordOnlyGroups: number;
-  /** 아이티켓 사이트 견적 수 — CPA 는 이 값 기준이다 */
+  /** 아이티켓 사이트 견적 수 (구성 표시용 — CPA 는 전체 견적 기준) */
   itketQuotes: number;
   /** 추정 CPA — 광고비와 견적이 모두 있는 달만 계산한다 */
   cpa: number;
@@ -59,6 +59,40 @@ export function resultAdGroups(result: SearchResult): KeywordGroup[] {
 const MEDIA_KO: Record<string, string> = { Google: '구글', Naver: '네이버', Meta: '메타' };
 
 const compact = (s?: string | number): string => String(s ?? '').toLowerCase().replace(/\s+/g, '');
+
+/**
+ * 단계 선택 검색 — "캠페인 › 광고그룹 › 키워드" 형태의 검색어.
+ * 글자 포함이 아니라 이름이 정확히 같은 항목만 찾는다. 광고그룹·키워드는 생략할 수 있다.
+ * 검색어 문자열 하나로 표현하므로 즐겨찾기·최근 검색어·주소(#search?q=)가 그대로 동작한다.
+ */
+export interface SearchScope {
+  campaign: string;
+  adgroup?: string;
+  keyword?: string;
+  /** 표준 카테고리로 찾을 때 — "카테고리: 1차 › 2차". 이때 campaign 은 비어 있다 */
+  cat1?: string;
+  cat2?: string;
+}
+
+export const SCOPE_SEP = '›';
+const CATEGORY_PREFIX = '카테고리:';
+
+export function parseScope(query: string): SearchScope | null {
+  if (query.trim().startsWith(CATEGORY_PREFIX)) {
+    const [cat1, cat2] = query.trim().slice(CATEGORY_PREFIX.length).split(SCOPE_SEP).map((p) => p.trim());
+    return cat1 ? { campaign: '', cat1, cat2: cat2 || undefined } : null;
+  }
+  if (!query.includes(SCOPE_SEP)) return null;
+  const [campaign, adgroup, keyword] = query.split(SCOPE_SEP).map((p) => p.trim());
+  return campaign ? { campaign, adgroup: adgroup || undefined, keyword: keyword || undefined } : null;
+}
+
+export const formatScope = (parts: (string | undefined)[]): string =>
+  parts.filter(Boolean).join(` ${SCOPE_SEP} `);
+
+/** 표준 카테고리 단계 검색어 — "카테고리: HPE 서버" 또는 "카테고리: 노트북 › HP 노트북" */
+export const formatCategoryScope = (cat1: string, cat2?: string): string =>
+  `${CATEGORY_PREFIX} ${formatScope([cat1, cat2])}`;
 
 /** 검색어를 띄어쓰기로 나눈다. 비교할 때 양쪽 공백을 무시하므로 "HP 서버" 는 "HP서버" 도 찾는다 */
 export const searchTokens = (query: string): string[] =>
@@ -99,8 +133,13 @@ export function searchDashboard(
   query: string,
   months: string[] | null
 ): SearchResult {
+  // 단계 선택 검색이면 글자 검색 대신 이름이 같은 항목만 본다
+  const scope = parseScope(query);
+  const sameName = (a?: string, b?: string) => compact(a) === compact(b);
+  const inScope = (r: { campaign: string; adgroup: string }) =>
+    !!scope && sameName(r.campaign, scope.campaign) && (!scope.adgroup || sameName(r.adgroup, scope.adgroup));
   // SA·DA 는 글자 포함으로 찾으면 "samsung" 같은 이름까지 걸리므로 광고 구분으로만 본다
-  const allTokens = searchTokens(query);
+  const allTokens = scope ? [] : searchTokens(query);
   const typeTokens = allTokens.filter((t) => t === 'sa' || t === 'da');
   const tokens = allTokens.filter((t) => t !== 'sa' && t !== 'da');
   const typeOk = (type: string) => typeTokens.length === 0 || typeTokens.some((t) => t === type.toLowerCase());
@@ -117,6 +156,24 @@ export function searchDashboard(
     const k = groupKey(r);
     const known = weights.get(k);
     if (known !== undefined) return known;
+    if (scope?.cat1) {
+      // 표준 카테고리로 찾기 — 분류표 비율만큼만 더한다 (카테고리 효율 화면의 금액과 맞춘다)
+      const cats = catsOf(categoryMap, { ...r, month: '', cost: 0, imp: 0, clk: 0, conv: 0 });
+      const w = cats
+        .filter(({ c }) => {
+          const p = parseCatParts(c);
+          return p.cat1 === scope.cat1 && (!scope.cat2 || p.cat2 === scope.cat2);
+        })
+        .reduce((a, { w: cw }) => a + cw, 0);
+      weights.set(k, w);
+      return w;
+    }
+    if (scope) {
+      // 키워드까지 골랐으면 광고그룹 전체가 아니라 그 키워드의 실적만 더하므로, 광고그룹은 일치로 치지 않는다
+      const w = !scope.keyword && inScope(r) ? 1 : 0;
+      weights.set(k, w);
+      return w;
+    }
     const names = [r.media, MEDIA_KO[r.media], r.campaign, r.adgroup];
     const cats = catsOf(categoryMap, { ...r, month: '', cost: 0, imp: 0, clk: 0, conv: 0 });
     let weight = 0;
@@ -150,7 +207,13 @@ export function searchDashboard(
 
   // 키워드 — 글자가 맞거나 일치한 광고그룹에 속한 것. 합계에는 일치하지 않은 광고그룹의 것만 더한다 (광고그룹 실적에 이미 들어 있다)
   const keywordHits = data.keywords.filter(
-    (k) => inPeriod(k.month) && (groupWeight(k) > 0 || textHit(k.type, [k.keyword]))
+    (k) =>
+      inPeriod(k.month) &&
+      (scope
+        ? scope.cat1
+          ? groupWeight(k) > 0
+          : inScope(k) && (!scope.keyword || sameName(k.keyword, scope.keyword))
+        : groupWeight(k) > 0 || textHit(k.type, [k.keyword]))
   );
   const keywordOnly = new Set<string>();
   keywordHits.forEach((k) => {
@@ -190,12 +253,21 @@ export function searchDashboard(
     .map((ad) => ({ ad, stat: stats.get(adStatKey(ad.media, ad.adId)) }))
     .sort((a, b) => (b.stat?.cost || 0) - (a.stat?.cost || 0));
 
-  // 견적 — 고객 정보는 로그인한 관리자에게만 내려오므로 없으면 찾지 못한다
+  // 견적 — 고객 정보는 로그인한 관리자에게만 내려오므로 없으면 찾지 못한다.
+  // 단계 선택 검색은 가장 아래 단계의 이름(키워드 > 광고그룹 > 캠페인)이 견적의 유입 상세·제목에 들어 있는 것만 본다
+  const quoteTokens = scope ? [compact(scope.keyword || scope.adgroup || scope.campaign)] : tokens;
   const quotes = quoteRowsOf(data)
     .filter((r) => {
-      if (!tokens.length || !r.date || !inPeriod(r.date.slice(0, 7))) return false;
+      // 표준 카테고리 검색: 견적의 카테고리가 같은 1차(·2차)인 것
+      if (scope?.cat1) {
+        if (!r.date || !inPeriod(r.date.slice(0, 7)) || !r.category) return false;
+        const p = parseCatParts(r.category);
+        return p.cat1 === scope.cat1 && (!scope.cat2 || p.cat2 === scope.cat2);
+      }
+      if (!quoteTokens.length || !r.date || !inPeriod(r.date.slice(0, 7))) return false;
       const plain = [r.subject, r.category, r.sourceDetail, r.salesRep, r.sno, r.company, r.name, r.receiver];
-      if (matches(tokens, plain)) return true;
+      if (matches(quoteTokens, plain)) return true;
+      if (scope) return false;
       const channel = matches(tokens, [...plain, r.source, r.inquiryType, siteNameOf(r)]);
       if (channel) channelSearch = true;
       return channel;
@@ -206,7 +278,8 @@ export function searchDashboard(
   const isItket = (r: QuoteRawRow) => !r.site && !r.inquiryType;
   const cpaFrom = periodStartsOf(data).cpaFrom;
   const cpaCost = spendRows.filter((r) => r.month >= cpaFrom).reduce((a, r) => a + r.cost, 0);
-  const cpaQuotes = quotes.filter((r) => isItket(r) && r.date.slice(0, 7) >= cpaFrom).length;
+  // CPA 는 아이티켓·다른 사이트·전화문의를 모두 더한 견적 수로 나눈다 (2026-11-06 사용자 결정)
+  const cpaQuotes = quotes.filter((r) => r.date.slice(0, 7) >= cpaFrom).length;
 
   return {
     groups,
