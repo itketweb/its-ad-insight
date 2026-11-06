@@ -1,4 +1,5 @@
 import React from 'react';
+import { badgeSizeClass, type BadgeSize } from './badgeSize';
 
 interface MediaPillProps {
   media: string;
@@ -7,6 +8,8 @@ interface MediaPillProps {
   iconOnly?: boolean;
   /** CSS 길이 (예: 0.875rem) — 글자 크기를 따라가도록 rem으로 준다 */
   size?: string;
+  /** 뱃지 높이 — md(기본) 24px, sm 20px (글자 뱃지에만 적용) */
+  badgeSize?: BadgeSize;
 }
 
 export const GoogleLogo: React.FC<{ size?: string }> = ({ size = '0.875rem' }) => (
@@ -60,7 +63,7 @@ function resolveVariant(media: string): string {
   return '';
 }
 
-export const MediaPill: React.FC<MediaPillProps> = ({ media, variant, id, iconOnly, size }) => {
+export const MediaPill: React.FC<MediaPillProps> = ({ media, variant, id, iconOnly, size, badgeSize }) => {
   const cls = variant !== undefined ? variant : resolveVariant(media);
 
   if (iconOnly) {
@@ -85,7 +88,7 @@ export const MediaPill: React.FC<MediaPillProps> = ({ media, variant, id, iconOn
   }
 
   return (
-    <span className={`pill${cls ? ` ${cls}` : ''}`} id={id}>
+    <span className={`pill${cls ? ` ${cls}` : ''}${badgeSize === 'sm' ? ` ${badgeSizeClass(badgeSize)}` : ''}`} id={id}>
       {media}
     </span>
   );

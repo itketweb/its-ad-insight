@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import type { CategoryMap, DashboardData, KeywordRow, QuoteRawRow, QuoteRow, SyncStatus } from '../types/dashboard';
-import { cat1Of, fmt, mLabel, quoteSeriesColor, quoteChartCats, SERIES_DEFS, sumBy } from '../utils/format';
-import { dotYm, monthsUpTo, periodStartsOf, yearRangeLabel, yearsOf } from '../utils/allPeriod';
-import { resultAdGroups, searchDashboard, type SearchTab } from '../utils/search';
+import { cat1Of, fmt, fmtWon, mLabel, prevM, quoteSeriesColor, quoteChartCats, SERIES_DEFS, sourceColorVar, sumBy } from '../utils/format';
+import { dotYm, monthsUpTo, periodStartsOf, sameMonthsLastYear, yearRangeLabel, yearsOf } from '../utils/allPeriod';
+import { parseScope, resultAdGroups, searchDashboard, type SearchTab } from '../utils/search';
 import { campaignBuckets } from '../utils/keywordGroups';
 import { adStatKey, groupAdsByAdgroup, type AdStat } from '../utils/creativeImage';
 import { ViewHeader } from '../components/common/ViewHeader';
-import { KpiCard, KpiSection } from '../components/charts/KpiCard';
+import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
 import { MultiChart } from '../components/charts/MultiChart';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -21,6 +21,7 @@ import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { TableFootnote } from '../components/common/TableFootnote';
 import { SortableTh } from '../components/common/SortableTh';
 import { Th } from '../components/common/Th';
+import { colTip } from '../utils/columnTips';
 
 interface SearchViewProps {
   data: DashboardData;
@@ -69,6 +70,10 @@ const KEYWORD_COLS: { key: KeywordSort; label: string }[] = [
 const keywordMetric = (k: KeywordRow, key: KeywordSort): number =>
   key === 'ctr' ? (k.imp > 0 ? k.clk / k.imp : 0) : k[key];
 
+/** 견적 상세 머리말의 칩으로 올릴 짧은 항목, 그리고 한 줄 전체 폭을 쓰는 긴 항목 */
+const QUOTE_CHIP_LABELS = ['번호', '사이트', '문의 유형'];
+const QUOTE_WIDE_LABEL = '유입 경로';
+
 /** 견적 상세 펼침의 항목 — 값이 있는 것만 */
 const quoteDetails = (r: QuoteRawRow): [string, string][] =>
   (
@@ -110,6 +115,12 @@ export const SearchView: React.FC<SearchViewProps> = ({
     () => (query && !allPeriod && !yearTotal ? searchDashboard(data, categoryMap, query, chartMonths) : result),
     [data, categoryMap, query, allPeriod, yearTotal, chartMonths, result]
   );
+  // 비교 기간: 한 달이면 전월, 연도 합계면 전년 동기, 전체 기간은 비교 없음 (종합 요약 KPI 와 같은 기준)
+  const prevResult = useMemo(() => {
+    if (!query || allPeriod) return null;
+    const prevMonths = yearTotal ? sameMonthsLastYear(months || []) : [prevM(selectedMonth)];
+    return searchDashboard(data, categoryMap, query, prevMonths);
+  }, [data, categoryMap, query, allPeriod, yearTotal, months, selectedMonth]);
   const [tab, setTab] = useState<SearchTab | null>(initialTab || null);
   const [showAll, setShowAll] = useState(false);
 
@@ -195,12 +206,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
   // 추이 차트의 가로축 — 전체 기간은 연도, 그 밖에는 그 해 1월~기준월
   const chartSpend = chartResult?.spendRows || [];
   const rawQuotes = chartResult?.quotes || [];
-  const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  // 유입 매체 검색("유입 매체: 구글(광고)") — 견적만 있고 광고비는 이어지지 않아, 광고비·CPA 대신 견적 기준 요약을 보여 준다
+  const sourceScope = parseScope(query)?.source;
+  const queryTokens = sourceScope ? [] : query.toLowerCase().split(/\s+/).filter(Boolean);
   // 카테고리명에 검색어가 포함된 경우만 직접 매칭으로 본다
   const isCatMatch = (r: QuoteRawRow) => queryTokens.some((t) => (r.category || '').toLowerCase().includes(t));
   const catMatchCount = rawQuotes.filter(isCatMatch).length;
   // 직접 매칭이 20% 미만이면 브랜드·고객 검색으로 보고 모든 카테고리를 그대로 표시
-  const useCatFilter = catMatchCount >= rawQuotes.length * 0.2;
+  const useCatFilter = !sourceScope && catMatchCount >= rawQuotes.length * 0.2;
   const CAT_OTHER = '기타 카테고리';
   const chartQuotes: QuoteRow[] = rawQuotes.map((r) => ({
     month: r.date.slice(0, 7),
@@ -209,7 +222,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
     count: 1,
   }));
   // breakdown 카테고리도 차트와 동일한 필터 적용
-  const listCatFilter = result.quotes.filter(isCatMatch).length >= result.quotes.length * 0.2;
+  const listCatFilter = !sourceScope && result.quotes.filter(isCatMatch).length >= result.quotes.length * 0.2;
   const axis = allPeriod
     ? yearsOf([...chartSpend.map((r) => r.month), ...chartQuotes.map((r) => r.month)])
     : monthsUpTo(selectedMonth);
@@ -233,59 +246,196 @@ export const SearchView: React.FC<SearchViewProps> = ({
     .filter((s) => s.v.some((x) => x));
 
   const cpaFrom = periodStartsOf(data).cpaFrom;
-  const otherQuotes = result.quotes.length - result.itketQuotes;
+  // 카드 제목용 짧은 기간 (예: 11월, 전체 기간)
+  const kpiPeriod = allPeriod || yearTotal ? periodLabel : mLabel(selectedMonth);
+  const cmpLabel = prevResult ? (yearTotal ? '전년 동기' : '전월') : undefined;
+  const convCost = (r: { cost: number; conv: number }) => (r.conv > 0 ? r.cost / r.conv : null);
+  // 광고비 카드 하단: 매체별 금액
+  const mediaCost = (['Naver', 'Google', 'Meta'] as const)
+    .map((m): [string, number] => [m === 'Naver' ? '네이버' : m === 'Google' ? '구글' : '메타', sumBy(result.spendRows.filter((r) => r.media === m), (r) => r.cost)])
+    .filter(([, v]) => v > 0)
+    .map(([k, v]): [string, string] => [k, fmtWon(v)]);
+  // 견적 카드 하단: 접수처별 건수
+  const siteCount: Record<string, number> = {};
+  result.quotes.forEach((r) => {
+    const k = r.inquiryType ? '전화/톡플러스' : r.site === 'zbyhp' ? 'zbyhp' : r.site === 'cadkorea' ? 'cadkorea' : 'itket';
+    siteCount[k] = (siteCount[k] || 0) + 1;
+  });
+  const siteItems = ['itket', 'zbyhp', 'cadkorea', '전화/톡플러스']
+    .filter((k) => siteCount[k])
+    .map((k): [string, number] => [k, siteCount[k]]);
+  // 견적 카드의 추정 CPA 기준 — 매체·유입 경로 검색은 추적 기간이 달라 계산하지 않는다
+  const cpaLabel = result.cpaHidden ? '매체·유입 경로 검색은 계산하지 않음' : `${dotYm(cpaFrom)} 이후 기준`;
 
   // 견적 구성 — 제목·고객 정보 없이 건수만이라 로그아웃 상태에서도 보여 준다
+  const catKeyOf = (r: QuoteRawRow) => (listCatFilter && !isCatMatch(r) ? CAT_OTHER : cat1Of(r.category || '기타'));
+  const repKeyOf = (r: QuoteRawRow) => r.salesRep || '';
   const breakdowns = [
-    { title: '카테고리', rows: breakdownOf(result.quotes, (r) => listCatFilter && !isCatMatch(r) ? CAT_OTHER : cat1Of(r.category || '기타'), '기타') },
+    { title: '카테고리', rows: breakdownOf(result.quotes, catKeyOf, '기타') },
     { title: '유입 매체', rows: breakdownOf(result.quotes.filter((r) => !r.inquiryType), (r) => (r.source === '미수집' ? '' : r.source), '미수집') },
     { title: '문의 유형', rows: breakdownOf(result.quotes, (r) => r.inquiryType || INQUIRY_WEB, '기타') },
-    { title: '담당자', rows: breakdownOf(result.quotes, (r) => r.salesRep || '', '미지정') },
+    { title: '담당자', rows: breakdownOf(result.quotes, repKeyOf, '미지정') },
   ];
+
+  // 유입 매체 검색 전용 — 이 매체가 전체 유입(매체가 기록된 견적)에서 차지하는 비중. 종합 요약의 유입 매체 비중과 같은 원장·기준이다
+  const sameSource = (s?: string) => !!sourceScope && (s || '').replace(/\s+/g, '').toLowerCase() === sourceScope.replace(/\s+/g, '').toLowerCase();
+  const sourceShareIn = (list: string[] | null) => {
+    const set = list && new Set(list);
+    const all = data.quotesRaw.filter((r) => r.date && r.source && r.source !== '미수집' && (!set || set.has(r.date.slice(0, 7))));
+    const mine = all.filter((r) => sameSource(r.source)).length;
+    return { mine, all: all.length, pct: all.length ? (mine / all.length) * 100 : null };
+  };
+  const srcShare = sourceScope ? sourceShareIn(months) : null;
+  const srcSharePrev =
+    sourceScope && !allPeriod ? sourceShareIn(yearTotal ? sameMonthsLastYear(months || []) : [prevM(selectedMonth)]) : null;
+  const fmtShare = (v: number | null) => (v == null ? '–' : `${Number.isInteger(v) ? v : v.toFixed(1)}%`);
+  const topRow = (rows: [string, number][], skip: string) => rows.find(([k]) => k !== skip);
+  const topCat = topRow(breakdowns[0].rows, '기타');
+  const topRep = topRow(breakdowns[3].rows, '미지정');
+  // 최다 카테고리·담당자의 비교 기간 건수 — 같은 이름이 비교 기간에 몇 건이었는지로 증감을 낸다
+  const prevCountOf = (keyOf: (r: QuoteRawRow) => string, key?: string) =>
+    prevResult && key ? prevResult.quotes.filter((r) => keyOf(r) === key).length : null;
+  const topDetail = (top: [string, number] | undefined, rows: [string, number][]) => {
+    const items: [string, string][] = rows.filter((r) => r !== top).slice(0, 2).map(([k, n]) => [k, `${fmt(n)}건`]);
+    // 비교 줄이 건수 줄 자리를 쓰므로, 비교가 있으면 건수·비중을 보조 줄 맨 앞으로 옮긴다
+    if (cmpLabel && top) items.unshift(['건수', `${fmt(top[1])}건 (${fmtShare((top[1] / result.quotes.length) * 100)})`]);
+    return items.length ? <KpiDetailItems items={items} /> : null;
+  };
+  const monthlyTotal = axis.map((key) => sumBy(chartQuotes.filter((r) => r.month.startsWith(key)), (r) => r.count));
 
   return (
     <div className="view on" data-view="search" data-title={TITLE}>
       <ViewHeader title={`"${query}" ${TITLE}`} description={DESCRIPTION} status={status} />
 
+      {sourceScope ? (
+        <p className="leg-note quote-src-note">
+          ※ {periodLabel} 기준입니다. 견적의 유입 매체가 "{sourceScope}"인 건만 모았습니다(유입 매체는 2026년 10월부터 추적). 유입 매체는 광고비와 직접 연결된 값이 아니라서 이 검색에서는 광고비·견적당 광고비(CPA)를 보여 주지 않습니다.
+        </p>
+      ) : (
       <p className="leg-note quote-src-note">
-          ※ {periodLabel} 기준입니다. 광고비는 이름·카테고리·매체가 일치한 광고그룹과 일치한 키워드의 합계이고, 견적은 제목·카테고리·유입 매체 일치 건입니다(유입 매체는 2026년 10월부터 추적). 서로 직접 연결된 값이 아니어서 CPA는 추정치입니다.
+          ※ {periodLabel} 기준입니다. 광고비는 이름·카테고리·매체가 일치한 광고그룹과 일치한 키워드의 합계이고, 견적은 제목·카테고리·유입 매체 일치 건입니다(유입 매체는 2026년 10월부터 추적). 서로 직접 연결된 값이 아니어서 견적당 광고비(CPA)는 추정치입니다({cpaLabel}). 전환당 비용은 같은 광고 실적의 광고비 ÷ 광고전환이라 정확한 값입니다.
       </p>
+      )}
 
+      {sourceScope ? (
+        <KpiSection id="kpiSearch">
+          <KpiCard
+            label={`${kpiPeriod} 총 접수 견적`}
+            value={`${fmt(result.quotes.length)}건`}
+            cur={result.quotes.length}
+            prev={prevResult?.quotes.length}
+            cmpLabel={cmpLabel}
+            sub={`${sourceScope} 유입`}
+            detail={siteItems.length > 1 ? <KpiDetailItems items={siteItems} /> : null}
+          />
+          <KpiCard
+            label={`${kpiPeriod} 유입 점유율`}
+            value={fmtShare(srcShare?.pct ?? null)}
+            cur={srcShare?.pct ?? null}
+            prev={srcSharePrev?.pct ?? null}
+            cmpLabel={srcSharePrev ? cmpLabel : undefined}
+            deltaUnit="pp"
+            sub="전체 기간 기준"
+            detail={
+              srcShare ? (
+                <KpiDetailItems items={[['이 매체', `${fmt(srcShare.mine)}건`], ['전체 유입', `${fmt(srcShare.all)}건`]]} />
+              ) : null
+            }
+          />
+          <KpiCard
+            label={`${kpiPeriod} 최다 카테고리`}
+            value={topCat ? topCat[0] : '–'}
+            cur={topCat ? topCat[1] : null}
+            prev={prevCountOf(catKeyOf, topCat?.[0])}
+            cmpLabel={topCat ? cmpLabel : undefined}
+            sub={topCat ? `${fmt(topCat[1])}건 (${fmtShare((topCat[1] / result.quotes.length) * 100)})` : '카테고리 정보 없음'}
+            detail={topDetail(topCat, breakdowns[0].rows)}
+          />
+          <KpiCard
+            label={`${kpiPeriod} 최다 담당자`}
+            value={topRep ? topRep[0] : '–'}
+            cur={topRep ? topRep[1] : null}
+            prev={prevCountOf(repKeyOf, topRep?.[0])}
+            cmpLabel={topRep ? cmpLabel : undefined}
+            sub={topRep ? `${fmt(topRep[1])}건 (${fmtShare((topRep[1] / result.quotes.length) * 100)})` : '담당자 정보 없음'}
+            detail={topDetail(topRep, breakdowns[3].rows)}
+          />
+        </KpiSection>
+      ) : (
       <KpiSection id="kpiSearch">
         <KpiCard
-          label="광고비"
+          label={`${kpiPeriod} 광고비`}
           value={`${fmt(result.cost)}원`}
+          cur={result.cost}
+          prev={prevResult?.cost}
+          cmpLabel={cmpLabel}
           sub={`광고그룹 ${fmt(result.groups.length)}개${result.keywordOnlyGroups ? ` · 키워드만 일치 ${fmt(result.keywordOnlyGroups)}개 그룹` : ''}`}
+          detail={mediaCost.length ? <KpiDetailItems items={mediaCost} /> : `광고그룹 ${fmt(result.groups.length)}개`}
         />
-        <KpiCard label="클릭" value={fmt(result.clk)} sub={`노출 ${fmt(result.imp)} · CTR ${ctr(result.clk, result.imp)} · 전환 ${fmt(result.conv)}`} />
         <KpiCard
-          label="총 접수 견적"
+          label={`${kpiPeriod} 총 접수 견적`}
           value={`${fmt(result.quotes.length)}건`}
-          sub={`아이티켓 ${fmt(result.itketQuotes)}건${otherQuotes ? ` · 그 외 ${fmt(otherQuotes)}건` : ''}`}
+          cur={result.quotes.length}
+          prev={prevResult?.quotes.length}
+          cmpLabel={cmpLabel}
+          sub={`전체 ${fmt(result.quotes.length)}건`}
+          detail={siteItems.length > 1 ? <KpiDetailItems items={siteItems} /> : null}
         />
         <KpiCard
-          label={
-            <>
-              추정 CPA
-            </>
-          }
+          label={`${kpiPeriod} 견적당 광고비 (CPA)`}
           value={result.cpa ? `${fmt(result.cpa)}원` : '–'}
-          sub={result.cpaHidden ? '매체·유입 경로 검색은 추적 기간이 달라 계산하지 않습니다' : `${dotYm(cpaFrom)} 이후 기준`}
+          cur={result.cpa || null}
+          prev={prevResult?.cpa || null}
+          cmpLabel={cmpLabel}
+          sub={result.cpaHidden ? '매체·유입 경로 검색은 계산하지 않음' : cpaLabel}
+          detail={
+            result.cpa ? (
+              <>
+                <p>광고비 <b>{fmtWon(result.cpaCost)}</b></p>
+                <i>|</i>
+                <p>견적 <b>{fmt(result.cpaQuotes)}건</b></p>
+              </>
+            ) : (
+              <span>{result.cpaHidden ? '추적 기간이 달라 계산하지 않음' : cpaLabel}</span>
+            )
+          }
+        />
+        <KpiCard
+          label={<span data-tip={colTip('전환당 비용')} data-tip-desc="">{kpiPeriod} 전환당 비용</span>}
+          value={result.conv > 0 ? `${fmt(result.cost / result.conv)}원` : '–'}
+          cur={convCost(result)}
+          prev={prevResult ? convCost(prevResult) : null}
+          cmpLabel={cmpLabel}
+          sub={result.conv > 0 ? `광고비 ÷ 광고전환 ${fmt(result.conv)}건` : '광고전환이 없어 계산하지 않습니다'}
+          detail={<KpiDetailItems items={[['클릭', result.clk], ['전환', result.conv], ['CTR', ctr(result.clk, result.imp)]]} />}
         />
       </KpiSection>
+      )}
 
       <div className="grid">
-        <MultiChart
-          id="chSearchSpend"
-          title={allPeriod ? '연도별 광고비' : '월별 광고비'}
-          labels={axisLabels}
-          series={spendSeries}
-          unit="만원"
-          emptyMessage="일치하는 광고비가 없습니다."
-        />
+        {sourceScope ? (
+          // 광고비는 유입 매체와 이어지지 않으므로, 이 매체의 견적 접수 추이를 왼쪽에 둔다
+          <MultiChart
+            id="chSearchSourceTotal"
+            title={allPeriod ? '연도별 견적 접수' : '월별 견적 접수'}
+            labels={axisLabels}
+            series={[{ k: sourceScope, c: sourceColorVar(sourceScope), v: monthlyTotal }].filter((s) => s.v.some((x) => x))}
+            unit="건"
+            emptyMessage="일치하는 견적이 없습니다."
+          />
+        ) : (
+          <MultiChart
+            id="chSearchSpend"
+            title={allPeriod ? '연도별 광고비' : '월별 광고비'}
+            labels={axisLabels}
+            series={spendSeries}
+            unit="만원"
+            emptyMessage="일치하는 광고비가 없습니다."
+          />
+        )}
         <MultiChart
           id="chSearchQuotes"
-          title={allPeriod ? '연도별 견적 접수' : '월별 견적 접수'}
+          title={sourceScope ? (allPeriod ? '연도별 카테고리별 견적 접수' : '카테고리별 월별 견적 접수') : allPeriod ? '연도별 견적 접수' : '월별 견적 접수'}
           labels={axisLabels}
           series={quoteSeries}
           unit="건"
@@ -305,6 +455,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               label={t.label}
               count={counts[t.id]}
               disabled={!counts[t.id]}
+              title={counts[t.id] ? undefined : '일치하는 결과가 없습니다'}
               onClick={() => changeTab(t.id)}
             />
           ))}
@@ -433,15 +584,22 @@ export const SearchView: React.FC<SearchViewProps> = ({
                         const details = quoteDetails(r);
                         return (
                           <React.Fragment key={key}>
+                            {/* 소재 표(.cr-row)와 같은 방식: 행 전체를 눌러 펼치고, 화살표 버튼은 키보드 조작용 */}
                             <tr
-                              className="search-q-row"
-                              aria-expanded={isOpen}
+                              className={`cr-row can-open${isOpen ? ' open' : ''}`}
                               title={isOpen ? '클릭하여 상세 접기' : '클릭하여 상세 펼치기'}
                               onClick={() => toggleQuote(key)}
                             >
                               <td className="search-nowrap">
-                                <ChevronRight className={`grp-acc-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} aria-hidden="true" />
-                                {r.date.slice(0, 10)}
+                                <button
+                                  type="button"
+                                  className="search-q-toggle grp-acc-main"
+                                  aria-expanded={isOpen}
+                                  aria-controls={`search-q-detail-${key}`}
+                                >
+                                  <ChevronRight className={`grp-acc-chev${isOpen ? ' open' : ''}`} strokeWidth={2.25} aria-hidden="true" />
+                                  {r.date.slice(0, 10)}
+                                </button>
                               </td>
                               <td className="search-ellipsis" title={r.subject}>{r.subject || CUSTOMER_FALLBACK}</td>
                               <td className="search-ellipsis">{[r.company, r.name].filter(Boolean).join(' · ') || CUSTOMER_FALLBACK}</td>
@@ -450,17 +608,35 @@ export const SearchView: React.FC<SearchViewProps> = ({
                               <td className="search-ellipsis">{r.salesRep || CUSTOMER_FALLBACK}</td>
                             </tr>
                             {isOpen && (
-                              <tr className="search-q-detail">
+                              <tr className="search-q-detail cr-detail-row" id={`search-q-detail-${key}`}>
                                 <td colSpan={6}>
-                                  {r.subject && <p className="search-q-subject">{r.subject}</p>}
-                                  <dl>
-                                    {details.map(([label, value]) => (
-                                      <div key={label}>
-                                        <dt>{label}</dt>
-                                        <dd>{value}</dd>
+                                  {/* 소재 표(.cr-detail)와 같은 흰 패널 — 항목은 이름 위, 값 아래로 칸에 맞춰 늘어놓는다 */}
+                                  <div className="cr-detail search-q-panel">
+                                    {/* 머리말: 전체 제목 + 짧은 정보(번호·사이트·문의 유형)는 칩으로. 긴 값(유입 경로)은 아래 칸에서 한 줄 전체 폭을 쓴다 */}
+                                    <div className="search-q-head">
+                                      {r.subject && <p className="search-q-subject">{r.subject}</p>}
+                                      <div className="search-q-chips">
+                                        {details
+                                          .filter(([label]) => QUOTE_CHIP_LABELS.includes(label))
+                                          .map(([label, value]) => (
+                                            <span key={label} className="search-q-chip">
+                                              <small>{label}</small>
+                                              {value}
+                                            </span>
+                                          ))}
                                       </div>
-                                    ))}
-                                  </dl>
+                                    </div>
+                                    <dl>
+                                      {details
+                                        .filter(([label]) => !QUOTE_CHIP_LABELS.includes(label))
+                                        .map(([label, value]) => (
+                                          <div key={label} className={label === QUOTE_WIDE_LABEL ? 'wide' : undefined}>
+                                            <dt>{label}</dt>
+                                            <dd>{value}</dd>
+                                          </div>
+                                        ))}
+                                    </dl>
+                                  </div>
                                 </td>
                               </tr>
                             )}

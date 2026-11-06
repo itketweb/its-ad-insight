@@ -384,7 +384,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
                   return (
                     <React.Fragment key={groupKey}>
                       <tr
-                        className={`grp grp-accordion grp-${g.media.toLowerCase()}`}
+                        className={`grp grp-accordion grp-${g.media.toLowerCase()}${isOpen ? ' open' : ''}`}
                         onClick={canOpen ? () => toggleGroup(groupKey) : undefined}
                         style={canOpen ? undefined : { cursor: 'default' }}
                         title={!canOpen ? undefined : isOpen ? '클릭하여 키워드 목록 접기' : '클릭하여 키워드 목록 펼치기'}
@@ -420,7 +420,7 @@ export const KeywordAccordionTable: React.FC<KeywordAccordionTableProps> = ({
 
                       {isOpen &&
                         sortedKws.map((k, ki) => (
-                          <tr key={`${k.keyword}-${ki}`}>
+                          <tr key={`${k.keyword}-${ki}`} className="kw-child">
                             <td className="ind">
                               {k.keyword}
                               {detailed && (k.bid > 0 || k.quality > 0) && (

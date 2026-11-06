@@ -13,19 +13,31 @@ interface DataAuditTableProps {
 
 export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit, loading = false }) => {
   return (
-    <section id="data-audit-section">
-      <h2 className="sec">
-        실시간 데이터 매칭 · 통계 무결성 검증{' '}
-        {loading ? (
-          <SkelBar w="6rem" h="1.25rem" className="skel-inline" />
-        ) : (
-          <StatusBadge level={audit.overallLevel === 'ok' ? 'ok' : 'chk'}>
-            {audit.passedCount}/{audit.totalCount} 항목 통과
-          </StatusBadge>
-        )}
-      </h2>
-      <Card name="audit" tableWrap id="data-audit">
-        <table className="stk" id="tbDataAudit">
+    <Card
+      name="audit"
+      id="data-audit"
+      title={
+        <>
+          실시간 데이터 매칭 · 통계 무결성 검증
+          <span className="muted">
+            {loading ? (
+              <SkelBar w="6rem" h="1.25rem" className="skel-inline" />
+            ) : (
+              <StatusBadge size="sm" level={audit.overallLevel === 'ok' ? 'ok' : 'chk'}>
+                {audit.passedCount}/{audit.totalCount} 항목 통과
+              </StatusBadge>
+            )}
+          </span>
+        </>
+      }
+    >
+      <div className="tw">
+        <table className="stk data-tbl" id="tbDataAudit">
+          <colgroup>
+            <col className="col-d-name" />
+            <col />
+            <col className="col-d-status" />
+          </colgroup>
           <thead>
             <tr>
               <th>검증 항목</th>
@@ -45,7 +57,7 @@ export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit, loading =
                   <div className="sub-t">{chk.detail}</div>
                 </td>
                 <td className="c">
-                  <StatusBadge level={chk.level}>
+                  <StatusBadge size="sm" level={chk.level}>
                     {chk.badgeText}
                   </StatusBadge>
                 </td>
@@ -60,7 +72,7 @@ export const DataAuditTable: React.FC<DataAuditTableProps> = ({ audit, loading =
             '오차 판정 기준 — 누락 0건 (100% 무결성 보장)',
           ]}
         />
-      </Card>
-    </section>
+      </div>
+    </Card>
   );
 };

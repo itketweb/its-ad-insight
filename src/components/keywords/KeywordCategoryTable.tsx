@@ -143,7 +143,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
                   return (
                     <React.Fragment key={parentKey}>
                       <tr
-                        className={hasChildren ? 'kw-cat-parent' : undefined}
+                        className={hasChildren ? `kw-cat-parent${isOpen ? ' open' : ''}` : undefined}
                         onClick={hasChildren ? () => toggleParent(parentKey) : undefined}
                         style={hasChildren ? { cursor: 'pointer' } : undefined}
                       >

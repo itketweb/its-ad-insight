@@ -24,8 +24,7 @@ interface DataSourceTableProps {
 
 export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows, loading = false }) => {
   return (
-    <section>
-      <h2 className="sec">데이터 소스별 실시간 수집 현황</h2>
+    <Card name="sources" id="data-sources" title="데이터 소스별 실시간 수집 현황">
       <div className="hier">
         <span>매체</span>›
         <span>
@@ -36,8 +35,13 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows, lo
           키워드 <small>SA</small> / 배너 <small>DA</small>
         </span>
       </div>
-      <Card name="sources" tableWrap id="data-sources">
-        <table className="stk">
+      <div className="tw">
+        <table className="stk data-tbl">
+          <colgroup>
+            <col className="col-d-name" />
+            <col />
+            <col className="col-d-status" />
+          </colgroup>
           <thead>
             <tr>
               <th>소스</th>
@@ -60,7 +64,7 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows, lo
                   {loading ? (
                     <SkelBar w="4.5rem" h="1.25rem" />
                   ) : (
-                    <StatusBadge level={row.statusCls as StatusLevel}>{row.statusLabel}</StatusBadge>
+                    <StatusBadge size="sm" level={row.statusCls as StatusLevel}>{row.statusLabel}</StatusBadge>
                   )}
                 </td>
               </tr>
@@ -73,7 +77,7 @@ export const DataSourceTable: React.FC<DataSourceTableProps> = ({ sourceRows, lo
             '과거 수치는 사내 공유 폴더 월간보고서·키워드TFT 엑셀에서 1회 정규화 이관해 전년·전분기 비교에 사용',
           ]}
         />
-      </Card>
-    </section>
+      </div>
+    </Card>
   );
 };

@@ -41,9 +41,9 @@ export const ALL_CATEGORIES: string[] = CATEGORY_HIERARCHY.flatMap((n) => [n.cat
 export const VALID_VIEWS: ViewId[] = [
   'overview',
   'ads',
+  'quotes',
   'cat-efficiency',
   'keywords',
-  'quotes',
   'search',
   'data',
   'admin',
@@ -52,9 +52,9 @@ export const VALID_VIEWS: ViewId[] = [
 export const VIEW_TITLES: Record<ViewId, string> = {
   overview: '종합 요약',
   ads: '매체 광고비',
+  quotes: '견적 상세',
   'cat-efficiency': '카테고리 효율',
   keywords: '키워드 · 소재',
-  quotes: '견적 상세',
   search: '검색 결과',
   data: '데이터 연결',
   admin: '어드민 관리',

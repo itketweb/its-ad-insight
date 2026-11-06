@@ -4,7 +4,7 @@ import { fmt } from '../../utils/format';
 export interface TabButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   active: boolean;
   label: React.ReactNode;
-  /** 0 보다 크면 오른쪽에 건수 배지(tab-cnt)를 붙인다 */
+  /** 주면 오른쪽에 건수 배지(tab-cnt)를 붙인다 — 0 건도 0 으로 보여 준다. 건수가 없는 탭은 넘기지 않는다 */
   count?: number;
 }
 
@@ -17,7 +17,7 @@ export const TabButton: React.FC<TabButtonProps> = ({ active, label, count, clas
     aria-pressed={active}
   >
     <span>{label}</span>
-    {count != null && count > 0 && <span className="tab-cnt">{fmt(count)}</span>}
+    {count != null && <span className="tab-cnt">{fmt(count)}</span>}
     {children}
   </button>
 );

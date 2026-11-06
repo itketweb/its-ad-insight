@@ -369,7 +369,7 @@ const CreativeItem: React.FC<{
       <b>
         {group.campaign} › {group.adgroup}
       </b>
-      {multi && <span className="cr-n">소재 {ads.length}</span>}
+      {multi && <span className="cr-n badge-sm">소재 {ads.length}</span>}
     </>
   );
 

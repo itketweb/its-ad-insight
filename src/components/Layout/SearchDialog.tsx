@@ -1,7 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Clock, Search, Star, X } from 'lucide-react';
 import type { CategoryMap, DashboardData } from '../../types/dashboard';
-import { fmt } from '../../utils/format';
+import { fmt, mLabel } from '../../utils/format';
 import { adDisplayTitle } from '../../utils/creativeImage';
 import { formatCategoryScope, formatScope, parseScope, searchDashboard, type SearchTab } from '../../utils/search';
 import { clearRecentSearches, loadRecentSearches, removeRecentSearch, sameSearch } from '../../utils/recentSearches';
@@ -15,6 +15,8 @@ interface SearchDialogProps {
   categoryMap: CategoryMap;
   initialQuery: string;
   isLoggedIn: boolean;
+  /** 새 검색의 기준 달(YYYY-MM) — 결과 페이지와 같은 기간으로 미리 보여 준다 */
+  month: string;
   favorites: string[];
   onToggleFavorite: (query: string) => void;
   onClose: () => void;
@@ -39,8 +41,6 @@ function rankedNames(rows: { name: string; media: string; cost: number }[]): { n
     .sort((a, b) => b.cost - a.cost || a.name.localeCompare(b.name, 'ko'))
     .map((v) => ({ name: v.name, media: [...v.medias].join('·') }));
 }
-/** 새 검색은 전체 기간에서 찾는다 — 결과 페이지에서 기간을 좁힐 수 있다 */
-const PERIOD_LABEL = '전체 기간';
 
 /** 헤더 검색 — 입력하는 동안 묶음별 상위 결과와 합계를 보여 주고, Enter 로 요약 페이지에 간다. 바탕을 누르거나 Esc 로 닫는다 */
 export const SearchDialog: React.FC<SearchDialogProps> = ({
@@ -48,11 +48,13 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   categoryMap,
   initialQuery,
   isLoggedIn,
+  month,
   favorites,
   onToggleFavorite,
   onClose,
   onSubmit,
 }) => {
+  const PERIOD_LABEL = mLabel(month);
   const [query, setQuery] = useState(initialQuery);
   const [recents, setRecents] = useState(() => loadRecentSearches(isLoggedIn));
   // 단계 선택(1차 캠페인 › 2차 광고그룹) — 표준 카테고리 필터(1차·2차)와 같은 방식. 지금 검색어가 단계 검색이면 그 값으로 시작한다
@@ -114,8 +116,8 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   // 데이터가 많아도 입력이 끊기지 않게 계산은 늦춘다
   const deferred = useDeferredValue(query.trim());
   const result = useMemo(
-    () => (deferred ? searchDashboard(data, categoryMap, deferred, null) : null),
-    [data, categoryMap, deferred]
+    () => (deferred ? searchDashboard(data, categoryMap, deferred, [month]) : null),
+    [data, categoryMap, deferred, month]
   );
 
   useEffect(() => {
@@ -279,11 +281,11 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
           <div className="sd-main">
             {!q ? (
               <p className="sd-hint">
-                관련된 광고와 견적을 전체 기간에서 찾습니다. 예: HPE, 워크스테이션, 네이버, cadkorea
+                관련된 광고와 견적을 {PERIOD_LABEL} 기준으로 찾습니다(결과 화면에서 전체 기간으로 넓힐 수 있습니다). 예: HPE, 워크스테이션, 네이버, cadkorea
                 {isLoggedIn ? ', 고객사 이름' : ''}
               </p>
             ) : !result ? null : empty ? (
-              <p className="sd-hint">{PERIOD_LABEL}에 &quot;{q}&quot;와 일치하는 결과가 없습니다.</p>
+              <p className="sd-hint">{PERIOD_LABEL}에 &quot;{q}&quot;와 일치하는 결과가 없습니다. Enter를 누르면 결과 화면에서 전체 기간으로 넓힐 수 있습니다.</p>
             ) : (
               <>
                 <p className="sd-summary">
