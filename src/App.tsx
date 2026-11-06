@@ -115,9 +115,9 @@ export const App: React.FC = () => {
   const [yearTotalOn, setYearTotalOn] = useState(false);
   const yearTotal = yearTotalOn && supportsTotal && !allPeriod;
   const viewMonth = yearTotal ? lastMonthOfYear(selectedMonth, maxAvailableMonth) : selectedMonth;
-  // 검색 결과의 기간 — 보던 화면의 기간과 분리한다. 새 검색은 전체 기간에서 시작하고, 여기서 좁혀도 다른 화면은 그대로다
+  // 검색 결과의 기간 — 보던 화면의 기간과 분리한다. 새 검색은 당월(가장 최근 수집 달)에서 시작하고, 여기서 넓혀도 다른 화면은 그대로다
   const isSearchView = currentView === 'search';
-  const [searchPeriod, setSearchPeriod] = useState<{ mode: 'all' | 'year' | 'month'; month: string }>({ mode: 'all', month: '' });
+  const [searchPeriod, setSearchPeriod] = useState<{ mode: 'all' | 'year' | 'month'; month: string }>({ mode: 'month', month: '' });
   const searchMonth = searchPeriod.month || maxAvailableMonth;
 
   useEffect(() => {
@@ -145,17 +145,30 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0 });
   };
 
-  const goSearch = (query: string, tab?: SearchTab) => {
-    addRecentSearch(query, isLoggedIn);
+  const goSearch = (
+    query: string,
+    tab?: SearchTab,
+    opts?: { period?: { mode: 'all' | 'year' | 'month'; month: string }; record?: boolean }
+  ) => {
+    if (opts?.record !== false) addRecentSearch(query, isLoggedIn);
     setSearchQuery(query);
     setSearchTab(tab);
     setSearchOpen(false);
-    setSearchPeriod({ mode: 'all', month: '' });
+    setSearchPeriod(opts?.period ?? { mode: 'month', month: '' });
     setCurrentView('search');
     closeDrawer();
     window.history.pushState(null, '', `#search?q=${encodeURIComponent(query)}`);
     window.scrollTo({ top: 0 });
   };
+
+  // 표의 이름(카테고리·유입 매체)을 눌러 검색 결과로 — 보던 기간을 그대로 쓰고, 최근 검색 기록에는 남기지 않는다
+  const searchFromName = (query: string) =>
+    goSearch(query, undefined, {
+      record: false,
+      period: allPeriod
+        ? { mode: 'all', month: '' }
+        : { mode: yearTotal ? 'year' : 'month', month: yearTotal ? selectedMonth : viewMonth },
+    });
 
   useEffect(() => {
     document.title = `${currentView === 'search' && searchQuery ? `"${searchQuery}" ` : ''}${VIEW_TITLES[currentView]} · 아이티캣 광고 인사이트`;
@@ -179,7 +192,7 @@ export const App: React.FC = () => {
       setCurrentView(view);
       if (view === 'search') {
         setSearchQuery(query);
-        setSearchPeriod({ mode: 'all', month: '' });
+        setSearchPeriod({ mode: 'month', month: '' });
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -328,6 +341,7 @@ export const App: React.FC = () => {
                   selectedMonth={viewMonth}
                   allPeriod={allPeriod}
                   yearTotal={yearTotal}
+                  onSearchName={searchFromName}
                 />
               )}
               {!isLoading && currentView === 'ads' && (
@@ -409,6 +423,7 @@ export const App: React.FC = () => {
           onToggleFavorite={toggleFavorite}
           initialQuery={currentView === 'search' ? searchQuery : ''}
           isLoggedIn={isLoggedIn}
+          month={maxAvailableMonth}
           onClose={() => setSearchOpen(false)}
           onSubmit={goSearch}
         />

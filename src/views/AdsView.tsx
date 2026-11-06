@@ -236,7 +236,6 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
               cur={cpaIn(yearMonths)}
               prev={cpaIn(lastYrMonths)}
               cmpLabel="전년 동기"
-              invertDelta
             />
           </>
         ) : (
@@ -309,7 +308,6 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           cur={cpa(curM)}
           prev={cpa(pv)}
           cmpLabel="전월"
-          invertDelta
           detail={<KpiDetailItems items={[['전환수', curConv]]} />}
         />
           </>

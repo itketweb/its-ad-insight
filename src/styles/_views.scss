@@ -43,7 +43,8 @@ section {
 .lead-t {
   font-size: 0.875rem;
   color: var(--ink2);
-  margin: 0 0 0.75rem;
+  margin: 0 0 1rem;
+  line-height: 1.5;
 }
 
 p.small {
@@ -190,9 +191,15 @@ p.small {
     transition: color 0.12s, border-color 0.12s;
     white-space: nowrap;
 
-    &:hover:not(.on) {
+    &:hover:not(.on):not(:disabled) {
       color: var(--ink);
       border-bottom-color: var(--line2);
+    }
+
+    // 결과가 없어 누를 수 없는 탭 — 옅게 보이고, 손 모양 커서·호버 효과를 끈다
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     &.on {
@@ -343,8 +350,9 @@ p.small {
 }
 
 // 카테고리별 전환·소진 테이블 아코디언
+// 호버 강조는 접힌 줄에만 — 펼친 줄은 이미 열려 있다는 것이 보이므로 색을 더 바꾸지 않는다
 tr.kw-cat-parent {
-  &:hover td { background: var(--accbg); }
+  &:not(.open):hover td { background: var(--accbg); }
 }
 
 tr.kw-cat-child {
@@ -435,7 +443,8 @@ tr.grp-accordion {
   user-select: none;
   transition: background-color 0.15s ease;
 
-  &:hover td {
+  // 호버 강조는 접힌 줄에만 (펼친 줄은 색을 더 바꾸지 않는다)
+  &:not(.open):hover td {
     background: color-mix(in srgb, var(--accbg) 80%, var(--card)) !important;
   }
 
@@ -449,7 +458,7 @@ tr.grp-accordion {
       color: var(--grp-naver-ink);
     }
 
-    &:hover td {
+    &:not(.open):hover td {
       background: var(--grp-naver-hov) !important;
     }
   }
@@ -464,7 +473,7 @@ tr.grp-accordion {
       color: var(--grp-google-ink);
     }
 
-    &:hover td {
+    &:not(.open):hover td {
       background: var(--grp-google-hov) !important;
     }
   }
@@ -684,7 +693,7 @@ tr.kw-more-row td {
 .cr-row.can-open {
   cursor: pointer;
 
-  &:hover > td {
+  &:not(.open):hover > td {
     background: var(--cr-open-bg);
   }
 }
@@ -2007,6 +2016,9 @@ tr.kw-more-row td {
 }
 
 #tbSearchQuotes {
+  // 펼침 행 모양은 소재 표(.cr-row)와 같다 — 올렸을 때·펼쳤을 때 같은 바탕을 쓰고 상세 영역과 이어 붙인다
+  --cr-open-bg: var(--accbg);
+
   table-layout: fixed;
   width: 100%;
   min-width: 52rem;
@@ -2029,41 +2041,103 @@ tr.kw-more-row td {
     white-space: nowrap;
   }
 
-  .search-q-row {
+  // 화살표 + 접수일 버튼: 키보드로도 펼칠 수 있게 버튼이고, 모양은 일반 글자와 같다
+  .search-q-toggle {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
   }
 
   .search-q-detail td {
-    background: var(--bg);
     white-space: normal;
   }
 
+  // 펼친 상세 패널: 머리말(전체 제목 + 짧은 정보 칩) 아래에 나머지 항목을 "이름 위·값 아래" 칸으로
+  .search-q-panel {
+    padding: 0.75rem 1.25rem;
+  }
+
+  .search-q-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--line);
+  }
+
   .search-q-subject {
-    margin: 0 0 0.5rem;
+    flex: 1 1 18rem;
+    min-width: 0;
+    margin: 0;
     font-size: 0.875rem;
+    font-weight: 600;
     color: var(--ink);
     word-break: break-word;
   }
 
-  dl {
+  .search-q-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem 1.5rem;
+    gap: 0.375rem;
+  }
+
+  // 번호·사이트·문의 유형 — 이름은 옅게, 값은 굵게 한 덩어리로
+  .search-q-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: var(--badge-h);
+    padding: 0 0.625rem;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+
+    small {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--sub);
+    }
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.75rem 1.5rem;
     margin: 0;
-    font-size: 0.875rem;
+
+    // 유입 경로처럼 긴 값은 칸에 가두지 않고 한 줄 전체 폭을 쓴다
+    .wide {
+      grid-column: 1 / -1;
+    }
 
     div {
       display: flex;
-      gap: 0.375rem;
+      flex-direction: column;
+      gap: 0.125rem;
+      min-width: 0;
     }
 
     dt {
+      font-size: 0.75rem;
       color: var(--sub);
     }
 
     dd {
       margin: 0;
+      font-size: 0.875rem;
       color: var(--ink);
+      overflow-wrap: anywhere;
     }
   }
 }

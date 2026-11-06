@@ -1,4 +1,7 @@
 import React from 'react';
+import { ArrowUpRight } from 'lucide-react';
+import type { ViewId } from '../../types/dashboard';
+import { VIEW_TITLES } from '../../utils/constants';
 import { fmt, pct } from '../../utils/format';
 
 interface KpiCardProps {
@@ -10,9 +13,25 @@ interface KpiCardProps {
   sub?: React.ReactNode;
   /** 카드 하단 보조 줄 (cmpLabel·sub와 별개로 항상 표시) */
   detail?: React.ReactNode;
-  /** CPA 등 낮을수록 좋은 지표 — ▼는 초록(up), ▲는 빨강(down)으로 반전 */
-  invertDelta?: boolean;
+  /** 증감 표시 방식 — 'pct'(기본): 비율 변화 ▲12.3%, 'pp': 점유율처럼 이미 % 인 값의 차이(포인트) ▲4.5% — 사용자 요청으로 %p 대신 % 로 표기 */
+  deltaUnit?: 'pct' | 'pp';
+  /** 누르면 이동할 화면 — 카드 전체가 그 화면으로 가는 링크가 된다 (기간 선택은 화면 간에 공유된다) */
+  to?: ViewId;
 }
+
+/** 링크 카드에 마우스를 올리면 보여 줄 "이동할 화면에서 볼 수 있는 내용" — 공용 툴팁(#tip) 설명 */
+const VIEW_TIPS: Partial<Record<ViewId, string>> = {
+  ads: '매체별, 광고 형태별 월 광고비 추이와 일평균 광고비, MDF 소진, 집행 상세 표를 볼 수 있습니다.',
+  quotes: '월별 접수 견적을 카테고리, 담당자, 문의 유형, 유입 매체별로 나눠 보고 사이트별 구성을 볼 수 있습니다.',
+  'cat-efficiency': '카테고리별 광고비, 클릭, 총 접수 견적, 견적전환율, CPA를 비교해 효율이 좋은 카테고리를 볼 수 있습니다.',
+  keywords: '광고그룹별 키워드의 광고비, 클릭, 전환과 운영 중인 소재를 볼 수 있습니다.',
+};
+
+/** 이미 % 인 값(점유율 등)의 차이 — 28.3% → 17.6% 면 ▼ 10.7% (비율 변화가 아니라 두 값의 차) */
+const ppDelta = (a: number, b: number) => {
+  const d = Math.round((a - b) * 10) / 10;
+  return { cls: d === 0 ? 'flat' : d > 0 ? 'up' : 'down', txt: `${d === 0 ? '–' : d > 0 ? '▲' : '▼'} ${Math.abs(d)}%` };
+};
 
 /** 카드 하단 보조 줄의 항목 목록 — "이름 값 | 이름 값" */
 export const KpiDetailItems: React.FC<{ items: [string, number | string][] }> = ({ items }) => (
@@ -36,18 +55,16 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   cmpLabel,
   sub,
   detail,
-  invertDelta,
+  deltaUnit = 'pct',
+  to,
 }) => {
-  const p = cur != null && prev != null ? pct(cur, prev) : null;
-  const displayCls = p
-    ? invertDelta
-      ? (p.cls === 'down' ? 'up' : p.cls === 'up' ? 'down' : 'flat')
-      : p.cls
-    : null;
+  const p = cur != null && prev != null ? (deltaUnit === 'pp' ? ppDelta(cur, prev) : pct(cur, prev)) : null;
+  // 색은 지표의 좋고 나쁨이 아니라 방향만 따른다 (▲ 빨강 · ▼ 파랑) — 표의 증감 열과 같다. CPA·CPC 같은 비용 지표도 반전하지 않는다
+  const displayCls = p ? p.cls : null;
   const cls = displayCls && displayCls !== 'flat' ? ` ${displayCls}` : '';
 
-  return (
-    <div className={`kpi${cls}`}>
+  const body = (
+    <>
       <div className="l">{label}</div>
       <div className="v">{value}</div>
       {cmpLabel ? (
@@ -64,7 +81,22 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         <div className="s">{sub}</div>
       ) : null}
       {detail && <div className="kpi-detail">{detail}</div>}
-    </div>
+    </>
+  );
+
+  if (!to) return <div className={`kpi${cls}`}>{body}</div>;
+  return (
+    <a
+      className={`kpi kpi-link${cls}`}
+      href={`#${to}`}
+      data-tip={`${VIEW_TITLES[to]}에서 자세히 보기|${VIEW_TIPS[to] ?? '눌러서 관련 화면으로 이동합니다.'}`}
+      data-tip-desc=""
+      // 해시 이동으로 화면이 바뀐 뒤 새 화면의 맨 위부터 보이게 한다
+      onClick={() => window.scrollTo({ top: 0 })}
+    >
+      <ArrowUpRight className="kpi-link-ico" aria-hidden="true" />
+      {body}
+    </a>
   );
 };
 

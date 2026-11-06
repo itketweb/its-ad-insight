@@ -17,6 +17,8 @@ interface CategoryBarChartProps {
   /** 전체 카테고리 소진 합계(만원). 주면 기준·비교 기간의 소진 비중(%)을 함께 보여 준다 */
   totalCur?: number;
   totalPrev?: number;
+  /** 주면 카테고리 이름이 버튼이 되어, 누르면 그 카테고리 이름을 넘긴다 (검색 결과로 이동 등) */
+  onSelect?: (category: string) => void;
 }
 
 /**
@@ -33,6 +35,7 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   curLabel = '기준월',
   totalCur,
   totalPrev,
+  onSelect,
 }) => {
   if (!list.length) {
     return (
@@ -45,7 +48,8 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   const hasQ = list.some((c) => c.q != null);
   // 가장 긴 막대(기준·비교 통틀어)를 기준으로 비례시킨다. 비교 막대 옆에 값 글자가 붙으므로 78%까지만 쓴다
   const max = Math.max(1, ...list.map((c) => Math.max(c.cur, hidePrev ? 0 : c.prev)));
-  const full = hidePrev ? 100 : 78;
+  // 비교 모드는 굵은 막대 끝에 소진액·비중, 얇은 막대 끝에 전월 소진액이 붙으므로 가장 긴 막대도 70%까지만 쓴다
+  const full = hidePrev ? 100 : 70;
   const hasShare = (totalCur ?? 0) > 0;
   const shareOf = (v: number, total?: number) => (total && total > 0 ? Math.round((v / total) * 1000) / 10 : null);
   const fmtPct = (v: number | null) => (v == null ? '' : Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`);
@@ -58,8 +62,8 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
         <span className="cat-name">카테고리</span>
         <div className="src-bar-bars">소진액</div>
         <div className="src-bar-val">
-          <span className="amt">소진</span>
-          {hasShare && <span className="pct">비중</span>}
+          {hidePrev && <span className="amt">소진</span>}
+          {hidePrev && hasShare && <span className="pct">비중</span>}
           {!hidePrev && <span className="delta">증감</span>}
           {hasQ && <span className="qn">견적</span>}
         </div>
@@ -71,9 +75,20 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
         return (
           <div key={c.k} className="src-bar-row has-prev">
             <span className="src-bar-rank">{idx + 1}</span>
-            <span className="cat-name" title={c.k}>
-              {c.k}
-            </span>
+            {onSelect ? (
+              <button
+                type="button"
+                className="cat-name link"
+                title={`${c.k} 검색 결과 보기`}
+                onClick={() => onSelect(c.k)}
+              >
+                {c.k}
+              </button>
+            ) : (
+              <span className="cat-name" title={c.k}>
+                {c.k}
+              </span>
+            )}
             <div className="src-bar-bars">
               <div className="src-bar-track">
                 <div
@@ -81,6 +96,13 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
                   style={{ width: `${wOf(c.cur)}%`, background: 'var(--bar)' }}
                   data-tip={`${c.k} · ${hidePrev ? '전체 기간' : curLabel}|${fmt(c.cur)}만원${curShare != null ? ` (${fmtPct(curShare)})` : ''}`}
                 />
+                {/* 비교 모드: 기준월 소진액(굵게)·비중(옅게)을 굵은 막대 끝에 붙이고 오른쪽 소진·비중 열은 두지 않는다 */}
+                {!hidePrev && (
+                  <span className="src-bar-cur-val">
+                    {fmt(c.cur)}만
+                    {curShare != null && <span className="src-bar-cur-count">({fmtPct(curShare)})</span>}
+                  </span>
+                )}
               </div>
               {!hidePrev && (
                 <div className="src-bar-prev">
@@ -91,13 +113,14 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
                   />
                   <span className="src-bar-prev-val">
                     {fmt(c.prev)}만
+                    {prevShare != null && <span className="src-bar-prev-count">({fmtPct(prevShare)})</span>}
                   </span>
                 </div>
               )}
             </div>
             <div className="src-bar-val">
-              <span className="amt">{fmt(c.cur)}만</span>
-              {hasShare && <span className="pct">{fmtPct(curShare)}</span>}
+              {hidePrev && <span className="amt">{fmt(c.cur)}만</span>}
+              {hidePrev && hasShare && <span className="pct">{fmtPct(curShare)}</span>}
               {!hidePrev && (
                 <span className={`delta${d == null || d === 0 ? '' : d > 0 ? ' up' : ' down'}`}>
                   {d == null || d === 0 ? '–' : `${d > 0 ? '▲' : '▼'}${Math.abs(d)}%`}

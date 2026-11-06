@@ -264,7 +264,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
         {allPeriod ? (
           <>
             <KpiCard label="전체 누적 견적" value={`${fmt(allTotal)}건`} sub={`${dotYm(firstM)} ~ ${dotYm(curM)}`} detail={allSiteDetail} />
-            <KpiCard
+            <KpiCard to="cat-efficiency"
               label={<>견적당 광고비 (CPA)</>}
               value={allCpa ? `${fmt(allCpa)}원` : '–'}
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
@@ -300,13 +300,12 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ data, status, selectedMo
             detail={siteBreak(quotesRaw.filter((r) => r.date?.slice(0, 4) === yr))}
           />
         )}
-        <KpiCard
+        <KpiCard to="cat-efficiency"
           label={<>{kpiLabel} 견적당 광고비 (CPA)</>}
           value={kpiCpa ? `${fmt(kpiCpa)}원` : '–'}
           cur={kpiCpa || null}
           prev={kpiPrevCpa}
           cmpLabel={kpiCpaCompLabel}
-          invertDelta
           detail={kpiCpaDetail}
         />
         {repCard(

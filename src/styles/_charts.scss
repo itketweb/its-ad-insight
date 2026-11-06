@@ -232,10 +232,10 @@
     font-weight: 600;
   }
 
-  .src-pill-sp {
-    min-width: 6.25rem;
-    text-align: center;
-    flex-shrink: 0;
+  .src-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--sub);
   }
 }
 
@@ -330,19 +330,58 @@
     color: var(--ink2);
   }
 
-  .pill {
-    min-width: 6.25rem;
-    text-align: center;
-    justify-content: center;
+  /* 유입 매체 이름: 카테고리명(.cat-name)과 같은 모양의 플레인 텍스트 + 매체 색 점 */
+  .src-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 9rem;
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--ink2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 이름을 눌러 검색 결과로 가는 표(종합 요약)는 이름이 버튼이다 — 버튼 기본 모양을 지우고 올렸을 때만 밑줄 */
+  .src-name.link,
+  .cat-name.link {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    font-family: inherit;
+    line-height: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--acc);
+      text-decoration: underline;
+      text-underline-offset: 0.1875rem;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--acc);
+      outline-offset: 2px;
+      border-radius: 0.125rem;
+    }
+  }
+
+  .src-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
     flex-shrink: 0;
   }
 
-  /* 매체 그룹 색(--grp-*)을 따른다. 배경이 옅어 카드 위에서 사라지지 않도록 글자색의 옅은 테두리를 둔다 */
-  .src-pill {
-    box-sizing: border-box;
-    background: var(--pill-bg);
-    color: var(--pill-ink);
-    border: 1px solid color-mix(in srgb, var(--pill-ink) 22%, transparent);
+  &.src-bar-head .src-name {
+    padding-left: 1rem; /* 머리글은 점이 없으므로 이름 글자 위치에 맞춘다 */
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--sub);
   }
 
   .src-bar-bars {
@@ -361,9 +400,33 @@
 
   /* 비교 모드: 전체 폭 배경 막대 없이, 길이로만 비율을 읽게 한다 */
   &.has-prev .src-bar-track {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
     background: none;
     border: 0;
     overflow: visible;
+
+    .src-bar-fill {
+      flex-shrink: 0;
+    }
+  }
+
+  /* 기준 기간 점유율: 굵은 막대 끝에 붙인다 (전월 값 .src-bar-prev-val 과 같은 자리·모양, 굵게) */
+  .src-bar-cur-val {
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+
+    /* 건수는 점유율보다 옅고 가늘게 */
+    .src-bar-cur-count {
+      margin-left: 0.375rem;
+      font-weight: 500;
+      color: var(--sub);
+    }
   }
 
   /* 줄 높이는 값 글자(11px)에 맞추고, 4px 막대는 그 줄 가운데에 둔다 — 글자가 아래 구분선과 겹치지 않게 */
@@ -397,6 +460,12 @@
     color: var(--sub);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+
+    /* 전월 건수: 기준월 건수(.src-bar-cur-count)와 같은 자리, 점유율보다 더 옅게 */
+    .src-bar-prev-count {
+      margin-left: 0.375rem;
+      opacity: 0.75;
+    }
   }
 
   /* 비교 모드: 카테고리별 소진처럼 행을 선으로 나눈다 */

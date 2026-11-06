@@ -12,6 +12,8 @@ interface SourceBarChartProps {
   compareLabel?: string;
   /** 기준 기간 이름(예: '11월'). 막대 툴팁 제목에 붙는다 */
   curLabel?: string;
+  /** 주면 매체 이름이 버튼이 되어, 누르면 그 매체 이름을 넘긴다 (검색 결과로 이동 등) */
+  onSelect?: (source: string) => void;
 }
 
 // 유입 매체 비중: 순위형 가로 막대 (매체가 많아 도넛·누적 막대보다 순위·값이 잘 읽힌다)
@@ -21,6 +23,7 @@ export const SourceBarChart: React.FC<SourceBarChartProps> = ({
   emptyMessage = '유입경로 수집 데이터가 없습니다.',
   compareLabel,
   curLabel,
+  onSelect,
 }) => {
   if (!items.length) {
     return (
@@ -37,8 +40,8 @@ export const SourceBarChart: React.FC<SourceBarChartProps> = ({
 
   // 비교 모드는 가장 긴 막대(금월·전월 통틀어)를 칸 폭 전체로 보고 나머지를 비례시킨다 — 점유율 차이가 길이로 드러난다
   const scaleMax = compareLabel ? Math.max(1, ...items.map((s) => Math.max(s.v, s.prevV ?? 0))) : 100;
-  // 비교 모드는 막대 오른쪽에 전월 값 글자가 붙으므로 가장 긴 막대도 78%까지만 쓴다
-  const full = compareLabel ? 78 : 100;
+  // 비교 모드는 막대 오른쪽에 값 글자(점유율 · 건수)가 붙으므로 가장 긴 막대도 70%까지만 쓴다
+  const full = compareLabel ? 70 : 100;
   const wOf = (v: number) => (v > 0 ? Math.max(1.5, (v / scaleMax) * full) : 0);
 
   return (
@@ -46,11 +49,11 @@ export const SourceBarChart: React.FC<SourceBarChartProps> = ({
       {/* 열 머리글: 아래 행과 같은 구조(.src-bar-row)를 써서 칸 폭이 어긋나지 않게 한다 */}
       <div className="src-bar-row src-bar-head" aria-hidden="true">
         <span className="src-bar-rank">#</span>
-        <span className="src-pill-sp">매체</span>
+        <span className="src-name">매체</span>
         <div className="src-bar-bars">점유율</div>
         <div className="src-bar-val">
-          <span className="count">건수</span>
-          <span className="pct">점유율</span>
+          {!compareLabel && <span className="count">건수</span>}
+          {!compareLabel && <span className="pct">점유율</span>}
           {compareLabel && <span className="delta">증감</span>}
         </div>
       </div>
@@ -65,12 +68,23 @@ export const SourceBarChart: React.FC<SourceBarChartProps> = ({
         return (
         <div key={s.k} className={`src-bar-row${compareLabel ? ' has-prev' : ''}`}>
           <span className="src-bar-rank">{idx + 1}</span>
-          <span
-            className="pill src-pill"
-            style={{ '--pill-bg': tone.bg, '--pill-ink': tone.ink } as React.CSSProperties}
-          >
-            {s.k}
-          </span>
+          {/* 카테고리 표처럼 플레인 텍스트 이름. 매체 구분 색은 앞의 작은 점으로 남긴다 */}
+          {onSelect ? (
+            <button
+              type="button"
+              className="src-name link"
+              title={`${s.k} 검색 결과 보기`}
+              onClick={() => onSelect(s.k)}
+            >
+              <i className="src-dot" style={{ background: tone.bar }} />
+              {s.k}
+            </button>
+          ) : (
+            <span className="src-name" title={s.k}>
+              <i className="src-dot" style={{ background: tone.bar }} />
+              {s.k}
+            </span>
+          )}
           <div className="src-bar-bars">
             <div className="src-bar-track">
               <div
@@ -81,6 +95,15 @@ export const SourceBarChart: React.FC<SourceBarChartProps> = ({
                 }}
                 data-tip={curTip}
               />
+              {/* 비교 모드: 기준 기간 점유율은 굵은 막대 끝에 붙이고 오른쪽 점유율 열은 두지 않는다 */}
+              {compareLabel && (
+                <span className="src-bar-cur-val">
+                  {fmtPct(s.v)}
+                  {s.count != null && (
+                    <span className="src-bar-cur-count">({s.count.toLocaleString('ko-KR')}건)</span>
+                  )}
+                </span>
+              )}
             </div>
             {compareLabel && (
               // 비교 기간은 같은 색의 얇고 옅은 막대로 아래에 겹쳐 놓아, 호버 없이도 길이로 비교된다
@@ -95,13 +118,19 @@ export const SourceBarChart: React.FC<SourceBarChartProps> = ({
                 />
                 <span className="src-bar-prev-val">
                   {fmtPct(s.prevV ?? 0)}
+                  {/* 전월 데이터가 없는 매체(0건)는 점유율만 둔다 */}
+                  {(s.prevCount ?? 0) > 0 && (
+                    <span className="src-bar-prev-count">({(s.prevCount ?? 0).toLocaleString('ko-KR')}건)</span>
+                  )}
                 </span>
               </div>
             )}
           </div>
           <div className="src-bar-val">
-            {s.count != null && <span className="count">{s.count.toLocaleString('ko-KR')}건</span>}
-            <span className="pct">{fmtPct(s.v)}</span>
+            {!compareLabel && s.count != null && (
+              <span className="count">{s.count.toLocaleString('ko-KR')}건</span>
+            )}
+            {!compareLabel && <span className="pct">{fmtPct(s.v)}</span>}
             {compareLabel && (
               <span className={`delta${d == null || d === 0 ? '' : d > 0 ? ' up' : ' down'}`}>
                 {d == null || d === 0 ? '–' : `${d > 0 ? '▲' : '▼'}${Math.abs(d)}%`}

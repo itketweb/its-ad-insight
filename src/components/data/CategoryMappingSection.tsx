@@ -21,13 +21,12 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
   const flowCats = ranked.slice(0, 6).map((c) => c.category);
   const restCount = ranked.length - flowCats.length;
   return (
-    <section>
-      <h2 className="sec">카테고리 매칭 ({audit.curMonth} 기준 실시간 매핑 현황)</h2>
+    <>
+      <Card name="flow" id="cat-flow" title={<>카테고리 매칭<span className="muted">({audit.curMonth} 기준 실시간 매핑 현황)</span></>}>
       <p className="lead-t">
         매체마다 다른 캠페인·광고그룹 이름과 견적 제목을 직접 잇지 않고, <b>분류표(1차 카테고리)</b>를 가운데 두고
         양쪽을 연결한다. 정확한 매핑표에 없으면 이름·제목으로 찾는다.
       </p>
-      <Card name="flow" id="cat-flow">
         <div className="flow">
           <div className="col">
             <div className="col-h">매체 광고그룹 (예)</div>
@@ -59,8 +58,16 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
         </div>
       </Card>
 
-      <Card name="mapping" tableWrap id="cat-mapping">
-        <table className="stk" id="tbCatMappingStatus">
+      <Card name="mapping" id="cat-mapping" title={<>표준 카테고리별 매칭 현황<span className="muted">({audit.curMonth} 기준)</span></>}>
+      <div className="tw">
+        <table className="stk data-tbl data-tbl-map" id="tbCatMappingStatus">
+          <colgroup>
+            <col className="col-d-name" />
+            <col className="col-d-num" />
+            <col className="col-d-num" />
+            <col className="col-d-num" />
+            <col className="col-d-status" />
+          </colgroup>
           <thead>
             <tr>
               <th>표준 카테고리</th>
@@ -82,9 +89,9 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
                 <td className="n">{fmt(item.curMonthQuotes)}건</td>
                 <td className="c">
                   {item.category === '기타' ? (
-                    <StatusBadge level="warn">미분류</StatusBadge>
+                    <StatusBadge size="sm" level="warn">미분류</StatusBadge>
                   ) : (
-                    <StatusBadge level="ok">정상 매칭</StatusBadge>
+                    <StatusBadge size="sm" level="ok">정상 매칭</StatusBadge>
                   )}
                 </td>
               </tr>
@@ -102,7 +109,7 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
                 <b>{fmt(sumBy(audit.categoryBreakdown, (i) => i.curMonthQuotes))}건</b>
               </td>
               <td className="c">
-                <StatusBadge level="ok">100% 일치</StatusBadge>
+                <StatusBadge size="sm" level="ok">100% 일치</StatusBadge>
               </td>
             </tr>
             )}
@@ -116,7 +123,8 @@ export const CategoryMappingSection: React.FC<CategoryMappingSectionProps> = ({ 
             '견적: 제목 → 유입 광고 꼬리표 규칙 (categoryText.ts · Code.gs)',
           ]}
         />
+      </div>
       </Card>
-    </section>
+    </>
   );
 };

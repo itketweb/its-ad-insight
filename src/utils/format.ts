@@ -74,10 +74,11 @@ export interface PctInfo {
 export const pct = (a?: number | null, b?: number | null): PctInfo | null => {
   if (!b || a == null) return null;
   const p = Math.round(((a - b) / b) * 1000) / 10;
-  const up = p >= 0;
+  const up = p > 0;
   return {
     cls: p === 0 ? 'flat' : up ? 'up' : 'down',
-    txt: `${up ? '▲' : '▼'} ${Math.abs(p)}%`,
+    // 증감이 0% 면 방향이 없으므로 화살표 대신 –
+    txt: `${p === 0 ? '–' : up ? '▲' : '▼'} ${Math.abs(p)}%`,
   };
 };
 

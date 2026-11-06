@@ -15,6 +15,7 @@ interface SidebarProps {
   onReload: () => void;
 }
 
+// 순서는 종합 요약 KPI 카드 순서와 같다 — 광고비 → 견적 → 효율(광고비 ÷ 견적) → 키워드·소재 상세
 const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   {
     id: 'overview',
@@ -31,6 +32,13 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: 'quotes',
+    label: '견적 상세',
+    icon: (
+      <FileText />
+    ),
+  },
+  {
     id: 'cat-efficiency',
     label: '카테고리 효율',
     icon: (
@@ -42,13 +50,6 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
     label: '키워드 · 소재',
     icon: (
       <Search />
-    ),
-  },
-  {
-    id: 'quotes',
-    label: '견적 상세',
-    icon: (
-      <FileText />
     ),
   },
 ];

@@ -31,6 +31,9 @@ export interface SearchResult {
   itketQuotes: number;
   /** 추정 CPA — 광고비와 견적이 모두 있는 달만 계산한다 */
   cpa: number;
+  /** 추정 CPA 의 분자·분모 — 광고비와 견적이 모두 있는 달만 */
+  cpaCost: number;
+  cpaQuotes: number;
   /** 매체·유입 경로로 찾은 결과라 CPA 를 계산하지 않았다 (견적의 유입 추적이 광고비보다 늦게 시작해 기간이 맞지 않는다) */
   cpaHidden: boolean;
 }
@@ -72,12 +75,19 @@ export interface SearchScope {
   /** 표준 카테고리로 찾을 때 — "카테고리: 1차 › 2차". 이때 campaign 은 비어 있다 */
   cat1?: string;
   cat2?: string;
+  /** 유입 매체로 찾을 때 — "유입 매체: 구글(광고)". 견적의 유입 매체 값이 정확히 같은 것만 본다. 이때 campaign 은 비어 있다 */
+  source?: string;
 }
 
 export const SCOPE_SEP = '›';
 const CATEGORY_PREFIX = '카테고리:';
+const SOURCE_PREFIX = '유입 매체:';
 
 export function parseScope(query: string): SearchScope | null {
+  if (query.trim().startsWith(SOURCE_PREFIX)) {
+    const source = query.trim().slice(SOURCE_PREFIX.length).trim();
+    return source ? { campaign: '', source } : null;
+  }
   if (query.trim().startsWith(CATEGORY_PREFIX)) {
     const [cat1, cat2] = query.trim().slice(CATEGORY_PREFIX.length).split(SCOPE_SEP).map((p) => p.trim());
     return cat1 ? { campaign: '', cat1, cat2: cat2 || undefined } : null;
@@ -93,6 +103,9 @@ export const formatScope = (parts: (string | undefined)[]): string =>
 /** 표준 카테고리 단계 검색어 — "카테고리: HPE 서버" 또는 "카테고리: 노트북 › HP 노트북" */
 export const formatCategoryScope = (cat1: string, cat2?: string): string =>
   `${CATEGORY_PREFIX} ${formatScope([cat1, cat2])}`;
+
+/** 유입 매체 단계 검색어 — "유입 매체: 구글(광고)". 종합 요약의 유입 매체 표 이름을 눌렀을 때 쓴다 */
+export const formatSourceScope = (source: string): string => `${SOURCE_PREFIX} ${source}`;
 
 /** 검색어를 띄어쓰기로 나눈다. 비교할 때 양쪽 공백을 무시하므로 "HP 서버" 는 "HP서버" 도 찾는다 */
 export const searchTokens = (query: string): string[] =>
@@ -156,6 +169,11 @@ export function searchDashboard(
     const k = groupKey(r);
     const known = weights.get(k);
     if (known !== undefined) return known;
+    // 유입 매체 검색은 견적만 본다 — 광고그룹·키워드·소재는 유입 매체 값과 이어지지 않는다
+    if (scope?.source) {
+      weights.set(k, 0);
+      return 0;
+    }
     if (scope?.cat1) {
       // 표준 카테고리로 찾기 — 분류표 비율만큼만 더한다 (카테고리 효율 화면의 금액과 맞춘다)
       const cats = catsOf(categoryMap, { ...r, month: '', cost: 0, imp: 0, clk: 0, conv: 0 });
@@ -210,9 +228,11 @@ export function searchDashboard(
     (k) =>
       inPeriod(k.month) &&
       (scope
-        ? scope.cat1
-          ? groupWeight(k) > 0
-          : inScope(k) && (!scope.keyword || sameName(k.keyword, scope.keyword))
+        ? scope.source
+          ? false
+          : scope.cat1
+            ? groupWeight(k) > 0
+            : inScope(k) && (!scope.keyword || sameName(k.keyword, scope.keyword))
         : groupWeight(k) > 0 || textHit(k.type, [k.keyword]))
   );
   const keywordOnly = new Set<string>();
@@ -258,6 +278,13 @@ export function searchDashboard(
   const quoteTokens = scope ? [compact(scope.keyword || scope.adgroup || scope.campaign)] : tokens;
   const quotes = quoteRowsOf(data)
     .filter((r) => {
+      // 유입 매체 검색: 견적의 유입 매체가 정확히 같은 것. 광고비 없이 견적만이라 CPA 는 계산하지 않는다
+      if (scope?.source) {
+        if (!r.date || !inPeriod(r.date.slice(0, 7)) || !r.source) return false;
+        const hit = sameName(r.source, scope.source);
+        if (hit) channelSearch = true;
+        return hit;
+      }
       // 표준 카테고리 검색: 견적의 카테고리가 같은 1차(·2차)인 것
       if (scope?.cat1) {
         if (!r.date || !inPeriod(r.date.slice(0, 7)) || !r.category) return false;
@@ -294,6 +321,8 @@ export function searchDashboard(
     keywordOnlyGroups: keywordOnly.size,
     itketQuotes: quotes.filter(isItket).length,
     cpa: !channelSearch && cpaQuotes > 0 ? cpaCost / cpaQuotes : 0,
+    cpaCost,
+    cpaQuotes,
     cpaHidden: channelSearch,
   };
 }

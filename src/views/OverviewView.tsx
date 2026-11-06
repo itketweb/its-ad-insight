@@ -20,9 +20,11 @@ import { EXTERNAL_LINKS } from '../utils/constants';
 import { quoteStatsOf } from '../hooks/useDashboardData';
 import { ViewHeader, SecSrc, type SourceLinkItem } from '../components/common/ViewHeader';
 import { KpiCard, KpiDetailItems, KpiSection } from '../components/charts/KpiCard';
+import { colTip } from '../utils/columnTips';
 import { MultiChart } from '../components/charts/MultiChart';
 import { CategoryBarChart } from '../components/charts/CategoryBarChart';
 import { SourceBarChart } from '../components/charts/SourceBarChart';
+import { formatCategoryScope, formatSourceScope } from '../utils/search';
 import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { Card } from '../components/common/Card';
 import { dotYm, firstMonth, inMonths, periodStartsOf, sameMonthsLastYear, yearRangeLabel, yearsOf } from '../utils/allPeriod';
@@ -36,6 +38,8 @@ interface OverviewViewProps {
   allPeriod?: boolean;
   /** 월 선택이 '전체' — selectedMonth 는 그 연도의 마지막 달이다 */
   yearTotal?: boolean;
+  /** 카테고리·유입 매체 이름을 눌렀을 때 그 이름으로 검색 결과를 연다 (검색어 문자열을 넘긴다) */
+  onSearchName?: (query: string) => void;
 }
 
 const OVERVIEW_SOURCES: SourceLinkItem[] = [
@@ -52,6 +56,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   selectedMonth,
   allPeriod = false,
   yearTotal = false,
+  onSearchName,
 }) => {
   // 견적은 건수·CPA 모두 아이티켓에 다른 사이트(zbyhp·cadkorea)·전화문의를 더한 값으로 센다 (2026-11-06 사용자 결정)
   const stats = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
@@ -208,31 +213,43 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const spendIn = (list: string[]) => catSum(categoryMap, data.spend.filter(inMonths(list)), (r) => r.cost);
   const catSpendCur = allPeriod ? catSum(categoryMap, data.spend, (r) => r.cost) : yearTotal ? spendIn(months) : catsMap(curM);
 
-  // 최다 소진 카테고리 KPI
-  const topSpendEntries = Object.entries(catSpendCur)
-    .filter(([k, v]) => k !== '기타' && v > 0)
-    .sort(([, a], [, b]) => b - a);
-  const topSpendCat = topSpendEntries[0];
-  const totalCatSpend = Object.values(catSpendCur).reduce((a, v) => a + v, 0);
-  const topSpendPct = topSpendCat && totalCatSpend > 0
-    ? ((topSpendCat[1] / totalCatSpend) * 100).toFixed(1)
-    : '0';
-  const catSpendPv = !yearTotal && !allPeriod ? catsMap(pv) : {};
-  const prevTopSpendAmt = topSpendCat ? (catSpendPv[topSpendCat[0]] ?? null) : null;
-  const topCatDelta = prevTopSpendAmt !== null && topSpendCat ? topSpendCat[1] - prevTopSpendAmt : null;
-  const topCatDeltaNode = topCatDelta !== null && topCatDelta !== 0
-    ? <span style={{ color: topCatDelta > 0 ? 'var(--up)' : 'var(--down)' }}>{' · '}{topCatDelta > 0 ? '▲' : '▼'} {fmtWon(Math.abs(topCatDelta))} 전월</span>
-    : null;
-  const topSpendCatDetail = topSpendEntries.length > 1 ? (
-    <>
-      {topSpendEntries.slice(1, 3).map(([k, v], i) => (
-        <React.Fragment key={k}>
-          {i > 0 && <i>|</i>}
-          <p>{k} <b>{fmtWon(v)}</b></p>
-        </React.Fragment>
-      ))}
-    </>
+  // 광고 전환수 KPI — 키워드·소재 화면의 기본 보기(전체 매체 · 검색광고 SA)와 같은 기준이라 눌러서 가면 같은 숫자가 보인다
+  const convOf = (pred: (mo: string) => boolean) => {
+    const rows = data.spend.filter((r) => r.type === 'SA' && pred(r.month));
+    const conv = sumBy(rows, (r) => r.conv);
+    const cost = sumBy(rows, (r) => r.cost);
+    return {
+      has: rows.length > 0,
+      conv,
+      convCost: conv > 0 ? cost / conv : 0,
+      naver: sumBy(rows.filter((r) => r.media === 'Naver'), (r) => r.conv),
+      google: sumBy(rows.filter((r) => r.media === 'Google'), (r) => r.conv),
+    };
+  };
+  const convCur = convOf(allPeriod ? () => true : yearTotal ? (mo) => months.includes(mo) : (mo) => mo === curM);
+  const convPv = allPeriod ? null : convOf(yearTotal ? (mo) => lastYrMonths.includes(mo) : (mo) => mo === pv);
+  const convDetail = convCur.conv > 0 ? (
+    <KpiDetailItems
+      items={[
+        ['전환당 비용', `${fmt(convCur.convCost)}원`],
+        ['네이버', convCur.naver],
+        ['구글', convCur.google],
+      ]}
+    />
   ) : null;
+  const convCard = (label: string, cmpLabel?: string) => (
+    <KpiCard
+      to="keywords"
+      label={<span data-tip={colTip('광고전환')} data-tip-desc="">{label}</span>}
+      value={convCur.has ? `${fmt(convCur.conv)}건` : '–'}
+      cur={cmpLabel && convCur.has ? convCur.conv : null}
+      prev={cmpLabel && convPv?.has ? convPv.conv : null}
+      cmpLabel={cmpLabel}
+      sub="검색광고(SA) 기준"
+      detail={convDetail}
+    />
+  );
+
   const fullList = buildCategoryBarItems(
     catSpendCur,
     allPeriod ? {} : yearTotal ? spendIn(lastYrMonths) : catsMap(pv),
@@ -284,14 +301,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       <KpiSection id="kpiOverview">
         {allPeriod ? (
           <>
-            <KpiCard
+            <KpiCard to="ads"
               label="전체 누적 광고비"
               value={`${fmt(allSpend)}원`}
               sub={`구글 ${dotYm(starts.google)}~ · 네이버 ${dotYm(starts.naver)}~${starts.meta ? ` · 메타 ${dotYm(starts.meta)}~` : ''}`}
               detail={spendMediaDetail(data.spend)}
             />
-            <KpiCard label="전체 누적 견적" value={`${fmt(allQuotes)}건`} sub={`${dotYm(quotesFrom)}~`} detail={allSiteDetail} />
-            <KpiCard
+            <KpiCard to="quotes" label="전체 누적 견적" value={`${fmt(allQuotes)}건`} sub={`${dotYm(quotesFrom)}~`} detail={allSiteDetail} />
+            <KpiCard to="cat-efficiency"
               label={
                 <>
                   견적당 광고비 (CPA)
@@ -301,16 +318,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               sub={`${dotYm(starts.cpaFrom)} 이후 기준`}
               detail={allCpa ? <><p>광고비 <b>{fmtWon(cpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(cpaQuotes)}건</b></p></> : null}
             />
-            <KpiCard
-              label="전체 최다 소진 카테고리"
-              value={topSpendCat?.[0] || '–'}
-              sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)` : undefined}
-              detail={topSpendCatDetail}
-            />
+            {convCard('전체 광고 전환수')}
           </>
         ) : yearTotal ? (
           <>
-            <KpiCard
+            <KpiCard to="ads"
               label={
                 <>
                   {yearLabel} 총 광고비
@@ -328,7 +340,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cmpLabel="전년 동기"
               detail={spendMediaDetail(data.spend.filter((r) => r.month >= ym(yr, 1) && r.month <= curM))}
             />
-            <KpiCard
+            <KpiCard to="quotes"
               label={`${yearLabel} 총 접수 견적`}
               value={`${fmt(ytdQuotes)}건`}
               cur={ytdQuotes}
@@ -336,7 +348,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cmpLabel="전년 동기"
               detail={ytdSiteDetail}
             />
-            <KpiCard
+            <KpiCard to="cat-efficiency"
               label={
                 <>
                   {yearLabel} 견적당 광고비 (CPA)
@@ -346,19 +358,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               cur={ytdCpa || null}
               prev={lastYrMonths[0] >= starts.cpaFrom ? cpaIn(lastYrMonths) : null}
               cmpLabel="전년 동기"
-              invertDelta
               detail={ytdCpa ? <><p>광고비 <b>{fmtWon(ytdCpaSpend)}</b></p><i>|</i><p>견적 <b>{fmt(ytdAdQuotes)}건</b></p></> : null}
             />
-            <KpiCard
-              label={`${yearLabel} 최다 소진 카테고리`}
-              value={topSpendCat?.[0] || '–'}
-              sub={topSpendCat ? `${fmtWon(topSpendCat[1])} (${topSpendPct}%)` : undefined}
-              detail={topSpendCatDetail}
-            />
+            {convCard(`${yearLabel} 광고 전환수`, '전년 동기')}
           </>
         ) : (
           <>
-        <KpiCard
+        <KpiCard to="ads"
           label={
             <>
               {mLabel(curM)} 총 광고비
@@ -376,7 +382,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cmpLabel="전월"
           detail={spendMediaDetail(atSpend(curM))}
         />
-        <KpiCard
+        <KpiCard to="quotes"
           label={`${mLabel(curM)} 총 접수 견적`}
           value={`${fmt(curQuotesTot)}건`}
           cur={curQuotesTot}
@@ -384,7 +390,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cmpLabel="전월"
           detail={curSiteDetail}
         />
-        <KpiCard
+        <KpiCard to="cat-efficiency"
           label={
             <>
               {mLabel(curM)} 견적당 광고비 (CPA)
@@ -394,17 +400,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           cur={curCpa}
           prev={pvCpa}
           cmpLabel="전월"
-          invertDelta
           detail={curCpa > 0 ? <><p>광고비 <b>{fmtWon(curSpendTot)}</b></p><i>|</i><p>견적 <b>{fmt(curAdQuotes)}건</b></p></> : null}
         />
-        <KpiCard
-          label={`${mLabel(curM)} 최다 소진 카테고리`}
-          value={topSpendCat?.[0] || '–'}
-          cur={topSpendCat?.[1] ?? null}
-          prev={prevTopSpendAmt}
-          sub={topSpendCat ? <>{fmtWon(topSpendCat[1])} ({topSpendPct}%){topCatDeltaNode}</> : undefined}
-          detail={topSpendCatDetail}
-        />
+        {convCard(`${mLabel(curM)} 광고 전환수`, '전월')}
           </>
         )}
       </KpiSection>
@@ -442,6 +440,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             totalPrev={sumBy(fullList, (c) => c.prev)}
             prevLabel={yearTotal ? '전년 동기' : undefined}
             emptyMessage="취합된 카테고리 데이터가 없습니다."
+            onSelect={onSearchName && ((k) => onSearchName(formatCategoryScope(k)))}
           />
           <div className="leg" id="lgOverviewCat">
             <span>
@@ -473,6 +472,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             compareLabel={srcCompareLabel ? (yearTotal ? '전년 동기' : mLabel(pv)) : undefined}
             curLabel={allPeriod ? '전체 기간' : yearTotal ? yearLabel : mLabel(curM)}
             emptyMessage="취합된 유입 매체 데이터가 없습니다."
+            onSelect={onSearchName && ((k) => onSearchName(formatSourceScope(k)))}
           />
           {srcCompareLabel && (
             <div className="leg src-bar-leg">
@@ -482,7 +482,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               </span>
               <span>
                 <i className="prev" />
-                {yearTotal ? '전년 동기' : mLabel(pv)} (얇은 막대 · 점유율)
+                {yearTotal ? '전년 동기' : mLabel(pv)} (얇은 막대)
               </span>
             </div>
           )}
