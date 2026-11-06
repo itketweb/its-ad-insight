@@ -51,7 +51,7 @@ export const VALID_VIEWS: ViewId[] = [
 
 export const VIEW_TITLES: Record<ViewId, string> = {
   overview: '종합 요약',
-  ads: '월별 광고비',
+  ads: '매체 광고비',
   'cat-efficiency': '카테고리 효율',
   keywords: '키워드 · 소재',
   quotes: '견적 상세',

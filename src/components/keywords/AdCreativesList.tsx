@@ -1,17 +1,16 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Images } from 'lucide-react';
+import { ChevronRight, Images } from 'lucide-react';
 import type { AdGroupCreatives, AdRow } from '../../types/dashboard';
 import { adStatKey, displayAdTitle, getCreativeImages, MEDIA_COLOR_VARS, type AdStat } from '../../utils/creativeImage';
 import { fmt } from '../../utils/format';
 import { EXTERNAL_LINKS } from '../../utils/constants';
 import { useSort } from '../../hooks/useSort';
 import { SortableTh } from '../common/SortableTh';
-import { Button } from '../common/Button';
 import { Card } from '../common/Card';
 import { SkelTable } from '../common/SkeletonView';
 import { TableFootnote } from '../common/TableFootnote';
-import { MoreButton } from '../common/MoreButton';
+import { LIST_LIMIT, MoreButton, ShowMoreButton } from '../common/MoreButton';
 import { GoogleLogo, NaverLogo } from '../common/MediaPill';
 
 interface AdCreativesListProps {
@@ -109,8 +108,8 @@ const CreativeImage: React.FC<{ ad: AdRow; src: string; title: string }> = ({ ad
   );
 };
 
-// 표 열 수: 광고그룹 + 이미지 + 성과 5 + 상세
-const COLS = 8;
+// 표 열 수: 광고그룹 + 이미지 + 성과 5
+const COLS = 7;
 
 /** 펼친 상세의 한 묶음 — 왼쪽에 이름·개수, 오른쪽에 내용 */
 const DetailGroup: React.FC<{
@@ -348,6 +347,7 @@ const CreativeItem: React.FC<{
 }> = ({ row, stats, loading }) => {
   const { group, stat, imageCount } = row;
   const [open, setOpen] = useState(false);
+  const [showAllAds, setShowAllAds] = useState(false);
   const detailId = useId();
   const { ads } = group;
   const top = ads[0];
@@ -359,6 +359,12 @@ const CreativeItem: React.FC<{
   const sharedImages = multi && imageSets[0] !== '' && imageSets.every((k) => k === imageSets[0]);
   const titleContent = (
     <>
+      <ChevronRight
+        className={`grp-acc-chev${open ? ' open' : ''}`}
+        strokeWidth={2.25}
+        style={hasDetail ? undefined : { visibility: 'hidden' }}
+        aria-hidden="true"
+      />
       <MediaMark media={group.media} />
       <b>
         {group.campaign} › {group.adgroup}
@@ -369,10 +375,14 @@ const CreativeItem: React.FC<{
 
   return (
     <>
-      <tr className={`cr-row${open ? ' open' : ''}`}>
+      <tr
+        className={`cr-row${open ? ' open' : ''}${hasDetail ? ' can-open' : ''}`}
+        title={!hasDetail ? undefined : open ? '클릭하여 상세 접기' : '클릭하여 상세 펼치기'}
+        onClick={hasDetail ? () => setOpen((v) => !v) : undefined}
+      >
         <td>
           <div className="cr-meta">
-            {/* 펼칠 내용이 있으면 제목을 눌러도 상세 버튼과 똑같이 펼친다 */}
+            {/* 행 전체를 눌러 펼친다. 제목 버튼은 키보드 조작용 — 눌림은 행으로 올라가 한 번만 처리된다 */}
             {hasDetail ? (
               <button
                 type="button"
@@ -380,7 +390,6 @@ const CreativeItem: React.FC<{
                 data-btn="cr-title"
                 aria-expanded={open}
                 aria-controls={detailId}
-                onClick={() => setOpen((v) => !v)}
               >
                 {titleContent}
               </button>
@@ -400,21 +409,6 @@ const CreativeItem: React.FC<{
           )}
         </td>
         <MetricCells stat={stat} loading={loading} />
-        <td className="cr-action">
-          {hasDetail && (
-            <Button
-              size="sm"
-              className="cr-toggle"
-              icon={ChevronDown}
-              iconPosition="end"
-              aria-expanded={open}
-              aria-controls={detailId}
-              onClick={() => setOpen((v) => !v)}
-            >
-              {open ? '접기' : '상세'}
-            </Button>
-          )}
-        </td>
       </tr>
       {hasDetail && (
         <tr className="cr-detail-row" id={detailId} hidden={!open}>
@@ -422,8 +416,9 @@ const CreativeItem: React.FC<{
             <div className="cr-detail">
               {sharedImages && <Gallery ad={top} images={getCreativeImages(top)} label="공통 이미지" />}
               {multi ? (
+                <>
                 <ol className="cr-ads">
-                  {ads.map((a, i) => (
+                  {(showAllAds ? ads : ads.slice(0, LIST_LIMIT)).map((a, i) => (
                     <li key={a.adId || i} className="cr-ad">
                       <div className="cr-ad-head">
                         <span className="cr-ad-name">
@@ -444,6 +439,8 @@ const CreativeItem: React.FC<{
                     </li>
                   ))}
                 </ol>
+                <ShowMoreButton noun="소재" total={ads.length} expanded={showAllAds} onToggle={() => setShowAllAds((v) => !v)} />
+                </>
               ) : (
                 <AdBody ad={top} showImages />
               )}
@@ -513,7 +510,6 @@ export const AdCreativesList: React.FC<AdCreativesListProps> = ({
                 {METRICS.map((m) => (
                   <col key={m.key} className={`col-cr-${m.key}`} />
                 ))}
-                <col className="col-cr-action" />
               </colgroup>
               <thead>
                 <tr>
@@ -535,9 +531,6 @@ export const AdCreativesList: React.FC<AdCreativesListProps> = ({
                       {m.label}
                     </SortableTh>
                   ))}
-                  <th>
-                    <span className="sr-only">상세</span>
-                  </th>
                 </tr>
               </thead>
               <tbody>

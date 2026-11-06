@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { DashboardData, SyncStatus } from '../types/dashboard';
 import {
   fmt,
+  fmtWon,
   mLabel,
   NOW_MONTH,
   prevM,
@@ -52,9 +53,9 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
 
   if (!data.spend.length) {
     return (
-      <div className="view on" data-view="ads" data-title="월별 광고비">
+      <div className="view on" data-view="ads" data-title="매체 광고비">
         <ViewHeader
-          title="월별 광고비"
+          title="매체 광고비"
           description="매체별·구분별 월간 광고비 집행 추이 및 소진 내역"
           status={status}
         />
@@ -143,23 +144,21 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
     return c ? costIn(list) / c : 0;
   };
   const spendMonths = yearMonths.filter((mo) => tot(mo) > 0).length;
-  const upTo = +curM.slice(5);
-  const ytd = (y: number) =>
-    sumBy(
-      data.spend.filter((r) => r.month >= ym(y, 1) && r.month <= ym(y, upTo)),
-      (r) => r.cost
-    );
   const curConv       = sumBy(at(curM), (r) => r.conv);
   const curGoogleCost = sumBy(at(curM).filter((r) => r.media === 'Google'), (r) => r.cost);
   const curNaverCost  = sumBy(at(curM).filter((r) => r.media === 'Naver'),  (r) => r.cost);
   const curMetaCost   = sumBy(at(curM).filter((r) => r.media === 'Meta'),   (r) => r.cost);
   const mdfRatioPct   = tot(curM) > 0 ? ((mdfCost(curM) / tot(curM)) * 100).toFixed(1) : null;
+  // 일평균: 진행 중인 달은 오늘까지의 날짜 수로 나눠, 다 끝난 전월과 같은 기준으로 비교한다
+  const daysInMonth = (mo: string) => new Date(+mo.slice(0, 4), +mo.slice(5), 0).getDate();
+  const elapsedDays = (mo: string) => (mo === THIS_M ? new Date().getDate() : daysInMonth(mo));
+  const dailySpend = (mo: string) => tot(mo) / elapsedDays(mo);
   const missing = uncollectedMedia(data.spend, [curM]).map((m): [string, string] => [m, '미수집']);
 
   return (
-    <div className="view on" data-view="ads" data-title="월별 광고비">
+    <div className="view on" data-view="ads" data-title="매체 광고비">
       <ViewHeader
-        title="월별 광고비"
+        title="매체 광고비"
         description="매체별·구분별 월간 광고비 집행 추이 및 소진 내역"
         status={status}
       />
@@ -268,11 +267,33 @@ export const AdsView: React.FC<AdsViewProps> = ({ data, status, selectedMonth, a
           })()}
         />
         <KpiCard
-          label={`${Y}년 누적 (1~${upTo}월)`}
-          value={`${fmt(ytd(Y))}원`}
-          cur={ytd(Y)}
-          prev={ytd(Y - 1)}
-          cmpLabel="전년 동기"
+          label={
+            <>
+              {mLabel(curM)} 일평균 광고비
+              {curM === THIS_M && (
+                <>
+                  {' '}
+                  <small className="muted">(진행 중)</small>
+                </>
+              )}
+            </>
+          }
+          value={`${fmt(dailySpend(curM))}원`}
+          cur={dailySpend(curM)}
+          prev={dailySpend(pv)}
+          cmpLabel="전월"
+          detail={
+            <KpiDetailItems
+              items={[
+                ...(curM === THIS_M
+                  ? ([
+                      ['월말 예상', fmtWon(dailySpend(curM) * daysInMonth(curM))],
+                      ['경과', `${elapsedDays(curM)}/${daysInMonth(curM)}일`],
+                    ] as [string, string][])
+                  : ([['기간', `${daysInMonth(curM)}일`]] as [string, string][])),
+              ]}
+            />
+          }
         />
         <KpiCard
           label={`${mLabel(curM)} MDF 소진`}

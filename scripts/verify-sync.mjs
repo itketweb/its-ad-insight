@@ -263,7 +263,7 @@ async function main() {
   }
 
   // [5/6] 화면 간 YTD 누적 수치 교차 검증
-  console.log('\n5. [화면 간(종합 요약 · 월별 광고비 · 견적 상세) YTD 합계 교차 검증]');
+  console.log('\n5. [화면 간(종합 요약 · 매체 광고비 · 견적 상세) YTD 합계 교차 검증]');
   const yr = curM.slice(0, 4);
   const ytdSpend = spendRows
     .filter((r) => r.month >= `${yr}-01` && r.month <= curM)

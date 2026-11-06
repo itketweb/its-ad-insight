@@ -179,7 +179,7 @@ export function runDataAudit(
     badgeText: effOk ? '오차 0' : '불일치',
   });
 
-  // 4. 화면 간(종합 현황 · 월별 광고비 · 견적 상세) YTD 합계 교차 검증
+  // 4. 화면 간(종합 현황 · 매체 광고비 · 견적 상세) YTD 합계 교차 검증
   const ytdSpendRows = data.spend.filter((r) => r.month >= `${yr}-01` && r.month <= curM);
   const ytdSpendTotal = sumBy(ytdSpendRows, (r) => r.cost);
   const ytdSeriesSum = sumBy(SERIES_DEFS, (s) =>
@@ -204,7 +204,7 @@ export function runDataAudit(
     title: `${yr}년 누적(YTD) 화면 간 통계 수식 교차 검증`,
     summary: `누적 광고비 ${fmt(ytdSpendTotal)}원 (매체별 합 ${fmt(ytdSeriesSum)}원) · 누적 견적 ${fmt(ytdQuotesByCat)}건 (매체별 합 ${fmt(ytdQuotesRaw)}건)`,
     detail: crossOk
-      ? '종합 요약 · 월별 광고비 · 카테고리 효율 · 견적 상세 4개 뷰의 YTD 및 당월 합계 100% 일치'
+      ? '종합 요약 · 매체 광고비 · 카테고리 효율 · 견적 상세 4개 뷰의 YTD 및 당월 합계 100% 일치'
       : `광고비 차이 ${fmt(Math.abs(ytdSpendTotal - ytdSeriesSum))}원 · 견적 차이 ${fmt(Math.abs(ytdQuotesByCat - ytdQuotesRaw))}건`,
     level: crossOk ? 'ok' : 'err',
     badgeText: crossOk ? '교차 검증 통과' : '수식 점검',
