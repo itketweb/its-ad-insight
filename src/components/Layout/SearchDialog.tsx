@@ -3,8 +3,11 @@ import { ArrowRight, Clock, Search, Star, X } from 'lucide-react';
 import type { CategoryMap, DashboardData } from '../../types/dashboard';
 import { fmt } from '../../utils/format';
 import { adDisplayTitle } from '../../utils/creativeImage';
-import { searchDashboard, type SearchTab } from '../../utils/search';
+import { formatCategoryScope, formatScope, parseScope, searchDashboard, type SearchTab } from '../../utils/search';
 import { clearRecentSearches, loadRecentSearches, removeRecentSearch, sameSearch } from '../../utils/recentSearches';
+import { buildCategoryFilter } from '../common/CategoryFilter';
+import { Dropdown, type DropdownOption } from '../common/Dropdown';
+import { SegmentedControl } from '../common/SegmentedControl';
 import { TextInput } from '../common/TextInput';
 
 interface SearchDialogProps {
@@ -19,6 +22,23 @@ interface SearchDialogProps {
 }
 
 const PREVIEW_LIMIT = 3;
+const MEDIA_KO: Record<string, string> = { Google: '구글', Naver: '네이버', Meta: '메타' };
+
+/** 이름별로 광고비를 모아 큰 순서로 — 단계 선택 목록용 */
+function rankedNames(rows: { name: string; media: string; cost: number }[]): { name: string; media: string }[] {
+  const map = new Map<string, { name: string; medias: Set<string>; cost: number }>();
+  rows.forEach((r) => {
+    const name = r.name.trim();
+    if (!name) return;
+    const cur = map.get(name) || { name, medias: new Set<string>(), cost: 0 };
+    cur.cost += r.cost;
+    cur.medias.add(MEDIA_KO[r.media] || r.media);
+    map.set(name, cur);
+  });
+  return [...map.values()]
+    .sort((a, b) => b.cost - a.cost || a.name.localeCompare(b.name, 'ko'))
+    .map((v) => ({ name: v.name, media: [...v.medias].join('·') }));
+}
 /** 새 검색은 전체 기간에서 찾는다 — 결과 페이지에서 기간을 좁힐 수 있다 */
 const PERIOD_LABEL = '전체 기간';
 
@@ -35,6 +55,62 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [recents, setRecents] = useState(() => loadRecentSearches(isLoggedIn));
+  // 단계 선택(1차 캠페인 › 2차 광고그룹) — 표준 카테고리 필터(1차·2차)와 같은 방식. 지금 검색어가 단계 검색이면 그 값으로 시작한다
+  const initialScope = parseScope(initialQuery);
+  // 찾는 기준: 캠페인·광고그룹 이름, 또는 표준 카테고리(분류표) 1차·2차
+  const [scopeKind, setScopeKind] = useState<'campaign' | 'category'>(initialScope?.cat1 ? 'category' : 'campaign');
+  const [cat1, setCat1] = useState(initialScope?.cat1 || '');
+  const [cat2, setCat2] = useState(initialScope?.cat2 || '');
+  const [campaign, setCampaign] = useState(initialScope?.campaign || '');
+  const [adgroup, setAdgroup] = useState(initialScope?.adgroup || '');
+  const [keyword, setKeyword] = useState(initialScope?.keyword || '');
+  const campaignOptions = useMemo(() => {
+    const groupsOf = new Map<string, Set<string>>();
+    data.spend.forEach((r) => {
+      const c = r.campaign.trim();
+      if (c) groupsOf.set(c, (groupsOf.get(c) || new Set()).add(r.adgroup.trim()));
+    });
+    return rankedNames(data.spend.map((r) => ({ name: r.campaign, media: r.media, cost: r.cost }))).map((o) => ({
+      ...o,
+      count: groupsOf.get(o.name)?.size ?? 0,
+    }));
+  }, [data.spend]);
+  const adgroupOptions = useMemo(
+    () =>
+      campaign
+        ? rankedNames(
+            data.spend
+              .filter((r) => r.campaign.trim() === campaign)
+              .map((r) => ({ name: r.adgroup, media: r.media, cost: r.cost }))
+          )
+        : [],
+    [data.spend, campaign]
+  );
+  // 표준 카테고리 목록은 분류표(CATEGORY_HIERARCHY) 기준 — 데이터에 아직 없는 분류도 고를 수 있다
+  const categoryFilter = buildCategoryFilter([], {
+    cat1,
+    cat2,
+    setCat1: (v: string) => {
+      setCat1(v);
+      setCat2('');
+    },
+    setCat2,
+  });
+  const keywordOptions = useMemo(
+    () =>
+      campaign && adgroup
+        ? rankedNames(
+            data.keywords
+              .filter((k) => k.campaign.trim() === campaign && k.adgroup.trim() === adgroup)
+              .map((k) => ({ name: k.keyword, media: k.media, cost: k.cost }))
+          )
+        : [],
+    [data.keywords, campaign, adgroup]
+  );
+  const toOptions = (all: string, list: { name: string; count?: number }[]): DropdownOption<string>[] => [
+    { value: '', label: all },
+    ...list.map((o) => ({ value: o.name, label: o.name, hint: o.count ? `· ${o.count}` : undefined, title: o.name })),
+  ];
   // 데이터가 많아도 입력이 끊기지 않게 계산은 늦춘다
   const deferred = useDeferredValue(query.trim());
   const result = useMemo(
@@ -43,7 +119,8 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
   );
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    // 드롭다운 목록을 Esc 로 닫을 때(이미 처리됨)는 검색창까지 닫지 않는다
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && onClose();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -114,6 +191,89 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({
             <X size="1rem" aria-hidden="true" />
           </button>
         </form>
+
+        {/* 글자 검색 대신 목록에서 골라 찾는다. 기준은 캠페인 › 광고그룹 › 키워드(3단계) 또는 표준 카테고리 1차 › 2차(분류표). 표준 카테고리 필터와 같은 Dropdown·같은 모양. */}
+        <div className="sd-scope" role="group" aria-label="단계 선택 검색">
+          <SegmentedControl
+            mini
+            value={scopeKind}
+            onChange={setScopeKind}
+            options={[
+              { value: 'campaign', label: '캠페인' },
+              { value: 'category', label: '표준 카테고리' },
+            ]}
+          />
+          {scopeKind === 'campaign' ? (
+            <>
+              <Dropdown
+                className="sd-dd"
+                ariaLabel="1차 캠페인 필터"
+                value={campaign}
+                options={toOptions('캠페인 전체', campaignOptions)}
+                onChange={(v) => {
+                  setCampaign(v);
+                  setAdgroup('');
+                  setKeyword('');
+                }}
+              />
+              <span aria-hidden="true">›</span>
+              <Dropdown
+                className="sd-dd"
+                ariaLabel="2차 광고그룹 필터"
+                value={adgroup}
+                disabled={!campaign}
+                options={toOptions('광고그룹 전체', adgroupOptions)}
+                onChange={(v) => {
+                  setAdgroup(v);
+                  setKeyword('');
+                }}
+              />
+              <span aria-hidden="true">›</span>
+              <Dropdown
+                className="sd-dd"
+                ariaLabel="3차 키워드 필터"
+                value={keyword}
+                disabled={!adgroup}
+                options={toOptions('키워드 전체', keywordOptions)}
+                onChange={setKeyword}
+              />
+            </>
+          ) : (
+            <>
+              <Dropdown
+                className="sd-dd"
+                ariaLabel="1차 표준 카테고리 필터"
+                value={categoryFilter.cat1}
+                options={categoryFilter.cat1Options}
+                onChange={categoryFilter.setCat1}
+              />
+              <span aria-hidden="true">›</span>
+              <Dropdown
+                className="sd-dd"
+                ariaLabel="2차 표준 카테고리 필터"
+                value={categoryFilter.cat2}
+                disabled={!categoryFilter.hasCat2}
+                options={categoryFilter.cat2Options}
+                onChange={categoryFilter.setCat2}
+              />
+            </>
+          )}
+          <button
+            type="button"
+            className="sd-scope-go btn-search-scope"
+            data-btn="search-scope"
+            disabled={scopeKind === 'campaign' ? !campaign : !categoryFilter.cat1}
+            onClick={() =>
+              onSubmit(
+                scopeKind === 'campaign'
+                  ? formatScope([campaign, adgroup, keyword])
+                  : formatCategoryScope(categoryFilter.cat1, categoryFilter.cat2)
+              )
+            }
+          >
+            검색
+          </button>
+        </div>
 
         <div className="sd-body">
           <div className="sd-main">

@@ -203,13 +203,80 @@
   transition: font-size 0.18s ease, font-weight 0.18s ease;
 }
 
-/* ── 유입 매체 도넛 차트 ── */
-#overview-src > div,
-#quotes-src > div {
+/* ── 유입 매체 도넛 차트 ──
+ * 범례(.leg)는 빼야 다른 차트처럼 가로 한 줄이 된다 (id 선택자가 .leg 의 가로 배치를 이긴다) */
+#overview-src > div:not(.leg),
+#quotes-src > div:not(.leg) {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+}
+
+/* 열 머리글 (유입 매체 순위형 막대 맨 위) */
+.src-bar-row.src-bar-head {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sub);
+
+  .src-bar-rank,
+  .src-bar-val .count,
+  .src-bar-val .pct,
+  .src-bar-val .amt,
+  .src-bar-val .qn,
+  .src-bar-val .delta {
+    color: var(--sub);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .src-pill-sp {
+    min-width: 6.25rem;
+    text-align: center;
+    flex-shrink: 0;
+  }
+}
+
+/* 카테고리별 소진: 유입 매체 막대와 같은 행 구조에 카테고리명·소진·견적 열을 쓴다 */
+.cat-bars {
+  .cat-name {
+    width: 9rem;
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--ink2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .src-bar-head .cat-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--sub);
+  }
+
+  .src-bar-val {
+    min-width: 0;
+
+    .amt {
+      width: 3.5rem;
+      text-align: right;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .qn {
+      width: 2.5rem;
+      text-align: right;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink2);
+    }
+  }
 }
 
 /* ── 유입 매체 순위형 막대 (bar) ── */
@@ -219,6 +286,23 @@
   gap: 0.75rem;
   padding: 0.5rem 0;
   width: 100%;
+}
+
+.src-bars-wrap.cmp {
+  gap: 0;
+}
+
+.leg.src-bar-leg {
+  i {
+    display: inline-block;
+    width: 1.25rem;
+    margin-right: 0.375rem;
+    vertical-align: middle;
+    background: var(--ink2);
+
+    &.cur { height: 0.5rem; background: var(--ink2); }
+    &.prev { height: 0.25rem; background: var(--ink2); opacity: 0.35; }
+  }
 }
 
 .src-bar-row {
@@ -236,13 +320,13 @@
     flex-shrink: 0;
   }
 
-  &:nth-child(1) .src-bar-rank {
+  &:nth-child(2) .src-bar-rank {
     color: var(--acc);
   }
-  &:nth-child(2) .src-bar-rank {
+  &:nth-child(3) .src-bar-rank {
     color: var(--ink);
   }
-  &:nth-child(3) .src-bar-rank {
+  &:nth-child(4) .src-bar-rank {
     color: var(--ink2);
   }
 
@@ -251,6 +335,77 @@
     text-align: center;
     justify-content: center;
     flex-shrink: 0;
+  }
+
+  /* 매체 그룹 색(--grp-*)을 따른다. 배경이 옅어 카드 위에서 사라지지 않도록 글자색의 옅은 테두리를 둔다 */
+  .src-pill {
+    box-sizing: border-box;
+    background: var(--pill-bg);
+    color: var(--pill-ink);
+    border: 1px solid color-mix(in srgb, var(--pill-ink) 22%, transparent);
+  }
+
+  .src-bar-bars {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    /* 세로 방향 flex 에서 flex:1 이 높이를 0 으로 눌러 금월 막대가 사라지지 않게 고정한다 */
+    .src-bar-track {
+      flex: none;
+      height: 1rem;
+    }
+  }
+
+  /* 비교 모드: 전체 폭 배경 막대 없이, 길이로만 비율을 읽게 한다 */
+  &.has-prev .src-bar-track {
+    background: none;
+    border: 0;
+    overflow: visible;
+  }
+
+  /* 줄 높이는 값 글자(11px)에 맞추고, 4px 막대는 그 줄 가운데에 둔다 — 글자가 아래 구분선과 겹치지 않게 */
+  .src-bar-prev {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 0.75rem;
+  }
+
+  .src-bar-prev-fill {
+    position: relative;
+    height: 0.25rem;
+    opacity: 0.35;
+    flex-shrink: 0;
+
+    /* 막대는 4px 로 얇게 보이되, 호버(툴팁)가 잘 되도록 위아래로 투명한 영역을 넓힌다 */
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -0.125rem; /* 위쪽은 굵은 막대(바로 위, 간격 0.25rem)를 가리지 않게 조금만 */
+      bottom: -0.375rem;
+    }
+  }
+
+  .src-bar-prev-val {
+    font-size: 0.75rem;
+    line-height: 1;
+    color: var(--sub);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 비교 모드: 카테고리별 소진처럼 행을 선으로 나눈다 */
+  &.has-prev {
+    padding: 0.5rem 0;
+  }
+
+  &.has-prev + &.has-prev {
+    border-top: 1px solid var(--line);
   }
 
   .src-bar-track {
@@ -263,7 +418,15 @@
 
   .src-bar-fill {
     height: 100%;
-    transition: width 0.3s ease-out;
+    transition: width 0.3s ease-out, opacity 0.15s;
+  }
+
+  .src-bar-fill:hover {
+    opacity: 0.8;
+  }
+
+  .src-bar-prev-fill:hover {
+    opacity: 0.55;
   }
 
   .src-bar-val {
@@ -276,6 +439,8 @@
     font-variant-numeric: tabular-nums;
 
     .count {
+      min-width: 2.25rem;
+      text-align: right;
       color: var(--ink2);
       font-size: 0.75rem;
     }
@@ -285,6 +450,17 @@
       text-align: right;
       font-weight: 600;
       color: var(--ink);
+    }
+
+    .delta {
+      width: 3.75rem;
+      text-align: right;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--sub);
+
+      &.up { color: var(--up); }
+      &.down { color: var(--down); }
     }
   }
 }
@@ -378,8 +554,9 @@
 
 .cpa-badge {
   width: 5rem;
+  height: var(--badge-h);
   font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0 0.5rem;
   background: var(--accbg);
   color: var(--accink);
   font-weight: 600;

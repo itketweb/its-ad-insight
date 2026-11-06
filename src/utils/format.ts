@@ -314,6 +314,31 @@ export function sourceColorVar(source: string): string {
   return '--sub';
 }
 
+/**
+ * 유입 매체 뱃지·막대 색. 구글·네이버는 매체 그룹 색(--grp-*)을 따라 다른 화면(광고비 표 등)과 맞추고,
+ * 광고는 진하게·검색/블로그는 연하게 구분한다. 직접은 포인트(인디고), 그 밖은 중립 회색.
+ */
+export function sourceTone(source: string): { bg: string; ink: string; bar: string } {
+  const lighter = (ink: string) => `color-mix(in srgb, ${ink} 45%, var(--card))`;
+  const isAd = source.includes('광고') || source === 'Google' || source === 'Naver';
+  if (source.startsWith('구글') || source === 'Google') {
+    const ink = 'var(--grp-google-ink)';
+    return { bg: 'var(--grp-google-bg)', ink, bar: isAd ? ink : lighter(ink) };
+  }
+  if (source.startsWith('네이버') || source === 'Naver') {
+    const ink = 'var(--grp-naver-ink)';
+    return { bg: 'var(--grp-naver-bg)', ink, bar: isAd ? ink : lighter(ink) };
+  }
+  if (source === '직접') return { bg: 'var(--accbg)', ink: 'var(--accink)', bar: 'var(--acc)' };
+  if (source.startsWith('Meta')) {
+    return { bg: 'color-mix(in srgb, var(--c-m) 14%, var(--card))', ink: 'var(--c-m)', bar: 'var(--c-m)' };
+  }
+  if (source.startsWith('카카오')) {
+    return { bg: 'color-mix(in srgb, var(--c-ka) 16%, var(--card))', ink: 'var(--ink2)', bar: 'var(--c-ka)' };
+  }
+  return { bg: 'var(--bg)', ink: 'var(--sub)', bar: 'var(--line2)' };
+}
+
 export function buildSourceShareData(
   quotesRaw: QuoteRawRow[],
   yearPrefix: string,
@@ -356,6 +381,16 @@ export function buildSourceShareData(
     : [];
 
   return { bySource, topSourceKey, items };
+}
+
+/** 현재 기간 항목에 비교 기간의 점유율·건수를 붙인다. 현재 기간에 없는 매체는 목록에 올리지 않는다 */
+export function withSourceCompare(cur: SourceShareItem[], prev: SourceShareItem[]): SourceShareItem[] {
+  const prevOf = new Map(prev.map((p) => [p.k, p]));
+  return cur.map((s) => ({
+    ...s,
+    prevV: prevOf.get(s.k)?.v ?? 0,
+    prevCount: prevOf.get(s.k)?.count ?? 0,
+  }));
 }
 
 export function buildCategoryBarItems(

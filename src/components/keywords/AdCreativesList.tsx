@@ -484,6 +484,8 @@ export const AdCreativesList: React.FC<AdCreativesListProps> = ({
   useEffect(() => setVisible(PAGE), [groupsKey]);
   const shown = rows.slice(0, visible);
   const remain = rows.length - shown.length;
+  // 합계: 보이는 줄만이 아니라 모든 광고그룹의 소재 성과 (더보기로 보게 될 것까지 포함)
+  const totalStat = useMemo(() => sumStats(rows.map((r) => r.stat)), [rows]);
 
   return (
     <Card
@@ -537,6 +539,13 @@ export const AdCreativesList: React.FC<AdCreativesListProps> = ({
                 {shown.map((r) => (
                   <CreativeItem key={r.group.key} row={r} stats={stats} loading={loading} />
                 ))}
+                <tr className="grp cr-total">
+                  <td>
+                    합계<small className="grp-total-cnt">({fmt(rows.length)}개 광고그룹)</small>
+                  </td>
+                  <td />
+                  <MetricCells stat={totalStat} loading={loading} />
+                </tr>
               </tbody>
             </table>
           </div>

@@ -10,7 +10,7 @@ import {
   prevM,
   quoteSeriesColor,
   quoteChartCats,
-  quoteCountFor,
+  withSourceCompare,
   SERIES_DEFS,
   sumBy,
   THIS_M,
@@ -53,7 +53,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   allPeriod = false,
   yearTotal = false,
 }) => {
-  // 건수 통계는 다른 사이트·전화문의까지 더하고, CPA·카테고리별 소진은 data.quotes(아이티켓) 기준을 유지한다
+  // 견적은 건수·CPA 모두 아이티켓에 다른 사이트(zbyhp·cadkorea)·전화문의를 더한 값으로 센다 (2026-11-06 사용자 결정)
   const stats = useMemo(() => quoteStatsOf(data), [data.quotes, data.quotesRaw, data.quotesExtra]);
   const hasSpend = data.spend.length > 0;
   const hasQuotes = data.quotes.length > 0;
@@ -81,7 +81,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   }
 
   const allMonths = [
-    ...new Set([...data.spend.map((r) => r.month), ...data.quotes.map((r) => r.month)]),
+    ...new Set([...data.spend.map((r) => r.month), ...stats.quotes.map((r) => r.month)]),
   ]
     .filter(Boolean)
     .sort();
@@ -123,8 +123,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const curQuotesTot = totQuotes(stats.quotes, curM);
   const pvQuotesTot = totQuotes(stats.quotes, pv);
 
-  const curAdQuotes = totQuotes(data.quotes, curM);
-  const pvAdQuotes = totQuotes(data.quotes, pv);
+  const curAdQuotes = totQuotes(stats.quotes, curM);
+  const pvAdQuotes = totQuotes(stats.quotes, pv);
   const curCpa = curAdQuotes > 0 ? curSpendTot / curAdQuotes : 0;
   const pvCpa = pvAdQuotes > 0 ? pvSpendTot / pvAdQuotes : 0;
 
@@ -146,7 +146,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const allSpend = sumBy(data.spend, (r) => r.cost);
   const allQuotes = sumBy(stats.quotes, (r) => r.count);
   const cpaSpend = sumBy(data.spend.filter((r) => r.month >= starts.cpaFrom), (r) => r.cost);
-  const cpaQuotes = sumBy(data.quotes.filter((r) => r.month >= starts.cpaFrom), (r) => r.count);
+  const cpaQuotes = sumBy(stats.quotes.filter((r) => r.month >= starts.cpaFrom), (r) => r.count);
   const allCpa = cpaQuotes > 0 ? cpaSpend / cpaQuotes : 0;
 
   // 연도 합계: 1월~선택 연도 최신 달을 전년 같은 달들과 비교한다. CPA 는 전체 기간과 같은 기준으로 계산한다
@@ -155,14 +155,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const quotesIn = (list: string[]) => sumBy(stats.quotes.filter(inMonths(list)), (r) => r.count);
   const cpaIn = (list: string[]) => {
     const valid = list.filter((mo) => mo >= starts.cpaFrom);
-    const q = sumBy(data.quotes.filter(inMonths(valid)), (r) => r.count);
+    const q = sumBy(stats.quotes.filter(inMonths(valid)), (r) => r.count);
     return q > 0 ? sumBy(data.spend.filter(inMonths(valid)), (r) => r.cost) / q : 0;
   };
   const ytdQuotes = quotesIn(months);
   const ytdCpa = cpaIn(months);
   const ytdValidMonths = months.filter((mo) => mo >= starts.cpaFrom);
   const ytdCpaSpend = sumBy(data.spend.filter(inMonths(ytdValidMonths)), (r) => r.cost);
-  const ytdAdQuotes = sumBy(data.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count);
+  const ytdAdQuotes = sumBy(stats.quotes.filter(inMonths(ytdValidMonths)), (r) => r.count);
 
   // 사이트별 견적 건수 breakdown — quotesExtra(어드민)가 있을 때만 의미 있다
   const hasMultiSite = stats.quotesRaw.some((r) => r.site);
@@ -233,21 +233,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       ))}
     </>
   ) : null;
-  // quoteCountFor 는 한 달 치 기준이라, 전체 기간은 달별로 계산해 더한다 (월별 화면의 합과 맞도록)
-  const quoteMonths = allPeriod
-    ? [...new Set(data.quotes.map((r) => r.month))].filter((mo) => mo >= starts.cpaFrom)
-    : yearTotal
-      ? months
-      : [curM];
-  const monthlyQuoteInputs = quoteMonths.map((mo) => ({
-    rows: data.quotes.filter((r) => r.month === mo),
-    spend: catsMap(mo),
-  }));
   const fullList = buildCategoryBarItems(
     catSpendCur,
     allPeriod ? {} : yearTotal ? spendIn(lastYrMonths) : catsMap(pv),
-    (c) => sumBy(monthlyQuoteInputs, (m) => quoteCountFor(m.rows, c, m.spend)),
-    true,
+    () => 0,
+    false,
     Infinity
   );
 
@@ -260,7 +250,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const list = fullList.slice(0, visibleCount);
 
   // 유입 매체 비중
-  const { items: srcItems } = buildSourceShareData(stats.quotesRaw || [], allPeriod ? '' : yr, stats.quotes, allPeriod ? undefined : curM);
+  // 월별: 선택한 달 vs 전월 / 연간: 1~선택월 vs 전년 동기 / 전체 기간: 비교 없음
+  const srcRaw = stats.quotesRaw || [];
+  const srcCompareLabel = allPeriod ? undefined : yearTotal ? '전년 동기' : '전월';
+  const srcCur = allPeriod
+    ? buildSourceShareData(srcRaw, '', stats.quotes)
+    : yearTotal
+      ? buildSourceShareData(srcRaw, yr, stats.quotes, curM)
+      : buildSourceShareData(srcRaw, curM, stats.quotes, curM);
+  const srcPrev = allPeriod
+    ? undefined
+    : yearTotal
+      ? buildSourceShareData(srcRaw, String(+yr - 1), stats.quotes, ym(String(+yr - 1), mm))
+      : buildSourceShareData(srcRaw, pv, stats.quotes, pv);
+  const srcItems = srcPrev ? withSourceCompare(srcCur.items, srcPrev.items) : srcCur.items;
 
   return (
     <div className="view on" data-view="overview" data-title="종합 요약">
@@ -291,7 +294,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <KpiCard
               label={
                 <>
-                  견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small>
+                  견적당 광고비 (CPA)
                 </>
               }
               value={`${fmt(allCpa)}원`}
@@ -326,7 +329,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               detail={spendMediaDetail(data.spend.filter((r) => r.month >= ym(yr, 1) && r.month <= curM))}
             />
             <KpiCard
-              label={`${yearLabel} 접수 견적`}
+              label={`${yearLabel} 총 접수 견적`}
               value={`${fmt(ytdQuotes)}건`}
               cur={ytdQuotes}
               prev={quotesIn(lastYrMonths)}
@@ -336,7 +339,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <KpiCard
               label={
                 <>
-                  {yearLabel} 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small>
+                  {yearLabel} 견적당 광고비 (CPA)
                 </>
               }
               value={ytdCpa ? `${fmt(ytdCpa)}원` : '–'}
@@ -374,7 +377,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           detail={spendMediaDetail(atSpend(curM))}
         />
         <KpiCard
-          label={`${mLabel(curM)} 접수 견적`}
+          label={`${mLabel(curM)} 총 접수 견적`}
           value={`${fmt(curQuotesTot)}건`}
           cur={curQuotesTot}
           prev={pvQuotesTot}
@@ -384,7 +387,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         <KpiCard
           label={
             <>
-              {mLabel(curM)} 견적당 광고비 (CPA) <small className="muted">(아이티켓 기준)</small>
+              {mLabel(curM)} 견적당 광고비 (CPA)
             </>
           }
           value={curCpa > 0 ? `${fmt(curCpa)}원` : '–'}
@@ -428,20 +431,22 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       <div className="grid">
         <Card name="overview-cat" id="overview-cat">
           <h3 id="ttOverviewCat">
-            카테고리별 소진 ({allPeriod ? '전체 기간' : yearTotal ? `${yearLabel} vs 전년 동기` : `${mLabel(curM)} vs ${mLabel(pv)}`}){hasQuotes ? ' · 견적 수' : ''}
+            카테고리별 소진 ({allPeriod ? '전체 기간' : yearTotal ? `${yearLabel} vs 전년 동기` : `${mLabel(curM)} vs ${mLabel(pv)}`})
           </h3>
           <CategoryBarChart
             id="chOverviewCat"
             list={list}
             hidePrev={allPeriod}
             curLabel={yearTotal ? yearLabel : undefined}
+            totalCur={sumBy(fullList, (c) => c.cur)}
+            totalPrev={sumBy(fullList, (c) => c.prev)}
             prevLabel={yearTotal ? '전년 동기' : undefined}
             emptyMessage="취합된 카테고리 데이터가 없습니다."
           />
           <div className="leg" id="lgOverviewCat">
             <span>
               <i className="cur" />
-              {allPeriod ? '전체 기간' : `${yearTotal ? yearLabel : '기준월'} (값 · 증감%)`}
+              {allPeriod ? '전체 기간' : `${yearTotal ? yearLabel : '기준월'} (굵은 막대)`}
             </span>
             {!allPeriod && (
               <span>
@@ -449,10 +454,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 {yearTotal ? '전년 동기' : '전월'}
               </span>
             )}
-            <span className="leg-note">
-              단위: 만원
-              {hasQuotes ? ` · 우측: 견적 건수(아이티켓${allPeriod ? `, ${dotYm(starts.cpaFrom)} 이후` : ''})` : ''}
-            </span>
+            <span className="leg-note">단위: 만원</span>
           </div>
           <ShowMoreButton
             total={fullList.length}
@@ -460,12 +462,30 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             onToggle={() => setVisibleCount((v) => (v >= fullList.length ? LIST_LIMIT : fullList.length))}
           />
         </Card>
-        <Card name="overview-src" id="overview-src" title="유입 매체 비중">
+        <Card
+          name="overview-src"
+          id="overview-src"
+          title={`유입 매체 비중${allPeriod ? '' : yearTotal ? ` (${yearLabel} vs 전년 동기)` : ` (${mLabel(curM)} vs ${mLabel(pv)})`}`}
+        >
           <SourceBarChart
             id="chOverviewSrc"
             items={srcItems}
+            compareLabel={srcCompareLabel ? (yearTotal ? '전년 동기' : mLabel(pv)) : undefined}
+            curLabel={allPeriod ? '전체 기간' : yearTotal ? yearLabel : mLabel(curM)}
             emptyMessage="취합된 유입 매체 데이터가 없습니다."
           />
+          {srcCompareLabel && (
+            <div className="leg src-bar-leg">
+              <span>
+                <i className="cur" />
+                {yearTotal ? yearLabel : mLabel(curM)} (굵은 막대)
+              </span>
+              <span>
+                <i className="prev" />
+                {yearTotal ? '전년 동기' : mLabel(pv)} (얇은 막대 · 점유율)
+              </span>
+            </div>
+          )}
         </Card>
       </div>
       <SecSrc sources={OVERVIEW_SOURCES} />

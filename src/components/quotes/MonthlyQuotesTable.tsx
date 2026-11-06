@@ -17,6 +17,7 @@ import { TableFootnote } from '../common/TableFootnote';
 import { TabButton } from '../common/TabButton';
 import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
 import { Card } from '../common/Card';
+import { Th } from '../common/Th';
 
 interface MonthlyQuotesTableProps {
   quotes: QuoteRow[];
@@ -365,13 +366,13 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
             </colgroup>
             <thead>
               <tr>
-                <th>{groupNoun}</th>
+                <Th>{groupNoun}</Th>
                 {allMonths.map((mo) => (
                   <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
                     {colLabel(mo)}
                   </th>
                 ))}
-                <th className="n">합계</th>
+                <Th className="n">합계</Th>
               </tr>
             </thead>
             <tbody>
@@ -467,13 +468,13 @@ export const MonthlyQuotesTable: React.FC<MonthlyQuotesTableProps> = ({
             </colgroup>
             <thead>
               <tr>
-                <th>매체</th>
+                <Th>매체</Th>
                 {allMonths.map((mo) => (
                   <th key={mo} className={`n${isFuture(mo) ? ' future' : ''}`}>
                     {colLabel(mo)}
                   </th>
                 ))}
-                <th className="n">합계</th>
+                <Th className="n">합계</Th>
               </tr>
             </thead>
             <tbody>

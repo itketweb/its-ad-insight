@@ -1,7 +1,6 @@
 import React from 'react';
 import type { CategoryBarItem } from '../../types/dashboard';
-import { fmt, measureSvgText, niceMax, rem } from '../../utils/format';
-import { useElementWidth } from '../../hooks/useElementWidth';
+import { fmt } from '../../utils/format';
 
 import { EmptyState } from '../common/EmptyState';
 
@@ -15,8 +14,16 @@ interface CategoryBarChartProps {
   prevLabel?: string;
   /** 기준 기간 이름 (기본 기준월) */
   curLabel?: string;
+  /** 전체 카테고리 소진 합계(만원). 주면 기준·비교 기간의 소진 비중(%)을 함께 보여 준다 */
+  totalCur?: number;
+  totalPrev?: number;
 }
 
+/**
+ * 카테고리별 소진: 유입 매체 비중(SourceBarChart)과 같은 행 구조.
+ * 열 머리글 + 굵은 막대(기준 기간) · 얇은 막대(비교 기간) + 오른쪽 값 열(소진 · 증감 · 견적).
+ * 막대·행 모양은 .src-bar-* 스타일을 공유한다.
+ */
 export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   id,
   list,
@@ -24,122 +31,83 @@ export const CategoryBarChart: React.FC<CategoryBarChartProps> = ({
   hidePrev = false,
   prevLabel = '전월',
   curLabel = '기준월',
+  totalCur,
+  totalPrev,
 }) => {
-  const { ref: boxRef, width: W } = useElementWidth([list.length]);
-
   if (!list.length) {
     return (
-      <div className="ch" id={id} ref={boxRef}>
+      <div className="ch" id={id}>
         <EmptyState message={emptyMessage} />
       </div>
     );
   }
 
-  const r = rem();
   const hasQ = list.some((c) => c.q != null);
-  const rowH = 3.75 * r;
-  const barH1 = 1.0 * r;
-  const barH2 = 0.5 * r;
-  const barGap = 0.25 * r;
-  const barsH = barH1 + barGap + barH2;
-  const activeBarsH = hidePrev ? barH1 : barsH;
-  const barsOff = (rowH - activeBarsH) / 2;
-  const maxLabelW = Math.max(...list.map((c) => measureSvgText(c.k, r)));
-  const L = maxLabelW + r;
-  const R = hasQ ? 4.5 * r : 0;
-  const H = list.length * rowH;
-  const max = niceMax(Math.max(...list.map((c) => Math.max(c.cur, c.prev))));
-  const pw = Math.max(10, W - L - R);
+  // 가장 긴 막대(기준·비교 통틀어)를 기준으로 비례시킨다. 비교 막대 옆에 값 글자가 붙으므로 78%까지만 쓴다
+  const max = Math.max(1, ...list.map((c) => Math.max(c.cur, hidePrev ? 0 : c.prev)));
+  const full = hidePrev ? 100 : 78;
+  const hasShare = (totalCur ?? 0) > 0;
+  const shareOf = (v: number, total?: number) => (total && total > 0 ? Math.round((v / total) * 1000) / 10 : null);
+  const fmtPct = (v: number | null) => (v == null ? '' : Number.isInteger(v) ? `${v}%` : `${v.toFixed(1)}%`);
+  const wOf = (v: number) => (v > 0 ? Math.max(1.5, (v / max) * full) : 0);
 
   return (
-    <div className="ch" id={id} ref={boxRef}>
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} overflow="visible" role="img">
-        {[0.25, 0.5, 0.75, 1].map((p) => {
-          const gx = L + pw * p;
-          return <line key={p} x1={gx} y1={0} x2={gx} y2={H} stroke="var(--line)" strokeWidth={1} />;
-        })}
-        {list.map((c, i) => {
-          const y = i * rowH;
-          const d = c.prev ? Math.round(((c.cur - c.prev) / c.prev) * 1000) / 10 : null;
-          const w1 = (pw * c.cur) / max;
-          const w2 = (pw * c.prev) / max;
-          const y1 = y + barsOff;
-          const y2 = y1 + barH1 + barGap;
-          return (
-            <React.Fragment key={c.k}>
-              {i > 0 && <line x1={L} y1={y} x2={W} y2={y} stroke="var(--line)" strokeWidth={1} />}
-              <text
-                x={L - 0.5 * r}
-                y={y + rowH / 2 + 0.3 * r}
-                textAnchor="end"
-                style={{ fill: 'var(--ink2)', fontWeight: 500, fontSize: '0.875rem' }}
-              >
-                <title>{c.k}</title>
-                {c.k}
-              </text>
-              <rect
-                className="hit"
-                x={L}
-                y={y1}
-                width={Math.max(0, w1)}
-                height={barH1}
-                fill="var(--bar)"
-                data-tip={`${c.k} · ${hidePrev ? '전체 기간' : curLabel}|${fmt(c.cur)}만원`}
-              />
-              <text
-                x={L + w1 + 0.4 * r}
-                y={y1 + barH1 * 0.76}
-                style={{ fontSize: '0.75rem', fill: 'var(--ink)', fontWeight: 600 }}
-              >
-                {fmt(c.cur)}만
-                {d != null && (
-                  <tspan
-                    style={{
-                      fill: `var(${d >= 0 ? '--up' : '--down'})`,
-                      fontSize: '0.625rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {' '}
-                    {d >= 0 ? '▲' : '▼'}
-                    {Math.abs(d)}%
-                  </tspan>
-                )}
-              </text>
+    <div id={id} className="src-bars-wrap cat-bars cmp">
+      <div className="src-bar-row src-bar-head" aria-hidden="true">
+        <span className="src-bar-rank">#</span>
+        <span className="cat-name">카테고리</span>
+        <div className="src-bar-bars">소진액</div>
+        <div className="src-bar-val">
+          <span className="amt">소진</span>
+          {hasShare && <span className="pct">비중</span>}
+          {!hidePrev && <span className="delta">증감</span>}
+          {hasQ && <span className="qn">견적</span>}
+        </div>
+      </div>
+      {list.map((c, idx) => {
+        const curShare = hasShare ? shareOf(c.cur, totalCur) : null;
+        const prevShare = hasShare && !hidePrev ? shareOf(c.prev, totalPrev) : null;
+        const d = c.prev ? Math.round(((c.cur - c.prev) / c.prev) * 1000) / 10 : null;
+        return (
+          <div key={c.k} className="src-bar-row has-prev">
+            <span className="src-bar-rank">{idx + 1}</span>
+            <span className="cat-name" title={c.k}>
+              {c.k}
+            </span>
+            <div className="src-bar-bars">
+              <div className="src-bar-track">
+                <div
+                  className="src-bar-fill"
+                  style={{ width: `${wOf(c.cur)}%`, background: 'var(--bar)' }}
+                  data-tip={`${c.k} · ${hidePrev ? '전체 기간' : curLabel}|${fmt(c.cur)}만원${curShare != null ? ` (${fmtPct(curShare)})` : ''}`}
+                />
+              </div>
               {!hidePrev && (
-                <>
-                  <rect
-                    className="hit"
-                    x={L}
-                    y={y2}
-                    width={Math.max(0, w2)}
-                    height={barH2}
-                    fill="var(--bar2)"
-                    data-tip={`${c.k} · ${prevLabel}|${fmt(c.prev)}만원`}
+                <div className="src-bar-prev">
+                  <div
+                    className="src-bar-prev-fill"
+                    style={{ width: `${wOf(c.prev)}%`, background: 'var(--bar2)', opacity: 1 }}
+                    data-tip={`${c.k} · ${prevLabel}|${fmt(c.prev)}만원${prevShare != null ? ` (${fmtPct(prevShare)})` : ''}`}
                   />
-                  <text
-                    x={L + w2 + 0.4 * r}
-                    y={y2 + barH2 * 0.82}
-                    style={{ fontSize: '0.625rem', fill: 'var(--sub)' }}
-                  >
+                  <span className="src-bar-prev-val">
                     {fmt(c.prev)}만
-                  </text>
-                </>
+                  </span>
+                </div>
               )}
-              {hasQ && (
-                <text
-                  x={W}
-                  y={y + rowH / 2 + 0.3 * r}
-                  textAnchor="end"
-                  style={{ fontSize: '0.75rem', fill: 'var(--ink2)', fontWeight: 600 }}
-                >
-                  {c.q != null && c.q > 0 ? `${c.q}건` : '–'}
-                </text>
+            </div>
+            <div className="src-bar-val">
+              <span className="amt">{fmt(c.cur)}만</span>
+              {hasShare && <span className="pct">{fmtPct(curShare)}</span>}
+              {!hidePrev && (
+                <span className={`delta${d == null || d === 0 ? '' : d > 0 ? ' up' : ' down'}`}>
+                  {d == null || d === 0 ? '–' : `${d > 0 ? '▲' : '▼'}${Math.abs(d)}%`}
+                </span>
               )}
-            </React.Fragment>
-          );
-        })}
-      </svg>
+              {hasQ && <span className="qn">{c.q != null && c.q > 0 ? `${c.q}건` : '–'}</span>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };

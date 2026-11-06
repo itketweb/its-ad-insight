@@ -31,6 +31,7 @@ import { LIST_LIMIT, ShowMoreButton } from '../components/common/MoreButton';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
 import { dotYm, inMonths, monthsUpTo, periodStartsOf, sameMonthsLastYear, yearRangeLabel } from '../utils/allPeriod';
+import { quoteStatsOf } from '../hooks/useDashboardData';
 
 interface CatEfficiencyViewProps {
   data: DashboardData;
@@ -67,7 +68,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
       <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
         <ViewHeader
           title="카테고리 효율 분석"
-          description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓 기준)"
+          description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓·zbyhp·cadkorea·전화문의 합산)"
           status={status}
         />
         <KpiSection id="kpiCatEff">
@@ -84,6 +85,8 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     );
   }
 
+  // 견적은 아이티켓에 다른 사이트(zbyhp·cadkorea)와 전화문의를 더한 값으로 센다 (2026-11-06 사용자 결정: 모든 견적 지표 합산)
+  const quoteRows = quoteStatsOf(data).quotes;
   const allMonths = [...new Set(data.spend.map((r) => r.month))].sort();
   const curM =
     (selectedMonth && allMonths.includes(selectedMonth) ? selectedMonth : undefined) ||
@@ -95,7 +98,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   // 기준 기간: 한 달, 연도 합계(1월~마지막 달), 또는 전체 기간. 비교 대상은 전월·전년 같은 달들이고 전체 기간은 없다
   // 이 화면은 광고비와 견적을 맞대는 지표가 중심이라, 전체 기간은 둘 다 있는 달부터만 합산한다
   const cpaFrom = periodStartsOf(data).cpaFrom;
-  const efficiencyMonths = [...new Set([...data.spend, ...data.quotes].map((r) => r.month))]
+  const efficiencyMonths = [...new Set([...data.spend, ...quoteRows].map((r) => r.month))]
     .filter((mo) => mo && mo >= cpaFrom)
     .sort();
   const curMonths = allPeriod ? efficiencyMonths : yearTotal ? monthsUpTo(curM) : [curM];
@@ -112,7 +115,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
 
   // quoteCountFor 는 한 달 치 기준이라, 여러 달은 달별로 계산해 더한다 (월별 화면의 합과 맞도록)
   const monthlyInputs = curMonths.map((mo) => ({
-    rows: data.quotes.filter((r) => r.month === mo),
+    rows: quoteRows.filter((r) => r.month === mo),
     spend: allPeriod || yearTotal ? catSum(categoryMap, data.spend.filter((r) => r.month === mo), (r) => r.cost) : catSpendCur,
   }));
   const qOf = (c: string) => sumBy(monthlyInputs, (m) => quoteCountFor(m.rows, c, m.spend));
@@ -189,7 +192,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
   // KPI 비교 기준: 월 선택은 전월, 연도 전체는 전년 동기. 전체 기간은 비교하지 않는다
   const cmpLabel = allPeriod ? undefined : yearTotal ? '전년 동기' : '전월';
   const prevInputs = prevMonths.map((mo) => ({
-    rows: data.quotes.filter((r) => r.month === mo),
+    rows: quoteRows.filter((r) => r.month === mo),
     spend: catSum(categoryMap, data.spend.filter((r) => r.month === mo), (r) => r.cost),
   }));
   const qPrevOf = (c: string) => sumBy(prevInputs, (m) => quoteCountFor(m.rows, c, m.spend));
@@ -225,7 +228,7 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
     <div className="view on" data-view="cat-efficiency" data-title="카테고리 효율">
       <ViewHeader
         title="카테고리 효율 분석"
-        description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓 기준)"
+        description="카테고리별 광고비 소진 대비 견적 획득 성과 및 획득단가(CPA) 비교 (견적은 아이티켓·zbyhp·cadkorea·전화문의 합산)"
         status={status}
       />
 
@@ -299,6 +302,8 @@ export const CatEfficiencyView: React.FC<CatEfficiencyViewProps> = ({
             list={list}
             hidePrev={allPeriod}
             curLabel={yearTotal ? periodLabel : undefined}
+            totalCur={sumBy(fullList, (c) => c.cur)}
+            totalPrev={sumBy(fullList, (c) => c.prev)}
             prevLabel={yearTotal ? prevLabel : undefined}
           />
           <div className="leg">

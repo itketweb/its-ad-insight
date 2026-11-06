@@ -5,6 +5,8 @@ import { TableFootnote } from '../common/TableFootnote';
 import { LIST_LIMIT, ShowMoreButton } from '../common/MoreButton';
 import { ChevronRight } from 'lucide-react';
 import { Card } from '../common/Card';
+import { useSort } from '../../hooks/useSort';
+import { SortableTh } from '../common/SortableTh';
 
 interface KeywordCategoryTableProps {
   /** 기준 기간 표시 (예: 10월, 2026년 1~11월) */
@@ -16,6 +18,8 @@ interface KeywordCategoryTableProps {
   media: 'all' | 'Google' | 'Naver';
   type: 'SA' | 'DA';
 }
+
+type SortKey = 'name' | 'cost' | 'clk' | 'conv' | 'cpa';
 
 function cpa(cost: number, conv: number) {
   return conv ? `${fmt(cost / conv)}원` : '–';
@@ -32,6 +36,7 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
 }) => {
   const [openParents, setOpenParents] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
+  const { sortKey, sortOrder, toggleSort } = useSort<SortKey>('cost');
 
   // 1차 카테고리별로 그룹화
   const { topKeys, childrenOf } = useMemo(() => {
@@ -73,6 +78,29 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
   const parentClk  = (p: string) => sumBy(childrenOf[p]?.length ? childrenOf[p] : [p], (k) => clkByCat[k]  || 0);
   const parentConv = (p: string) => sumBy(childrenOf[p]?.length ? childrenOf[p] : [p], (k) => convByCat[k]  || 0);
 
+  // 정렬: 1차 행은 1차 합계로, 펼친 2차 행은 같은 기준으로 그 안에서 정렬한다. 전환당 비용은 전환이 없으면 맨 뒤로
+  const metric = (cost: number, clk: number, conv: number): number =>
+    sortKey === 'cost' ? cost : sortKey === 'clk' ? clk : sortKey === 'conv' ? conv : conv ? cost / conv : Infinity;
+  const byKey = (nameA: string, a: number, nameB: string, b: number) => {
+    if (sortKey === 'name') return sortOrder === 'desc' ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
+    if (a === b) return 0;
+    if (a === Infinity) return 1;
+    if (b === Infinity) return -1;
+    return sortOrder === 'desc' ? b - a : a - b;
+  };
+  const sortedTopKeys = [...topKeys].sort((a, b) =>
+    byKey(a, metric(parentCost(a), parentClk(a), parentConv(a)), b, metric(parentCost(b), parentClk(b), parentConv(b)))
+  );
+  const sortedChildren = (parent: string) =>
+    [...(childrenOf[parent] || [])].sort((a, b) =>
+      byKey(a, metric(costByCat[a] || 0, clkByCat[a] || 0, convByCat[a] || 0), b, metric(costByCat[b] || 0, clkByCat[b] || 0, convByCat[b] || 0))
+    );
+  const th = (label: string, key: SortKey, className?: string) => (
+    <SortableTh sortKey={key} activeKey={sortKey} order={sortOrder} onSort={toggleSort} className={className}>
+      {label}
+    </SortableTh>
+  );
+
   const totCost = sumBy(categoryKeys, (k) => costByCat[k] || 0);
   const totClk  = sumBy(categoryKeys, (k) => clkByCat[k]  || 0);
   const totConv = sumBy(categoryKeys, (k) => convByCat[k]  || 0);
@@ -96,16 +124,16 @@ export const KeywordCategoryTable: React.FC<KeywordCategoryTableProps> = ({
             <>
               <thead>
                 <tr>
-                  <th>카테고리</th>
-                  <th className="n">광고비</th>
-                  <th className="n">클릭</th>
-                  <th className="n">전환</th>
-                  <th className="n">전환당 비용</th>
+                  {th('카테고리', 'name')}
+                  {th('광고비', 'cost', 'n')}
+                  {th('클릭', 'clk', 'n')}
+                  {th('전환', 'conv', 'n')}
+                  {th('전환당 비용', 'cpa', 'n')}
                 </tr>
               </thead>
               <tbody>
-                {topKeys.slice(0, showAll ? undefined : LIST_LIMIT).map((parentKey) => {
-                  const children = childrenOf[parentKey] || [];
+                {sortedTopKeys.slice(0, showAll ? undefined : LIST_LIMIT).map((parentKey) => {
+                  const children = sortedChildren(parentKey);
                   const hasChildren = children.length > 0;
                   const isOpen = openParents.has(parentKey);
                   const cost = parentCost(parentKey);

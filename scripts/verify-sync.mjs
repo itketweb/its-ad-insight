@@ -236,12 +236,18 @@ async function main() {
   const mappedCurSpend = Math.round(Object.values(catSpendCur).reduce((a, v) => a + v, 0));
 
   const curQuotesRows = qMonthly.filter((r) => String(r.month || '').trim().slice(0, 7) === curM);
-  const rawCurQuotes = curQuotesRows.reduce((a, r) => a + (Number(r.count) || 0), 0);
   const catQuotesCur = {};
   curQuotesRows.forEach((r) => {
     const c = String(r.category || '').trim();
     catQuotesCur[c] = (catQuotesCur[c] || 0) + (Number(r.count) || 0);
   });
+  // 대시보드와 같이 다른 사이트(zbyhp·cadkorea)·전화문의 견적(quotes_stats_extra)을 더한다 (2026-11-06)
+  const curExtraRows = (live.quotes_stats_extra || []).filter((r) => String(r.date || '').trim().slice(0, 7) === curM);
+  curExtraRows.forEach((r) => {
+    const c = String(r.category || '').trim();
+    catQuotesCur[c] = (catQuotesCur[c] || 0) + 1;
+  });
+  const rawCurQuotes = curQuotesRows.reduce((a, r) => a + (Number(r.count) || 0), 0) + curExtraRows.length;
   const mappedCurQuotes = QUOTE_CATS.reduce((a, c) => a + (catQuotesCur[c] || 0), 0);
 
   for (const c of QUOTE_CATS) {

@@ -20,6 +20,7 @@ import { KeywordAccordionTable } from '../components/keywords/KeywordAccordionTa
 import { AdCreativesList } from '../components/keywords/AdCreativesList';
 import { TableFootnote } from '../components/common/TableFootnote';
 import { SortableTh } from '../components/common/SortableTh';
+import { Th } from '../components/common/Th';
 
 interface SearchViewProps {
   data: DashboardData;
@@ -258,14 +259,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
         />
         <KpiCard label="클릭" value={fmt(result.clk)} sub={`노출 ${fmt(result.imp)} · CTR ${ctr(result.clk, result.imp)} · 전환 ${fmt(result.conv)}`} />
         <KpiCard
-          label="접수 견적"
+          label="총 접수 견적"
           value={`${fmt(result.quotes.length)}건`}
           sub={`아이티켓 ${fmt(result.itketQuotes)}건${otherQuotes ? ` · 그 외 ${fmt(otherQuotes)}건` : ''}`}
         />
         <KpiCard
           label={
             <>
-              추정 CPA <small className="muted">(아이티켓 기준)</small>
+              추정 CPA
             </>
           }
           value={result.cpa ? `${fmt(result.cpa)}원` : '–'}
@@ -340,7 +341,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>키워드</th>
+                    <Th>키워드</Th>
                     {KEYWORD_COLS.map((c) => (
                       <SortableTh key={c.key} className="n" sortKey={c.key} activeKey={kKey} order={kOrd} onSort={kSort}>
                         {c.label}
@@ -418,11 +419,11 @@ export const SearchView: React.FC<SearchViewProps> = ({
                         <SortableTh sortKey="date" activeKey={qKey} order={qOrd} onSort={qSort}>
                           접수일
                         </SortableTh>
-                        <th>제목</th>
-                        <th>고객</th>
-                        <th>카테고리</th>
-                        <th>유입</th>
-                        <th>담당자</th>
+                        <Th>제목</Th>
+                        <Th>고객</Th>
+                        <Th>카테고리</Th>
+                        <Th>유입</Th>
+                        <Th>담당자</Th>
                       </tr>
                     </thead>
                     <tbody>
