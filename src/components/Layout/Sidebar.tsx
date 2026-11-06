@@ -25,7 +25,7 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
   },
   {
     id: 'ads',
-    label: '월별 광고비',
+    label: '매체 광고비',
     icon: (
       <DollarSign />
     ),

@@ -648,10 +648,6 @@ tr.kw-more-row td {
     width: 6.5rem;
   }
 
-  .col-cr-action {
-    width: 6.25rem;
-  }
-
   td {
     font-size: 0.875rem;
   }
@@ -688,6 +684,14 @@ tr.kw-more-row td {
   border-bottom: 0;
 }
 
+.cr-row.can-open {
+  cursor: pointer;
+
+  &:hover > td {
+    background: var(--cr-open-bg);
+  }
+}
+
 .cr-detail-row {
   &[hidden] {
     display: none;
@@ -697,10 +701,6 @@ tr.kw-more-row td {
     padding-top: 0;
     background: var(--cr-open-bg);
   }
-}
-
-.cr-action {
-  text-align: right;
 }
 
 // 이미지 수 (그룹 안 소재 이미지, 같은 이미지는 한 번) — 숫자 열과 같은 무게로 아이콘 + 숫자만
@@ -786,28 +786,6 @@ tr.kw-more-row td {
   // 설명 툴팁이 있는 이름표
   &[data-tip] {
     cursor: help;
-  }
-}
-
-// 상세 버튼: 행 바탕(펼치면 --accbg) 위에 얹히므로 배경 없이 글자색만 바꾼다
-.cr-toggle {
-  white-space: nowrap;
-  background: transparent;
-  color: var(--ink2);
-  transition: color 0.15s ease;
-
-  &:hover,
-  &[aria-expanded='true'] {
-    background: transparent;
-    color: var(--accink);
-  }
-
-  svg {
-    transition: transform 0.15s ease;
-  }
-
-  &[aria-expanded='true'] svg {
-    transform: rotate(180deg);
   }
 }
 
